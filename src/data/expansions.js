@@ -1,0 +1,25 @@
+export const DEFAULT_EXPANSIONS = [
+  // Owned by default
+  { name: 'Inns & Cathedrals',          owned: true  },
+  { name: 'Traders & Builders',          owned: true  },
+  { name: 'Abbey & Mayor',              owned: true  },
+  { name: 'The River',                  owned: true  },
+  { name: 'The Abbot',                  owned: true  },
+  // Not yet acquired
+  { name: 'The Princess & the Dragon',  owned: false },
+  { name: 'The Tower',                  owned: false },
+  { name: 'Count King & Robber',        owned: false },
+  { name: 'The Catapult',               owned: false },
+  { name: 'Bridges Castles & Bazaars',  owned: false },
+  { name: 'Hills & Sheep',              owned: false },
+  { name: 'Under the Big Top',          owned: false },
+  { name: 'Ghosts Castles & Cemeteries',owned: false },
+  { name: 'The River II',               owned: false },
+  { name: 'The Flying Machines',        owned: false },
+  { name: 'The Ferries',                owned: false },
+  { name: 'The Gold Mines',             owned: false },
+  { name: 'Mage & Witch',               owned: false },
+  { name: 'Robbers',                    owned: false },
+  { name: 'Crop Circles',               owned: false },
+  { name: 'The Festival',               owned: false },
+];
