@@ -25,10 +25,18 @@ export function getExpansions() {
       return DEFAULT_EXPANSIONS;
     }
     const parsed = JSON.parse(stored);
-    // Merge: preserve any new expansions added to the default list
-    const storedNames = new Set(parsed.map(e => e.name));
+    // Name migrations (old → new)
+    const RENAMES = {
+      'Count King & Robber':         'Count, King & Robber',
+      'Bridges Castles & Bazaars':   'Bridges, Castles & Bazaars',
+      'Ghosts Castles & Cemeteries': 'Ghosts, Castles & Cemeteries',
+    };
+    const migrated = parsed.map(e => RENAMES[e.name] ? { ...e, name: RENAMES[e.name] } : e);
+    // Backfill type from DEFAULT, add any new entries
+    const defaultByName = Object.fromEntries(DEFAULT_EXPANSIONS.map(e => [e.name, e]));
+    const storedNames = new Set(migrated.map(e => e.name));
     const merged = [
-      ...parsed,
+      ...migrated.map(e => ({ type: defaultByName[e.name]?.type ?? 'full', ...e })),
       ...DEFAULT_EXPANSIONS.filter(e => !storedNames.has(e.name)),
     ];
     return merged;

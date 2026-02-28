@@ -3,13 +3,15 @@ import GameLogForm  from './components/GameLogForm';
 import GameHistory  from './components/GameHistory';
 import Stats        from './components/Stats';
 import Collection   from './components/Collection';
+import Board        from './components/Board';
 import { useGameData } from './hooks/useGameData';
 
 const TABS = [
-  { id: 'log',        label: 'Log Game'   },
-  { id: 'history',    label: 'Chronicle'  },
-  { id: 'standings',  label: 'Standings'  },
-  { id: 'collection', label: 'Collection' },
+  { id: 'board',      label: 'Game Board'  },
+  { id: 'log',        label: 'Record Game' },
+  { id: 'history',    label: 'Logbook'     },
+  { id: 'standings',  label: 'Standings'   },
+  { id: 'collection', label: 'Collection'  },
 ];
 
 // SVG parchment noise overlay
@@ -43,7 +45,7 @@ function Toast({ message }) {
 }
 
 export default function App() {
-  const [tab,   setTab]   = useState('log');
+  const [tab,   setTab]   = useState('board');
   const [toast, setToast] = useState(null);
 
   const { games, expansions, addGame, deleteGame, toggleExpansion } = useGameData();
@@ -55,11 +57,11 @@ export default function App() {
 
   const handleAddGame = useCallback((data) => {
     addGame(data);
-    showToast('Game inscribed in the chronicle!');
+    showToast('Game recorded in the logbook.');
   }, [addGame, showToast]);
 
   const handleDelete = useCallback((id) => {
-    if (!window.confirm('Remove this game from the chronicle? This cannot be undone.')) return;
+    if (!window.confirm('Remove this game from the logbook? This cannot be undone.')) return;
     deleteGame(id);
     showToast('Game removed.');
   }, [deleteGame, showToast]);
@@ -78,8 +80,7 @@ export default function App() {
             <span style={{ color: 'var(--warm-gold)', fontSize: '1.1rem' }}>⚜</span>
             <div className="ornament-line" />
           </div>
-          <h1>Carcassonne Chronicle</h1>
-          <p className="subtitle">A record of conquests, territories &amp; glory</p>
+          <h1>Carcassonne</h1>
           <div className="header-ornament" style={{ marginTop: '0.45rem' }}>
             <div className="ornament-line" />
             <span style={{ color: 'var(--warm-gold)', fontSize: '0.75rem', letterSpacing: '0.3em' }}>
@@ -128,6 +129,9 @@ export default function App() {
               expansions={expansions}
               onToggle={toggleExpansion}
             />
+          )}
+          {tab === 'board' && (
+            <Board />
           )}
         </div>
       </div>

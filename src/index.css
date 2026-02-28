@@ -94,7 +94,7 @@ h3 { font-size: 1.15rem; font-weight: 600; }
 /* ── Header / Scroll Banner ── */
 .site-header {
   text-align: center;
-  padding: 2.8rem 1.5rem 2rem;
+  padding: 0.15rem 1.5rem 0.1rem;
   background: linear-gradient(180deg, rgba(201,163,74,0.14) 0%, transparent 100%);
   border-bottom: 3px double var(--warm-gold);
   position: relative;
@@ -136,7 +136,7 @@ h3 { font-size: 1.15rem; font-weight: 600; }
   align-items: center;
   justify-content: center;
   gap: 0.9rem;
-  margin: 0.55rem 0;
+  margin: 0.15rem 0;
 }
 
 .ornament-line {
@@ -310,7 +310,7 @@ h3 { font-size: 1.15rem; font-weight: 600; }
 }
 .form-input[type="number"] { -moz-appearance: textfield; }
 .form-input[type="number"]::-webkit-inner-spin-button,
-.form-input[type="number"]::-webkit-outer-spin-button { opacity: 1; }
+.form-input[type="number"]::-webkit-outer-spin-button { appearance: none; margin: 0; }
 
 /* ── VS Divider (form) ── */
 .log-form-grid {
@@ -398,6 +398,96 @@ h3 { font-size: 1.15rem; font-weight: 600; }
   overflow: hidden;
   transition: transform var(--transition-lift), box-shadow var(--transition-lift);
 }
+
+/* Board styles */
+.board-ui {
+  display: grid;
+  grid-template-columns: 220px 1fr 220px;
+  gap: 1.2rem;
+}
+
+.board-controls { }
+
+/* button group: row of 3 equal buttons, then input same total width */
+.board-btn-group { display: flex; flex-direction: column; gap: 0.35rem; }
+
+.board-btn-row { display: flex; gap: 0.35rem; }
+
+.board-btn-equal { flex: 1; text-align: center; }
+
+.board-score-input { width: 100%; min-width: 0; box-sizing: border-box; padding-top: 0.25rem; padding-bottom: 0.25rem; font-size: 0.9rem; }
+
+.board-canvas { padding: 0; align-self: start; }
+
+.board-image {
+  position: relative;
+  width: 100%;
+  overflow: visible;
+}
+
+.board-image-bg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.board-image .meeple {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  transition: left 380ms var(--transition-lift), top 380ms var(--transition-lift);
+  z-index: 30;
+}
+
+.board-image .meeple img { width: 48px; height: 48px; object-fit: contain; }
+
+.board-image .meeple-p1 img { width: clamp(36px, 6vw, 56px); }
+.board-image .meeple-p2 img { width: clamp(36px, 6vw, 56px); }
+
+
+
+.board-log {
+  padding: 1rem 1.2rem;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  height: 0;                    /* don't drive grid row height — board canvas defines it */
+  min-height: max(220px, 100%); /* floor on narrow screens; stretch to fill row on wide */
+}
+
+.board-log-entries {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;      /* allow flex child to shrink + scroll */
+}
+
+.board-log-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 0.05rem;
+  font-family: 'Crimson Text', serif;
+  font-size: 0.9rem;
+  font-style: italic;
+  border-bottom: 1px solid rgba(139,94,60,0.12);
+  padding-bottom: 0.3rem;
+}
+
+.board-log-entry:last-child { border-bottom: none; }
+
+.board-log-time {
+  font-size: 0.75rem;
+  opacity: 0.5;
+  white-space: nowrap;
+  font-style: normal;
+  flex-shrink: 0;
+}
+
+@media (max-width: 880px) {
+  .board-ui { grid-template-columns: 1fr; }
+  .board-image .meeple img { width: 44px; height: 44px; }
+}
 .player-card:hover {
   transform: translateY(-3px);
   box-shadow: var(--shadow-tile-hover);
@@ -456,11 +546,81 @@ h3 { font-size: 1.15rem; font-weight: 600; }
 .stat-label {
   color: var(--stone-gray);
   font-style: italic;
-  font-size: 1rem;
+  font-size: 1.05rem;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+/* Stat info tooltip */
+.stat-info-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.stat-info-icon {
+  font-size: 0.68rem;
+  font-family: sans-serif;
+  font-style: normal;
+  color: var(--stone-gray);
+  opacity: 0.55;
+  cursor: default;
+  line-height: 1;
+  user-select: none;
+}
+.stat-info-tooltip {
+  display: none;
+  position: absolute;
+  left: 1.2rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: var(--earth-brown);
+  color: var(--parchment);
+  font-family: 'Crimson Text', serif;
+  font-size: 0.78rem;
+  font-style: italic;
+  line-height: 1.4;
+  padding: 0.45rem 0.65rem;
+  border-radius: 4px;
+  white-space: normal;
+  width: 210px;
+  z-index: 20;
+  pointer-events: none;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+}
+.stat-info-wrap:hover .stat-info-tooltip {
+  display: block;
+}
+/* Stat value hover tooltip */
+.val-info-wrap {
+  position: relative;
+  display: inline-flex;
+  cursor: default;
+}
+.val-info-tooltip {
+  display: none;
+  position: absolute;
+  right: calc(100% + 8px);
+  top: 50%;
+  transform: translateY(-50%);
+  background: var(--earth-brown);
+  color: var(--parchment);
+  font-family: 'Crimson Text', serif;
+  font-size: 0.78rem;
+  font-style: italic;
+  padding: 0.3rem 0.55rem;
+  border-radius: 4px;
+  white-space: nowrap;
+  z-index: 20;
+  pointer-events: none;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+}
+.val-info-wrap:hover .val-info-tooltip {
+  display: block;
 }
 .stat-value {
   font-family: 'Cinzel', serif;
-  font-size: 0.88rem;
+  font-size: 0.95rem;
   font-weight: 600;
 }
 
@@ -760,6 +920,17 @@ h3 { font-size: 1.15rem; font-weight: 600; }
 .owned .status-dot  { background: var(--forest-green); }
 .unowned .status-dot { background: var(--stone-gray); border: 1px solid var(--stone-gray); }
 
+.expansion-icon {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  flex-shrink: 0;
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: auto;
+  transform: translateZ(0);
+  filter: contrast(1.05) brightness(1.02);
+}
+
 .unowned-tag {
   margin-left: auto;
   font-size: 0.72rem;
@@ -923,7 +1094,7 @@ input[type="file"] { display: none; }
 
   .app-wrapper { padding: 0 0.9rem; }
 
-  .site-header { padding: 2rem 1rem 1.5rem; }
+  .site-header { padding: 0.4rem 1rem 0.35rem; }
 }
 
 @media (max-width: 380px) {
