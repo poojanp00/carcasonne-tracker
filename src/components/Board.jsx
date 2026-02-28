@@ -2,22 +2,46 @@ import { useEffect, useRef, useState } from 'react';
 import BOARD_PATH from '../data/boardCoords';
 import { getBoard, saveBoard, resetBoard } from '../data/boardStorage';
 import boardImg from '../../images/score-board.jpg';
-import diyaImg from '../../images/meeples/diya.png';
-import poojanImg from '../../images/meeples/poojan.png';
 
-export default function Board() {
-  const [board, setBoard] = useState(() => getBoard());
-  const [input, setInput] = useState({ Poojan: 0, Diya: 0 });
+// Dynamically load all meeple PNGs
+const MEEPLE_MODULES = import.meta.glob('../../images/meeples/*.png', { eager: true, import: 'default' });
+const MEEPLE_IMGS = Object.fromEntries(
+  Object.entries(MEEPLE_MODULES).map(([path, img]) => [path.split('/').pop(), img])
+);
+// Fallback to first available meeple
+const FALLBACK_MEEPLE = Object.values(MEEPLE_IMGS)[0];
+
+const PLAYER_COLORS = [
+  'var(--deep-red)',
+  'var(--royal-blue)',
+  'var(--forest-green)',
+  'var(--mustard)',
+  '#7B2D8B',
+  '#1A8080',
+];
+
+// Offsets to spread stacked meeples apart
+const STACK_OFFSETS = [
+  { x: 0,  y:  0 },
+  { x: 3,  y: -3 },
+  { x: -3, y: -3 },
+  { x: 3,  y:  3 },
+  { x: -3, y:  3 },
+  { x: 0,  y: -5 },
+];
+
+export default function Board({ session, onFinish }) {
+  const players   = session?.players  || [];
+  const meepleMap = session?.meeples  || {};
+
+  const [board,   setBoard]   = useState(() => getBoard(players));
+  const [input,   setInput]   = useState(() => Object.fromEntries(players.map(p => [p, 0])));
   const [history, setHistory] = useState([]);
-  const [log, setLog] = useState([]);
+  const [log,     setLog]     = useState([]);
   const logEndRef = useRef(null);
 
   useEffect(() => { saveBoard(board); }, [board]);
-
-  // scroll log to bottom on new entry
-  useEffect(() => {
-    logEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [log]);
+  useEffect(() => { logEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [log]);
 
   const track = board.trackLength || 50;
 
@@ -33,19 +57,11 @@ export default function Board() {
   function undoLastMove() {
     if (history.length === 0) return;
     const last = history[history.length - 1];
-    // compute what's being undone for the log
-    for (const p of ['Poojan', 'Diya']) {
+    for (const p of players) {
       const cur  = (board.laps[p] || 0) * track + (board.positions[p] || 0);
       const prev = (last.laps[p]  || 0) * track + (last.positions[p]  || 0);
       const diff = cur - prev;
       if (diff !== 0) appendLog(`Undo: ${p} ${diff > 0 ? '-' : '+'}${Math.abs(diff)} pts → ${prev} pts`, p);
-    }
-    if (['Poojan', 'Diya'].every(p => {
-      const cur  = (board.laps[p] || 0) * track + (board.positions[p] || 0);
-      const prev = (last.laps[p]  || 0) * track + (last.positions[p]  || 0);
-      return cur === prev;
-    })) {
-      appendLog('Undo');
     }
     setBoard(last);
     setHistory(h => h.slice(0, -1));
@@ -55,39 +71,56 @@ export default function Board() {
     delta = Number(delta) || 0;
     if (delta === 0) return;
     pushHistory();
-    const cur = board.positions[player] || 0;
-    const sum = cur + delta;
-    const lapInc = Math.floor(sum / track);
-    const newPos = ((sum % track) + track) % track;
-    const newTotal = ((board.laps[player] || 0) + (lapInc > 0 ? lapInc : 0)) * track + newPos;
-    setBoard({
-      ...board,
-      positions: { ...board.positions, [player]: newPos },
-      laps: { ...board.laps, [player]: (board.laps[player] || 0) + (lapInc > 0 ? lapInc : 0) },
-    });
+    const curPos  = board.positions[player] || 0;
+    const curLaps = board.laps[player] || 0;
+    const sum     = curPos + delta;
+    const lapInc  = Math.floor(sum / track);
+    const newPos  = ((sum % track) + track) % track;
+    const newLaps = curLaps + (lapInc > 0 ? lapInc : 0);
+    const newTotal = newLaps * track + newPos;
+    setBoard(b => ({
+      ...b,
+      positions: { ...b.positions, [player]: newPos  },
+      laps:      { ...b.laps,      [player]: newLaps },
+    }));
     appendLog(`${player} +${delta} pts → ${newTotal} pts`, player);
   }
 
   function handleReset() {
-    if (!window.confirm('Reset the board? All scores and history will be cleared.')) return;
+    if (!window.confirm('Reset the board? All current scores will be cleared.')) return;
     setHistory([]);
     setLog([]);
-    setBoard(resetBoard());
+    setBoard(resetBoard(players));
     appendLog('Board reset');
   }
 
-  const p1Pos = board.positions.Poojan || 0;
-  const p2Pos = board.positions.Diya   || 0;
-  const p1Coord = BOARD_PATH[p1Pos] || { x: 0, y: 0 };
-  const p2Coord = BOARD_PATH[p2Pos] || { x: 0, y: 0 };
-  const collision = p1Pos === p2Pos;
-  const collisionOffset = collision ? { x: 3, y: -2 } : { x: 0, y: 0 };
+  function handleFinish() {
+    if (!window.confirm('Finish the game? This will take you to the record page.')) return;
+    const finalScores = Object.fromEntries(
+      players.map(p => [p, (board.laps[p] || 0) * track + (board.positions[p] || 0)])
+    );
+    onFinish(finalScores);
+  }
 
-  const p1Total = (board.laps.Poojan || 0) * track + p1Pos;
-  const p2Total = (board.laps.Diya   || 0) * track + p2Pos;
-  const gap = p1Total - p2Total;
-  const leadText  = gap === 0 ? 'Tied' : gap > 0 ? `Poojan leads by ${gap}` : `Diya leads by ${Math.abs(gap)}`;
-  const leadColor = gap === 0 ? 'var(--stone-gray)' : gap > 0 ? 'var(--deep-red)' : 'var(--royal-blue)';
+  // Lead text
+  const totals  = Object.fromEntries(players.map(p => [p, (board.laps[p] || 0) * track + (board.positions[p] || 0)]));
+  const maxTotal = Math.max(...Object.values(totals), 0);
+  const leaders  = maxTotal > 0 ? players.filter(p => totals[p] === maxTotal) : [];
+  const leadText  = leaders.length === 0
+    ? 'No scores yet'
+    : leaders.length === 1
+    ? `${leaders[0]} leads`
+    : `${leaders.join(' & ')} tied`;
+  const leadColorIdx = leaders.length === 1 ? players.indexOf(leaders[0]) : -1;
+  const leadColor    = leadColorIdx >= 0 ? PLAYER_COLORS[leadColorIdx] : 'var(--stone-gray)';
+
+  // Group players by position for collision offsets
+  const posGroups = {};
+  players.forEach(p => {
+    const pos = board.positions[p] || 0;
+    if (!posGroups[pos]) posGroups[pos] = [];
+    posGroups[pos].push(p);
+  });
 
   return (
     <div>
@@ -97,8 +130,8 @@ export default function Board() {
         <span className="game-count" style={{ color: leadColor }}>{leadText}</span>
       </div>
 
-      <div className="board-ui">
-        {/* Log stream — leftmost column */}
+      <div className={`board-ui ${players.length > 3 ? 'board-ui-many' : ''}`}>
+        {/* Score log */}
         <div className="tile-card board-log">
           <div className="tile-card-header" style={{ marginBottom: '0.6rem' }}>Score Log</div>
           {log.length === 0 ? (
@@ -108,11 +141,8 @@ export default function Board() {
           ) : (
             <div className="board-log-entries">
               {log.map((entry) => {
-                const color = entry.player === 'Poojan'
-                  ? 'var(--deep-red)'
-                  : entry.player === 'Diya'
-                  ? 'var(--royal-blue)'
-                  : 'var(--stone-gray)';
+                const idx   = players.indexOf(entry.player);
+                const color = idx >= 0 ? PLAYER_COLORS[idx] : 'var(--stone-gray)';
                 return (
                   <div key={entry.id} className="board-log-entry" style={{ color }}>
                     <span className="board-log-msg">{entry.msg}</span>
@@ -125,49 +155,62 @@ export default function Board() {
           )}
         </div>
 
-        {/* Board — centre column */}
+        {/* Board image */}
         <div className="board-canvas tile-card">
           <div className="board-image">
             <img src={boardImg} alt="Score board" className="board-image-bg" />
-            <div
-              className="meeple meeple-p1"
-              style={{ left: `${p1Coord.x}%`, top: `${p1Coord.y}%` }}
-              title={`Poojan: ${(board.laps.Poojan||0)*track + p1Pos} pts`}
-            >
-              <img src={poojanImg} alt="Poojan" />
-            </div>
-            <div
-              className="meeple meeple-p2"
-              style={{ left: `${p2Coord.x + collisionOffset.x}%`, top: `${p2Coord.y + collisionOffset.y}%` }}
-              title={`Diya: ${(board.laps.Diya||0)*track + p2Pos} pts`}
-            >
-              <img src={diyaImg} alt="Diya" />
-            </div>
+            {players.map((p, pi) => {
+              const pos    = board.positions[p] || 0;
+              const coord  = BOARD_PATH[pos] || { x: 0, y: 0 };
+              const group  = posGroups[pos] || [];
+              const stackI = group.indexOf(p);
+              const off    = STACK_OFFSETS[stackI] || { x: 0, y: 0 };
+              return (
+                <div
+                  key={p}
+                  className="meeple"
+                  style={{ left: `${coord.x + off.x}%`, top: `${coord.y + off.y}%`, zIndex: 30 + pi }}
+                  title={`${p}: ${totals[p]} pts`}
+                >
+                  <img
+                    src={MEEPLE_IMGS[meepleMap[p]] || FALLBACK_MEEPLE}
+                    alt={p}
+                    style={{ width: 'clamp(32px, 5vw, 48px)', height: 'auto' }}
+                  />
+                </div>
+              );
+            })}
           </div>
         </div>
 
-        {/* Controls — rightmost column */}
+        {/* Player controls */}
         <div className="board-controls">
-          {[['Poojan', poojanImg], ['Diya', diyaImg]].map(([name, img]) => {
-            const color = name === 'Poojan' ? 'var(--deep-red)' : 'var(--royal-blue)';
+          <div
+            className="board-player-grid"
+            style={players.length > 3 ? {
+              display: 'grid',
+              gridTemplateColumns: `repeat(${players.length}, 1fr)`,
+              gap: '0.5rem',
+              marginBottom: '0.7rem',
+            } : undefined}
+          >
+          {players.map((name, pi) => {
+            const color = PLAYER_COLORS[pi] || PLAYER_COLORS[0];
+            const many  = players.length > 3;
             return (
-              <div key={name} className="board-player-card tile-card" style={{ marginBottom: '1rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                  <img src={img} alt="meeple" style={{ height: 34, width: 'auto' }} />
-                  <div style={{ fontFamily: 'Cinzel, serif', fontSize: '1.1rem', fontWeight: 500, color, paddingLeft: '0.4rem' }}>{name}</div>
-                  <div style={{ marginLeft: 'auto', fontStyle: 'italic', color, fontSize: '1.1rem', fontWeight: 500 }}>
-                    {(board.laps[name] || 0) * track + (board.positions[name] || 0)}
-                  </div>
+              <div key={name} className={`board-player-card tile-card${many ? ' board-player-card-compact' : ''}`} style={{ marginBottom: many ? 0 : '0.7rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '0.4rem' }}>
+                  <img src={MEEPLE_IMGS[meepleMap[name]] || FALLBACK_MEEPLE} alt="meeple" style={{ height: 26, width: 'auto' }} />
+                  <div style={{ fontFamily: 'Cinzel, serif', fontSize: '0.95rem', fontWeight: 500, color, flex: 1 }}>{name}</div>
+                  <div style={{ fontStyle: 'italic', color, fontSize: '1rem', fontWeight: 600 }}>{totals[name]}</div>
                 </div>
-
                 <div className="board-btn-group">
-                  {/* Row 1: input spanning full width of the three buttons */}
                   <input
                     type="number"
                     className="form-input board-score-input"
-                    value={input[name]}
-                    onChange={(e) => setInput(v => ({ ...v, [name]: e.target.value }))}
-                    onKeyDown={(e) => {
+                    value={input[name] || 0}
+                    onChange={e => setInput(v => ({ ...v, [name]: e.target.value }))}
+                    onKeyDown={e => {
                       if (e.key === 'Enter') {
                         const val = Number(input[name] || 0);
                         if (!Number.isNaN(val) && val !== 0) {
@@ -177,13 +220,11 @@ export default function Board() {
                       }
                     }}
                   />
-                  {/* Row 2: quick-add buttons */}
                   <div className="board-btn-row">
                     <button type="button" className="btn btn-sm board-btn-equal" onClick={() => setInput(v => ({ ...v, [name]: String(Number(v[name] || 0) + 1) }))}>+1</button>
                     <button type="button" className="btn btn-sm board-btn-equal" onClick={() => setInput(v => ({ ...v, [name]: String(Number(v[name] || 0) + 2) }))}>+2</button>
                     <button type="button" className="btn btn-sm board-btn-equal" onClick={() => setInput(v => ({ ...v, [name]: String(Number(v[name] || 0) + 5) }))}>+5</button>
                   </div>
-                  {/* Row 3: Add button full width */}
                   <button
                     type="button"
                     className="btn btn-sm"
@@ -200,17 +241,35 @@ export default function Board() {
               </div>
             );
           })}
+          </div>
 
-          <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'stretch' }}>
-            <button type="button" className="btn btn-sm" style={{ flex: 1, justifyContent: 'center' }} onClick={handleReset}>Reset Board</button>
+          {/* Action buttons */}
+          <div style={{ display: 'flex', gap: '0.5rem', justifyContent: players.length > 3 ? 'flex-end' : 'stretch', flexDirection: players.length > 3 ? 'row' : 'column' }}>
+            <button
+              type="button"
+              className="btn"
+              style={{ flex: players.length > 3 ? '0 0 auto' : 1, justifyContent: 'center' }}
+              onClick={handleFinish}
+            >
+              Finish Game
+            </button>
             <button
               type="button"
               className="btn btn-ghost btn-sm"
-              style={{ flex: 1, justifyContent: 'center' }}
+              style={{ flex: players.length > 3 ? '0 0 auto' : 1, justifyContent: 'center' }}
               onClick={undoLastMove}
               disabled={history.length === 0}
-              title="Undo last move"
-            >Undo</button>
+            >
+              Undo
+            </button>
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              style={{ flex: players.length > 3 ? '0 0 auto' : 1, justifyContent: 'center' }}
+              onClick={handleReset}
+            >
+              Reset
+            </button>
           </div>
         </div>
       </div>

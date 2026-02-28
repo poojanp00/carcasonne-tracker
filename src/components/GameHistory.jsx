@@ -1,10 +1,6 @@
 import { useState } from 'react';
 import Lightbox from './Lightbox';
 
-function comboLabel(expansions) {
-  return expansions.length === 0 ? 'Base game' : [...expansions].sort().join(' + ');
-}
-
 function formatDate(dateStr) {
   return new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', {
     month: 'short', day: 'numeric', year: 'numeric',
@@ -13,16 +9,15 @@ function formatDate(dateStr) {
 
 export default function GameHistory({ games, onDelete }) {
   const [activeFilters, setActiveFilters] = useState(new Set());
-  const [baseFilter, setBaseFilter] = useState(false);
-  const [lightbox, setLightbox] = useState(null);
+  const [baseFilter,    setBaseFilter]    = useState(false);
+  const [lightbox,      setLightbox]      = useState(null);
 
-  // Individual expansions that appear in at least one game
-  const usedExpansions = [...new Set(games.flatMap((g) => g.expansions))].sort();
-  const hasBaseGames   = games.some((g) => g.expansions.length === 0);
+  const usedExpansions = [...new Set(games.flatMap(g => g.expansions))].sort();
+  const hasBaseGames   = games.some(g => g.expansions.length === 0);
 
   const toggleFilter = (exp) => {
-    setBaseFilter(false); // expansion filter clears base filter
-    setActiveFilters((prev) => {
+    setBaseFilter(false);
+    setActiveFilters(prev => {
       const next = new Set(prev);
       next.has(exp) ? next.delete(exp) : next.add(exp);
       return next;
@@ -30,19 +25,17 @@ export default function GameHistory({ games, onDelete }) {
   };
 
   const toggleBaseFilter = () => {
-    setActiveFilters(new Set()); // base filter clears expansion filters
-    setBaseFilter((v) => !v);
+    setActiveFilters(new Set());
+    setBaseFilter(v => !v);
   };
 
   const clearAll = () => { setActiveFilters(new Set()); setBaseFilter(false); };
 
-  // Filter logic: base-only OR must include ALL selected expansions
   const filtered = baseFilter
-    ? games.filter((g) => g.expansions.length === 0)
+    ? games.filter(g => g.expansions.length === 0)
     : activeFilters.size === 0
       ? games
-      : games.filter((g) => [...activeFilters].every((exp) => g.expansions.includes(exp)));
-
+      : games.filter(g => [...activeFilters].every(exp => g.expansions.includes(exp)));
 
   return (
     <div>
@@ -71,7 +64,7 @@ export default function GameHistory({ games, onDelete }) {
                 Base game
               </button>
             )}
-            {usedExpansions.map((exp) => (
+            {usedExpansions.map(exp => (
               <button
                 key={exp}
                 type="button"
@@ -98,9 +91,7 @@ export default function GameHistory({ games, onDelete }) {
       {filtered.length === 0 ? (
         <div className="empty-state">
           <span className="empty-state-icon">📜</span>
-          {games.length === 0
-            ? 'No battles have been recorded yet.'
-            : 'No games match this filter.'}
+          {games.length === 0 ? 'No battles have been recorded yet.' : 'No games match this filter.'}
         </div>
       ) : (
         <div className="history-table-wrap">
@@ -109,9 +100,7 @@ export default function GameHistory({ games, onDelete }) {
               <tr>
                 <th>Photo</th>
                 <th>Date</th>
-                <th className="cell-score" style={{ textAlign: 'center' }}>Poojan</th>
-                <th className="cell-vs" style={{ textAlign: 'center' }}>—</th>
-                <th className="cell-score" style={{ textAlign: 'center' }}>Diya</th>
+                <th>Results</th>
                 <th>Winner</th>
                 <th>Margin</th>
                 <th>Expansions</th>
@@ -119,11 +108,13 @@ export default function GameHistory({ games, onDelete }) {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((game) => {
-                const p1Wins = game.player1.score > game.player2.score;
-                const p2Wins = game.player2.score > game.player1.score;
-                const isTie  = !p1Wins && !p2Wins;
-                const margin = Math.abs(game.player1.score - game.player2.score);
+              {filtered.map(game => {
+                const scores     = game.players.map(p => p.score).sort((a, b) => b - a);
+                const maxScore   = scores[0] ?? 0;
+                const topPlayers = game.players.filter(p => p.score === maxScore);
+                const isTie      = topPlayers.length > 1;
+                const winner     = isTie ? null : topPlayers[0];
+                const margin     = isTie ? 0 : maxScore - (scores[1] ?? 0);
 
                 return (
                   <tr key={game.id}>
@@ -145,40 +136,47 @@ export default function GameHistory({ games, onDelete }) {
                     {/* Date */}
                     <td className="cell-date">{formatDate(game.date)}</td>
 
-                    {/* Score 1 */}
-                    <td className="cell-score">{game.player1.score}</td>
-
-                    {/* vs */}
-                    <td className="cell-vs">vs</td>
-
-                    {/* Score 2 */}
-                    <td className="cell-score">{game.player2.score}</td>
+                    {/* Results */}
+                    <td>
+                      <div className="history-results">
+                        {game.players.map(p => (
+                          <span
+                            key={p.name}
+                            className="history-result-entry"
+                            style={{
+                              color:      p.score === maxScore ? 'var(--forest-green)' : 'var(--stone-gray)',
+                              fontWeight: p.score === maxScore ? 700 : 400,
+                            }}
+                          >
+                            {p.name}&nbsp;<span style={{ fontFamily: 'Cinzel, serif', fontSize: '0.88rem' }}>{p.score}</span>
+                          </span>
+                        ))}
+                      </div>
+                    </td>
 
                     {/* Winner */}
                     <td style={{
                       fontWeight: 600,
-                      color: isTie ? 'var(--mustard)' : 'var(--forest-green)',
-                      fontStyle: isTie ? 'italic' : 'normal',
+                      color:      isTie ? 'var(--mustard)' : 'var(--forest-green)',
+                      fontStyle:  isTie ? 'italic' : 'normal',
                       whiteSpace: 'nowrap',
                     }}>
-                      {isTie ? 'Tie' : p1Wins ? game.player1.name : game.player2.name}
+                      {isTie ? 'Tie' : winner?.name}
                       {game.farmWin && !isTie && (
                         <span title="Won via farm" style={{ marginLeft: '0.35rem', fontSize: '0.75rem', opacity: 0.75 }}>🌾</span>
                       )}
                     </td>
 
                     {/* Margin */}
-                    <td className="cell-margin">+{margin}</td>
+                    <td className="cell-margin">{isTie ? '—' : `+${margin}`}</td>
 
                     {/* Expansions */}
                     <td>
                       {game.expansions.length === 0 ? (
-                        <span style={{ fontSize: '0.82rem', color: 'var(--stone-gray)', fontStyle: 'italic' }}>
-                          Base
-                        </span>
+                        <span style={{ fontSize: '0.82rem', color: 'var(--stone-gray)', fontStyle: 'italic' }}>Base</span>
                       ) : (
-                        <div className="expansion-chips" style={{ flexWrap: 'nowrap', gap: '0.25rem', minWidth: '120px' }}>
-                          {game.expansions.map((exp) => (
+                        <div className="expansion-chips" style={{ flexWrap: 'nowrap', gap: '0.25rem', minWidth: '100px' }}>
+                          {game.expansions.map(exp => (
                             <span key={exp} className="expansion-chip display-only">{exp}</span>
                           ))}
                         </div>
@@ -203,9 +201,7 @@ export default function GameHistory({ games, onDelete }) {
         </div>
       )}
 
-      {lightbox && (
-        <Lightbox game={lightbox} onClose={() => setLightbox(null)} />
-      )}
+      {lightbox && <Lightbox game={lightbox} onClose={() => setLightbox(null)} />}
     </div>
   );
 }
