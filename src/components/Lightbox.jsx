@@ -13,14 +13,14 @@ export default function Lightbox({ game, onClose }) {
     return () => document.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  const p1Wins = game.player1.score > game.player2.score;
-  const p2Wins = game.player2.score > game.player1.score;
-  const isTie  = !p1Wins && !p2Wins;
-  const winner = isTie ? 'Tied' : `${(p1Wins ? game.player1 : game.player2).name} victorious`;
+  const maxScore   = Math.max(...game.players.map(p => p.score));
+  const topPlayers = game.players.filter(p => p.score === maxScore);
+  const isTie      = topPlayers.length > 1;
+  const winnerText = isTie ? 'Tied' : `${topPlayers[0].name} victorious`;
 
   return (
     <div className="lightbox-overlay" onClick={onClose}>
-      <div className="lightbox-inner" onClick={(e) => e.stopPropagation()}>
+      <div className="lightbox-inner" onClick={e => e.stopPropagation()}>
         <button className="lightbox-close" onClick={onClose} aria-label="Close">✕</button>
 
         {game.photo && (
@@ -31,7 +31,7 @@ export default function Lightbox({ game, onClose }) {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap', marginBottom: '0.9rem' }}>
             <div>
               <h3 style={{ fontFamily: 'Cinzel, serif', color: 'var(--earth-brown)', marginBottom: '0.2rem' }}>
-                {game.player1.name} vs {game.player2.name}
+                {game.players.map(p => p.name).join(' vs ')}
               </h3>
               <p style={{ fontStyle: 'italic', color: 'var(--stone-gray)', fontSize: '0.92rem' }}>
                 {formatDate(game.date)}
@@ -39,21 +39,22 @@ export default function Lightbox({ game, onClose }) {
             </div>
             <div style={{ textAlign: 'right', flexShrink: 0 }}>
               <div className="lb-scores">
-                <span style={{ color: p1Wins ? 'var(--forest-green)' : p2Wins ? 'var(--deep-red)' : 'var(--charcoal)' }}>
-                  {game.player1.score}
-                </span>
-                <span style={{ color: 'var(--stone-gray)', fontSize: '1.3rem', margin: '0 0.25rem' }}>—</span>
-                <span style={{ color: p2Wins ? 'var(--forest-green)' : p1Wins ? 'var(--deep-red)' : 'var(--charcoal)' }}>
-                  {game.player2.score}
-                </span>
+                {game.players.map((p, i) => (
+                  <span key={p.name} style={{ display: 'inline-flex', alignItems: 'baseline', gap: '0.2rem' }}>
+                    {i > 0 && <span style={{ color: 'var(--stone-gray)', margin: '0 0.3rem', fontSize: '1.2rem' }}>—</span>}
+                    <span style={{ color: p.score === maxScore ? 'var(--forest-green)' : 'var(--deep-red)' }}>
+                      {p.score}
+                    </span>
+                  </span>
+                ))}
               </div>
-              <div className="lb-winner-tag">{winner}</div>
+              <div className="lb-winner-tag">{winnerText}</div>
             </div>
           </div>
 
           {game.expansions.length > 0 ? (
             <div className="expansion-chips">
-              {game.expansions.map((exp) => (
+              {game.expansions.map(exp => (
                 <span key={exp} className="expansion-chip display-only">{exp}</span>
               ))}
             </div>

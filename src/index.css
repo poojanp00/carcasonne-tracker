@@ -94,7 +94,7 @@ h3 { font-size: 1.15rem; font-weight: 600; }
 /* ── Header / Scroll Banner ── */
 .site-header {
   text-align: center;
-  padding: 2.8rem 1.5rem 2rem;
+  padding: 0.15rem 1.5rem 0.1rem;
   background: linear-gradient(180deg, rgba(201,163,74,0.14) 0%, transparent 100%);
   border-bottom: 3px double var(--warm-gold);
   position: relative;
@@ -136,7 +136,7 @@ h3 { font-size: 1.15rem; font-weight: 600; }
   align-items: center;
   justify-content: center;
   gap: 0.9rem;
-  margin: 0.55rem 0;
+  margin: 0.15rem 0;
 }
 
 .ornament-line {
@@ -310,7 +310,7 @@ h3 { font-size: 1.15rem; font-weight: 600; }
 }
 .form-input[type="number"] { -moz-appearance: textfield; }
 .form-input[type="number"]::-webkit-inner-spin-button,
-.form-input[type="number"]::-webkit-outer-spin-button { opacity: 1; }
+.form-input[type="number"]::-webkit-outer-spin-button { appearance: none; margin: 0; }
 
 /* ── VS Divider (form) ── */
 .log-form-grid {
@@ -398,6 +398,132 @@ h3 { font-size: 1.15rem; font-weight: 600; }
   overflow: hidden;
   transition: transform var(--transition-lift), box-shadow var(--transition-lift);
 }
+
+/* Board styles */
+.board-ui {
+  display: grid;
+  grid-template-columns: 220px 1fr 220px;
+  gap: 1.2rem;
+}
+
+/* 4-6 players: log + board on top, controls span full width below */
+.board-ui-many {
+  grid-template-columns: 200px 1fr;
+  grid-template-rows: auto auto;
+}
+.board-ui-many .board-log    { grid-column: 1; grid-row: 1; }
+.board-ui-many .board-canvas { grid-column: 2; grid-row: 1; }
+.board-ui-many .board-controls { grid-column: 1 / -1; grid-row: 2; }
+
+.board-controls { }
+
+/* Compact player card for 4-6 player layout */
+.board-player-card-compact {
+  padding: 0.45rem 0.5rem;
+}
+.board-player-card-compact .board-btn-group {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.25rem;
+  flex-wrap: nowrap;
+}
+.board-player-card-compact .board-score-input {
+  width: 2.8rem;
+  min-width: 0;
+  padding: 0.15rem 0.3rem;
+  font-size: 0.8rem;
+}
+.board-player-card-compact .board-btn-row {
+  display: contents; /* flatten into parent flex row */
+}
+.board-player-card-compact .board-btn-equal {
+  flex: 0 0 auto;
+  padding: 0.15rem 0.3rem;
+  font-size: 0.75rem;
+  min-width: 0;
+}
+
+/* button group: row of 3 equal buttons, then input same total width */
+.board-btn-group { display: flex; flex-direction: column; gap: 0.35rem; }
+
+.board-btn-row { display: flex; gap: 0.35rem; }
+
+.board-btn-equal { flex: 1; text-align: center; }
+
+.board-score-input { width: 100%; min-width: 0; box-sizing: border-box; padding-top: 0.25rem; padding-bottom: 0.25rem; font-size: 0.9rem; }
+
+.board-canvas { padding: 0; align-self: start; }
+
+.board-image {
+  position: relative;
+  width: 100%;
+  overflow: visible;
+}
+
+.board-image-bg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.board-image .meeple {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  transition: left 380ms var(--transition-lift), top 380ms var(--transition-lift);
+  z-index: 30;
+}
+
+.board-image .meeple img { width: 48px; height: 48px; object-fit: contain; }
+
+.board-image .meeple-p1 img { width: clamp(36px, 6vw, 56px); }
+.board-image .meeple-p2 img { width: clamp(36px, 6vw, 56px); }
+
+
+
+.board-log {
+  padding: 1rem 1.2rem;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  height: 0;                    /* don't drive grid row height — board canvas defines it */
+  min-height: max(220px, 100%); /* floor on narrow screens; stretch to fill row on wide */
+}
+
+.board-log-entries {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;      /* allow flex child to shrink + scroll */
+}
+
+.board-log-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 0.05rem;
+  font-family: 'Crimson Text', serif;
+  font-size: 0.9rem;
+  font-style: italic;
+  border-bottom: 1px solid rgba(139,94,60,0.12);
+  padding-bottom: 0.3rem;
+}
+
+.board-log-entry:last-child { border-bottom: none; }
+
+.board-log-time {
+  font-size: 0.75rem;
+  opacity: 0.5;
+  white-space: nowrap;
+  font-style: normal;
+  flex-shrink: 0;
+}
+
+@media (max-width: 880px) {
+  .board-ui { grid-template-columns: 1fr; }
+  .board-image .meeple img { width: 44px; height: 44px; }
+}
 .player-card:hover {
   transform: translateY(-3px);
   box-shadow: var(--shadow-tile-hover);
@@ -456,11 +582,81 @@ h3 { font-size: 1.15rem; font-weight: 600; }
 .stat-label {
   color: var(--stone-gray);
   font-style: italic;
-  font-size: 1rem;
+  font-size: 1.05rem;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+/* Stat info tooltip */
+.stat-info-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.stat-info-icon {
+  font-size: 0.68rem;
+  font-family: sans-serif;
+  font-style: normal;
+  color: var(--stone-gray);
+  opacity: 0.55;
+  cursor: default;
+  line-height: 1;
+  user-select: none;
+}
+.stat-info-tooltip {
+  display: none;
+  position: absolute;
+  left: 1.2rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: var(--earth-brown);
+  color: var(--parchment);
+  font-family: 'Crimson Text', serif;
+  font-size: 0.78rem;
+  font-style: italic;
+  line-height: 1.4;
+  padding: 0.45rem 0.65rem;
+  border-radius: 4px;
+  white-space: normal;
+  width: 210px;
+  z-index: 20;
+  pointer-events: none;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+}
+.stat-info-wrap:hover .stat-info-tooltip {
+  display: block;
+}
+/* Stat value hover tooltip */
+.val-info-wrap {
+  position: relative;
+  display: inline-flex;
+  cursor: default;
+}
+.val-info-tooltip {
+  display: none;
+  position: absolute;
+  right: calc(100% + 8px);
+  top: 50%;
+  transform: translateY(-50%);
+  background: var(--earth-brown);
+  color: var(--parchment);
+  font-family: 'Crimson Text', serif;
+  font-size: 0.78rem;
+  font-style: italic;
+  padding: 0.3rem 0.55rem;
+  border-radius: 4px;
+  white-space: nowrap;
+  z-index: 20;
+  pointer-events: none;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+}
+.val-info-wrap:hover .val-info-tooltip {
+  display: block;
 }
 .stat-value {
   font-family: 'Cinzel', serif;
-  font-size: 0.88rem;
+  font-size: 0.95rem;
   font-weight: 600;
 }
 
@@ -760,6 +956,17 @@ h3 { font-size: 1.15rem; font-weight: 600; }
 .owned .status-dot  { background: var(--forest-green); }
 .unowned .status-dot { background: var(--stone-gray); border: 1px solid var(--stone-gray); }
 
+.expansion-icon {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  flex-shrink: 0;
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: auto;
+  transform: translateZ(0);
+  filter: contrast(1.05) brightness(1.02);
+}
+
 .unowned-tag {
   margin-left: auto;
   font-size: 0.72rem;
@@ -887,6 +1094,251 @@ input[type="file"] { display: none; }
   opacity: 0.038;
 }
 
+/* ── Player color classes p3-p6 ── */
+.player-card.p3 { border-top: 4px solid var(--forest-green); }
+.player-card.p4 { border-top: 4px solid var(--mustard); }
+.player-card.p5 { border-top: 4px solid #7B2D8B; }
+.player-card.p6 { border-top: 4px solid #1A8080; }
+.p3 .player-card-name { color: var(--forest-green); }
+.p4 .player-card-name { color: var(--mustard); }
+.p5 .player-card-name { color: #7B2D8B; }
+.p6 .player-card-name { color: #1A8080; }
+
+/* ── Board controls overflow for 4+ players ── */
+
+/* ── Realm Picker ── */
+.realm-screen {
+  padding: 2.2rem 0 3rem;
+}
+
+.realm-landing {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(100vh - 110px);
+  padding: 2rem 0;
+}
+
+.realm-landing-inner {
+  text-align: center;
+  max-width: 440px;
+  width: 100%;
+}
+
+.realm-btn-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  align-items: center;
+}
+
+.realm-btn {
+  width: 100%;
+  max-width: 320px;
+  justify-content: center;
+  font-size: 0.88rem;
+  padding: 0.75rem 1.8rem;
+}
+
+.realm-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: 2px 3px 0 #5A3E08, inset 0 1px 0 rgba(255,255,255,0.28) !important;
+}
+
+.realm-header {
+  display: flex;
+  align-items: center;
+  gap: 1.1rem;
+  margin-bottom: 1.6rem;
+}
+
+.realm-header h2 {
+  color: var(--earth-brown);
+  margin: 0;
+}
+
+.realm-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.realm-card {
+  background: var(--aged-paper);
+  border: var(--border-tile);
+  border-radius: var(--radius-tile);
+  box-shadow: var(--shadow-tile);
+  padding: 1rem 1.3rem;
+  cursor: pointer;
+  transition: transform var(--transition-lift), box-shadow var(--transition-lift), background var(--transition-lift);
+}
+
+.realm-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-tile-hover);
+  background: rgba(201,163,74,0.12);
+}
+
+.realm-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.realm-card-name {
+  font-family: 'Cinzel', serif;
+  font-size: 1.1rem;
+  color: var(--earth-brown);
+  font-weight: 600;
+}
+
+.realm-card-id {
+  font-family: 'Cinzel', serif;
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  color: var(--stone-gray);
+  background: rgba(125,125,125,0.1);
+  border: 1px solid rgba(125,125,125,0.3);
+  border-radius: 3px;
+  padding: 0.1rem 0.45rem;
+}
+
+.realm-card-players {
+  margin-top: 0.45rem;
+  font-style: italic;
+  color: var(--stone-gray);
+  font-size: 0.92rem;
+  opacity: 0;
+  max-height: 0;
+  overflow: hidden;
+  transition: opacity 0.18s ease, max-height 0.18s ease;
+}
+
+.realm-card-players.visible {
+  opacity: 1;
+  max-height: 80px;
+}
+
+.realm-create-form {
+  max-width: 520px;
+}
+
+.realm-player-inputs {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+/* ── Pre-game ── */
+.pregame-screen {
+  /* uses section-panel padding from parent */
+}
+
+/* ── Meeple picker ── */
+.meeple-picker-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.meeple-picker-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.meeple-picker-name {
+  font-family: 'Cinzel', serif;
+  font-size: 0.95rem;
+  color: var(--earth-brown);
+  min-width: 90px;
+}
+
+.meeple-options {
+  display: flex;
+  gap: 0.6rem;
+}
+
+.meeple-option {
+  width: 62px;
+  height: 62px;
+  border-radius: var(--radius-sm);
+  border: 2px solid rgba(43,43,43,0.3);
+  background: var(--parchment);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform var(--transition-lift), box-shadow var(--transition-lift), border-color var(--transition-lift), background var(--transition-lift);
+  box-shadow: 1px 2px 4px rgba(0,0,0,0.14);
+  padding: 6px;
+}
+
+.meeple-option img { width: 100%; height: 100%; object-fit: contain; }
+
+.meeple-option:hover {
+  transform: translateY(-2px);
+  box-shadow: 2px 5px 10px rgba(0,0,0,0.22);
+}
+
+.meeple-option.selected {
+  border-color: var(--forest-green);
+  background: rgba(58,125,68,0.15);
+  box-shadow: 0 0 0 3px rgba(58,125,68,0.3), 2px 4px 8px rgba(0,0,0,0.2);
+  transform: translateY(-2px);
+}
+
+/* ── Post-game record form ── */
+.postgame-scores-grid {
+  display: grid;
+  /* columns overridden inline per player count */
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.8rem;
+  margin-bottom: 0.4rem;
+}
+
+.postgame-player-card {
+  background: var(--parchment);
+  border: 1.5px solid rgba(43,43,43,0.28);
+  border-radius: var(--radius-sm);
+  padding: 0.8rem;
+  box-shadow: 1px 2px 4px rgba(0,0,0,0.1);
+}
+
+.postgame-crown {
+  height: 52px;
+  width: auto;
+  filter: drop-shadow(0 2px 6px rgba(0,0,0,0.35));
+  animation: crownFloat 3s ease-in-out infinite;
+}
+
+.postgame-score-display {
+  font-family: 'Cinzel', serif;
+  font-size: 1.6rem;
+  font-weight: 700;
+  text-align: center;
+  color: var(--earth-brown);
+  padding: 0.3rem 0;
+  letter-spacing: 0.04em;
+}
+
+/* ── History results column ── */
+.history-results {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  font-size: 0.9rem;
+}
+
+.history-result-entry {
+  white-space: nowrap;
+  font-family: 'Crimson Text', serif;
+}
+
 /* ── Responsive ── */
 @media (max-width: 820px) {
   .stats-grid { grid-template-columns: 1fr; }
@@ -923,7 +1375,7 @@ input[type="file"] { display: none; }
 
   .app-wrapper { padding: 0 0.9rem; }
 
-  .site-header { padding: 2rem 1rem 1.5rem; }
+  .site-header { padding: 0.4rem 1rem 0.35rem; }
 }
 
 @media (max-width: 380px) {
