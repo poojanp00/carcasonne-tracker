@@ -12,6 +12,7 @@ export default function GameLogForm({ ownedExpansions, onSubmit }) {
   const [selected,  setSelected]  = useState([]);
   const [photo,     setPhoto]     = useState(null);
   const [photoPreview, setPhotoPreview] = useState(null);
+  const [farmWin,   setFarmWin]   = useState(false);
 
   const toggleExpansion = (name) =>
     setSelected((prev) =>
@@ -44,6 +45,7 @@ export default function GameLogForm({ ownedExpansions, onSubmit }) {
       player2: { name: player2, score: parseInt(score2, 10) },
       expansions: [...selected].sort(),
       photo: photo || baseImage,
+      farmWin,
     });
 
     setScore1('');
@@ -51,6 +53,7 @@ export default function GameLogForm({ ownedExpansions, onSubmit }) {
     setSelected([]);
     setPhoto(null);
     setPhotoPreview(null);
+    setFarmWin(false);
     setDate(today());
   };
 
@@ -114,16 +117,27 @@ export default function GameLogForm({ ownedExpansions, onSubmit }) {
           </div>
         </div>
 
-        {/* Date */}
-        <div className="form-group" style={{ marginTop: '0.6rem', maxWidth: '240px' }}>
-          <label className="form-label" htmlFor="game-date">Date</label>
-          <input
-            id="game-date"
-            className="form-input"
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-          />
+        {/* Farm Win + Date row */}
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: '2rem', marginTop: '0.6rem', flexWrap: 'wrap' }}>
+          <div className="form-group" style={{ maxWidth: '240px', margin: 0 }}>
+            <label className="form-label" htmlFor="game-date">Date</label>
+            <input
+              id="game-date"
+              className="form-input"
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+            />
+          </div>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer', paddingBottom: '0.45rem' }}>
+            <input
+              type="checkbox"
+              checked={farmWin}
+              onChange={(e) => setFarmWin(e.target.checked)}
+              style={{ width: '1.1rem', height: '1.1rem', accentColor: 'var(--gold-accent)', cursor: 'pointer' }}
+            />
+            <span style={{ fontFamily: 'Cinzel, serif', fontSize: '0.85rem', letterSpacing: '0.05em' }}>Won via Farm</span>
+          </label>
         </div>
       </div>
 
@@ -131,7 +145,7 @@ export default function GameLogForm({ ownedExpansions, onSubmit }) {
       {ownedExpansions.length > 0 && (
         <div className="tile-card" style={{ marginBottom: '1.4rem' }}>
           <div className="tile-card-header">Expansions in Play</div>
-          <p className="section-intro">Select all expansions used in this game. None selected = base game.</p>
+          <p className="section-intro">Select all expansions used in this game.</p>
           <div className="expansion-chips">
             {ownedExpansions.map((name) => (
               <button
@@ -166,7 +180,7 @@ export default function GameLogForm({ ownedExpansions, onSubmit }) {
           )}
           {!photoPreview && (
             <span style={{ fontStyle: 'italic', color: 'var(--stone-gray)', fontSize: '0.92rem' }}>
-              Optional — capture the board at game's end
+              Optional
             </span>
           )}
         </div>
@@ -175,7 +189,7 @@ export default function GameLogForm({ ownedExpansions, onSubmit }) {
       {/* Submit */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
         <button type="submit" className="btn">
-          Inscribe in Chronicle
+          Record in Logbook
         </button>
         <span style={{ fontStyle: 'italic', color: 'var(--stone-gray)', fontSize: '0.92rem' }}>
           {selected.length === 0
