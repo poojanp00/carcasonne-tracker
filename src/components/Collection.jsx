@@ -57,7 +57,7 @@ function ExpansionGroup({ label, expansions, onToggle, canEdit }) {
         style={{ borderBottom: open ? '1px solid var(--warm-gold)' : 'none', paddingBottom: open ? '0.5rem' : 0, cursor: 'pointer' }}
       >
         <span>{label} <span style={{ fontFamily: 'Crimson Text, serif', fontWeight: 400, fontSize: '0.85rem', opacity: 0.7 }}>({owned.length}/{expansions.length})</span></span>
-        <span className={`collapsible-arrow ${open ? 'open' : ''}`}>▶</span>
+        <span className={`collapsible-arrow ${open ? 'open' : ''}`} />
       </div>
 
       {open && (

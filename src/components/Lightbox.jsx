@@ -104,7 +104,7 @@ export default function Lightbox({ game, games = [], onNavigate, onClose }) {
           )}
 
           <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-            <button className="btn btn-ghost btn-sm" onClick={onClose}>Close</button>
+            <button className="btn btn-ghost btn-sm" onClick={onClose} style={{ color: 'var(--deep-red)', borderColor: 'var(--deep-red)' }}>Close</button>
           </div>
         </div>
       </div>

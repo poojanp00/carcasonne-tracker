@@ -119,6 +119,9 @@ export default function RealmPicker({ realms, currentRealm = null, onSelect, onC
               </div>
             ))}
           </div>
+          <div style={{ marginTop: '1rem' }}>
+            <button type="button" className="btn btn-ghost" onClick={() => setMode(null)}>← Back</button>
+          </div>
         </div>
       )}
 
@@ -184,7 +187,8 @@ export default function RealmPicker({ realms, currentRealm = null, onSelect, onC
                 {nameError}
               </p>
             )}
-            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <button type="button" className="btn btn-ghost" onClick={() => setMode(null)}>← Back</button>
               <button type="submit" className="btn">Create Realm</button>
             </div>
           </form>
