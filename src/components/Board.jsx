@@ -337,25 +337,19 @@ export default function Board({ session, onFinish, onReset }) {
 
         {/* Player controls */}
         <div className="board-controls">
-          <div
-            className="board-player-grid"
-            style={{
-              display: 'grid',
-              gridTemplateColumns: `repeat(${players.length}, auto)`,
-              justifyContent: 'end',
-              gap: '0.5rem',
-              marginBottom: '0.7rem',
-            }}
-          >
+          <div className="board-player-grid">
           {players.map((name, pi) => {
             const color = getMeepleColor(meepleMap[name]);
             return (
               <div key={name} className="board-player-card tile-card">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '0.4rem', overflow: 'visible' }}>
-                  <img src={MEEPLE_IMGS[meepleMap[name]] || FALLBACK_MEEPLE} alt="meeple" style={{ height: 48, width: 'auto' }} />
-                  <div style={{ fontFamily: 'Cinzel, serif', fontSize: '0.95rem', fontWeight: 700, color, flex: 1 }}>{name}</div>
-                </div>
-                <div className="board-btn-group">
+                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'stretch' }}>
+                  {/* Name top, meeple anchored to bottom */}
+                  <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+                    <span style={{ fontFamily: 'Cinzel, serif', fontSize: '0.82rem', fontWeight: 700, color, textAlign: 'center' }}>{name}</span>
+                    <img src={MEEPLE_IMGS[meepleMap[name]] || FALLBACK_MEEPLE} alt="meeple" style={{ height: 50, width: 'auto' }} />
+                  </div>
+                  {/* Controls on the right */}
+                <div className="board-btn-group" style={{ flex: 1, minWidth: 0 }}>
                   <input
                     type="number"
                     className="form-input board-score-input"
@@ -449,6 +443,7 @@ export default function Board({ session, onFinish, onReset }) {
                     )
                   )}
                 </div>
+                </div>{/* end meeple+controls row */}
               </div>
             );
           })}
