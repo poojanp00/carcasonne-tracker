@@ -6,6 +6,11 @@ export function generateRealmId() {
   return Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
 }
 
+export async function hashPassword(password) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(password));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
 export function generateId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
@@ -15,20 +20,31 @@ export function generateId() {
 export async function getRealms() {
   const { data } = await supabase.from('realms').select('*').order('created_at');
   return (data || []).map(r => ({
-    id:        r.id,
-    name:      r.name,
-    players:   r.players || [],
-    createdAt: r.created_at,
+    id:           r.id,
+    name:         r.name,
+    players:      r.players || [],
+    createdAt:    r.created_at,
+    passwordHash: r.password_hash || null,
   }));
 }
 
 export async function saveRealm(realm) {
   await supabase.from('realms').upsert({
-    id:         realm.id,
-    name:       realm.name,
-    players:    realm.players || [],
-    created_at: realm.createdAt,
+    id:            realm.id,
+    name:          realm.name,
+    players:       realm.players || [],
+    created_at:    realm.createdAt,
+    password_hash: realm.passwordHash || null,
   });
+}
+
+export async function deleteRealm(realmId) {
+  const { data: games } = await supabase.from('games').select('id').eq('realm_id', realmId);
+  if (games?.length) {
+    await supabase.storage.from('game-photos').remove(games.map(g => `${g.id}.jpg`));
+    await supabase.from('games').delete().eq('realm_id', realmId);
+  }
+  await supabase.from('realms').delete().eq('id', realmId);
 }
 
 // ── Games ─────────────────────────────────────────────────────────────────────

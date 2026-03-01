@@ -1075,6 +1075,43 @@ input[type="file"] { display: none; }
 
 /* ── Board controls overflow for 4+ players ── */
 
+/* ── Realm Password Modal ── */
+.realm-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+}
+
+.realm-modal {
+  max-width: 420px;
+  width: 100%;
+  animation: lbSlideUp 0.25s ease forwards;
+}
+
+.realm-trash-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--stone-gray);
+  padding: 0.25rem;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color var(--transition-lift), background var(--transition-lift);
+  flex-shrink: 0;
+}
+
+.realm-trash-btn:hover {
+  color: var(--deep-red);
+  background: rgba(158, 42, 43, 0.1);
+}
+
 /* ── Realm Picker ── */
 .realm-screen {
   padding: 2.2rem 0 3rem;
