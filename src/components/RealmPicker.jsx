@@ -1,11 +1,12 @@
 import { useState } from 'react';
 
-export default function RealmPicker({ realms, onSelect, onCreate }) {
-  const [mode,        setMode]        = useState(null); // null | 'join' | 'create'
+export default function RealmPicker({ realms, onSelect, onCreate, initialMode = null }) {
+  const [mode,        setMode]        = useState(initialMode); // null | 'join' | 'create'
   const [hoveredId,   setHoveredId]   = useState(null);
   const [realmName,   setRealmName]   = useState('');
   const [playerCount, setPlayerCount] = useState(2);
   const [playerNames, setPlayerNames] = useState(['', '']);
+  const [nameError,   setNameError]   = useState('');
 
   const syncCount = (n) => {
     const clamped = Math.max(2, Math.min(6, n));
@@ -21,6 +22,12 @@ export default function RealmPicker({ realms, onSelect, onCreate }) {
     e.preventDefault();
     const names = playerNames.map(n => n.trim()).filter(Boolean);
     if (!realmName.trim() || names.length === 0) return;
+    const lower = names.map(n => n.toLowerCase());
+    if (new Set(lower).size !== lower.length) {
+      setNameError('Player names must be unique.');
+      return;
+    }
+    setNameError('');
     onCreate({ name: realmName.trim(), players: names });
   };
 
@@ -106,12 +113,18 @@ export default function RealmPicker({ realms, onSelect, onCreate }) {
                     const u = [...playerNames];
                     u[i] = e.target.value;
                     setPlayerNames(u);
+                    setNameError('');
                   }}
                   placeholder={`Player ${i + 1}`}
                 />
               ))}
             </div>
           </div>
+          {nameError && (
+            <p style={{ fontSize: '0.88rem', color: 'var(--deep-red)', fontStyle: 'italic', marginBottom: '0.5rem' }}>
+              {nameError}
+            </p>
+          )}
           <button type="submit" className="btn">Create Realm</button>
         </form>
       </div>
@@ -129,7 +142,7 @@ export default function RealmPicker({ realms, onSelect, onCreate }) {
         </div>
         <h2 style={{ color: 'var(--earth-brown)', marginBottom: '0.5rem' }}>Enter the Realm</h2>
         <p className="section-intro" style={{ marginBottom: '2rem' }}>
-          Join an existing realm or found a new one.
+          Load an existing realm or create a new one.
         </p>
         <div className="realm-btn-group">
           <button

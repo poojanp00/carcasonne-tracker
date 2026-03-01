@@ -225,8 +225,8 @@ export default function Stats({ games }) {
   const names    = [...seenLower.values()];
   const allStats = names.map(name => ({ name, ...calcStats(games, name) }));
 
-  // Leader = most wins; tie-break on fewest losses
-  const sorted = [...allStats].sort((a, b) => b.wins - a.wins || a.losses - b.losses);
+  // Primary: win rate (highest first); tiebreaker: total wins
+  const sorted = [...allStats].sort((a, b) => b.winRate - a.winRate || b.wins - a.wins);
   const leader = sorted[0]?.name;
 
   return (
@@ -238,7 +238,7 @@ export default function Stats({ games }) {
       </div>
 
       <div className="stats-grid">
-        {allStats.map((ps, i) => (
+        {sorted.map((ps, i) => (
           <PlayerCard
             key={ps.name}
             name={ps.name}
