@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import pigImg from '../../images/icons/pig.png';
-import Lightbox from './Lightbox';
 
 function formatDate(dateStr) {
   return new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', {
@@ -11,7 +10,6 @@ function formatDate(dateStr) {
 export default function GameHistory({ games, onDelete }) {
   const [activeFilters, setActiveFilters] = useState(new Set());
   const [baseFilter,    setBaseFilter]    = useState(false);
-  const [lightbox,      setLightbox]      = useState(null);
 
   const usedExpansions = [...new Set(games.flatMap(g => g.expansions))].sort();
   const hasBaseGames   = games.some(g => g.expansions.length === 0);
@@ -99,7 +97,6 @@ export default function GameHistory({ games, onDelete }) {
           <table className="history-table">
             <thead>
               <tr>
-                <th>Photo</th>
                 <th>Date</th>
                 <th>Results</th>
                 <th>Winner</th>
@@ -119,21 +116,6 @@ export default function GameHistory({ games, onDelete }) {
 
                 return (
                   <tr key={game.id}>
-                    {/* Photo */}
-                    <td>
-                      {game.photo ? (
-                        <img
-                          src={game.photo}
-                          alt="Game"
-                          className="photo-thumb"
-                          onClick={() => setLightbox(game)}
-                          title="Click to enlarge"
-                        />
-                      ) : (
-                        <div className="no-photo" title="No photo">—</div>
-                      )}
-                    </td>
-
                     {/* Date */}
                     <td className="cell-date">{formatDate(game.date)}</td>
 
@@ -164,7 +146,7 @@ export default function GameHistory({ games, onDelete }) {
                     }}>
                       {isTie ? 'Tie' : winner?.name}
                       {game.farmWin && !isTie && (
-                        <img src={pigImg} alt="farm win" title="Won via farm" style={{ height: 16, width: 'auto', marginLeft: '0.35rem', verticalAlign: 'middle', opacity: 0.85 }} />
+                        <img src={pigImg} alt="farm win" title="Won via farm" style={{ height: 11, width: 'auto', marginLeft: '0.35rem', verticalAlign: 'middle', opacity: 0.85 }} />
                       )}
                     </td>
 
@@ -202,7 +184,6 @@ export default function GameHistory({ games, onDelete }) {
         </div>
       )}
 
-      {lightbox && <Lightbox game={lightbox} onClose={() => setLightbox(null)} />}
     </div>
   );
 }

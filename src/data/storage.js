@@ -39,11 +39,7 @@ export async function saveRealm(realm) {
 }
 
 export async function deleteRealm(realmId) {
-  const { data: games } = await supabase.from('games').select('id').eq('realm_id', realmId);
-  if (games?.length) {
-    await supabase.storage.from('game-photos').remove(games.map(g => `${g.id}.jpg`));
-    await supabase.from('games').delete().eq('realm_id', realmId);
-  }
+  await supabase.from('games').delete().eq('realm_id', realmId);
   await supabase.from('realms').delete().eq('id', realmId);
 }
 
@@ -60,46 +56,23 @@ export async function getGames() {
     date:       g.date,
     players:    g.players    || [],
     expansions: g.expansions || [],
-    photo:      g.photo      || null,
     farmWin:    g.farm_win   || false,
   }));
 }
 
 export async function insertGame(game) {
-  let photo = game.photo || null;
-  if (photo?.startsWith('data:')) {
-    photo = await uploadPhoto(game.id, photo);
-  }
   await supabase.from('games').insert({
     id:         game.id,
     realm_id:   game.realmId || null,
     date:       game.date,
     players:    game.players,
     expansions: game.expansions || [],
-    photo,
     farm_win:   game.farmWin || false,
   });
 }
 
 export async function removeGame(id) {
-  await supabase.storage.from('game-photos').remove([`${id}.jpg`]);
   await supabase.from('games').delete().eq('id', id);
-}
-
-async function uploadPhoto(gameId, base64) {
-  try {
-    const blob = await fetch(base64).then(r => r.blob());
-    const path = `${gameId}.jpg`;
-    await supabase.storage.from('game-photos').upload(path, blob, {
-      contentType: 'image/jpeg',
-      upsert: true,
-    });
-    const { data: { publicUrl } } = supabase.storage.from('game-photos').getPublicUrl(path);
-    return publicUrl;
-  } catch (err) {
-    console.warn('Photo upload failed, storing inline:', err);
-    return base64;
-  }
 }
 
 // ── Expansions ────────────────────────────────────────────────────────────────
@@ -154,15 +127,12 @@ export async function migrateFromLocalStorage() {
       const games = JSON.parse(rawGames);
       for (const g of games) {
         if (!Array.isArray(g.players)) continue;
-        let photo = g.photo || null;
-        if (photo?.startsWith('data:')) photo = await uploadPhoto(g.id, photo);
         await supabase.from('games').upsert({
           id:         g.id,
           realm_id:   g.realmId || null,
           date:       g.date,
           players:    g.players,
           expansions: g.expansions || [],
-          photo,
           farm_win:   g.farmWin || false,
         });
       }

@@ -99,13 +99,11 @@ export default function Board({ session, onFinish, onReset }) {
   }
 
   function handleReset() {
-    if (!window.confirm('Start a new game? You will return to meeple selection.')) return;
     resetBoard(players);
     onReset();
   }
 
   function handleFinish() {
-    if (!window.confirm('Finish the game? This will take you to the record page.')) return;
     const finalScores = Object.fromEntries(
       players.map(p => [p, (board.laps[p] || 0) * track + (board.positions[p] || 0)])
     );

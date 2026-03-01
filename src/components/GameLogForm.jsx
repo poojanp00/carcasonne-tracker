@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import baseImage from '../../images/baseimage.png';
 import crownImg from '../../images/icons/crown.png';
 import pigImg   from '../../images/icons/pig.png';
 
@@ -33,35 +32,13 @@ const today = () => new Date().toISOString().split('T')[0];
 export default function GameLogForm({ session, ownedExpansions, onSubmit, onCancel }) {
   const { players = [], meeples = {}, expansions: prefillExp = [], finalScores = {} } = session || {};
 
-  const [date,         setDate]         = useState(today);
-  const [photo,        setPhoto]        = useState(null);
-  const [photoPreview, setPhotoPreview] = useState(null);
-  const [farmWin,      setFarmWin]      = useState(false);
+  const [date,   setDate]   = useState(today);
+  const [farmWin, setFarmWin] = useState(false);
 
   const scoreNums    = players.map(p => Number(finalScores[p]) || 0);
   const maxScore     = scoreNums.length > 0 ? Math.max(...scoreNums) : 0;
   const winners      = maxScore > 0 ? players.filter(p => (Number(finalScores[p]) || 0) === maxScore) : [];
   const sortedPlayers = [...players].sort((a, b) => (Number(finalScores[b]) || 0) - (Number(finalScores[a]) || 0));
-
-  const handlePhoto = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const url = URL.createObjectURL(file);
-    const img = new Image();
-    img.onload = () => {
-      const MAX    = 800;
-      const scale  = Math.min(1, MAX / Math.max(img.width, img.height));
-      const canvas = document.createElement('canvas');
-      canvas.width  = Math.round(img.width  * scale);
-      canvas.height = Math.round(img.height * scale);
-      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-      const compressed = canvas.toDataURL('image/jpeg', 0.7);
-      URL.revokeObjectURL(url);
-      setPhoto(compressed);
-      setPhotoPreview(compressed);
-    };
-    img.src = url;
-  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -73,7 +50,6 @@ export default function GameLogForm({ session, ownedExpansions, onSubmit, onCanc
         meeple: meeples[name] || Object.keys(MEEPLE_IMGS)[0],
       })),
       expansions: [...prefillExp].sort(),
-      photo:      photo || baseImage,
       farmWin,
     });
   };
@@ -144,34 +120,12 @@ export default function GameLogForm({ session, ownedExpansions, onSubmit, onCanc
         </span>
       </div>
 
-      {/* Photo */}
-      <div className="tile-card" style={{ maxWidth: '360px', margin: '0 auto 1.6rem' }}>
-        <div className="tile-card-header">Momento</div>
-        <div className="photo-upload-area">
-          <label className="btn" htmlFor="photo-file" style={{ cursor: 'pointer' }}>
-            Attach Photo
-          </label>
-          <input id="photo-file" type="file" accept="image/*" onChange={handlePhoto} />
-          {photoPreview && (
-            <>
-              <img src={photoPreview} alt="Preview" className="photo-preview" />
-              <button type="button" className="btn btn-ghost btn-sm" onClick={() => { setPhoto(null); setPhotoPreview(null); }}>
-                Remove
-              </button>
-            </>
-          )}
-          {!photoPreview && (
-            <span style={{ fontStyle: 'italic', color: 'var(--stone-gray)', fontSize: '0.92rem' }}>Optional</span>
-          )}
-        </div>
-      </div>
-
       {/* Submit */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', justifyContent: 'center' }}>
-        <button type="submit" className="btn">Record in Logbook</button>
         {onCancel && (
-          <button type="button" className="btn btn-ghost" onClick={onCancel}>Cancel</button>
+          <button type="button" className="btn btn-ghost" onClick={onCancel}>← Back</button>
         )}
+        <button type="submit" className="btn">Record in Logbook</button>
       </div>
     </form>
   );

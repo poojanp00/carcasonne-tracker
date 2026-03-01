@@ -156,6 +156,7 @@ h3 { font-size: 1.15rem; font-weight: 600; }
   scrollbar-width: none;
 }
 .tab-nav::-webkit-scrollbar { display: none; }
+.tab-btn-right { margin-left: auto; }
 
 .tab-btn {
   font-family: 'Cinzel', serif;
@@ -915,6 +916,7 @@ h3 { font-size: 1.15rem; font-weight: 600; }
   border-color: var(--stone-gray);
 }
 .expansion-item.unowned:hover { opacity: 0.8; }
+.expansion-item.read-only { cursor: default; pointer-events: none; }
 
 .status-dot {
   width: 9px;

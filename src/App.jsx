@@ -12,9 +12,9 @@ import { useAuth }     from './hooks/useAuth';
 import { resetBoard }  from './data/boardStorage';
 
 const IN_GAME_TABS = [
-  { id: 'board',      label: 'Game Board' },
-  { id: 'history',    label: 'Logbook'    },
   { id: 'standings',  label: 'Standings'  },
+  { id: 'history',    label: 'Logbook'    },
+  { id: 'board',      label: 'Game Board' },
   { id: 'collection', label: 'Collection' },
 ];
 
@@ -54,6 +54,7 @@ export default function App() {
   const goHome = useCallback(() => {
     setSession(null);
     setPhase('realm');
+    setTab('board');
     setRealmInitialMode(null);
     setRealmPickerKey(k => k + 1);
   }, []);
@@ -66,7 +67,8 @@ export default function App() {
   const handleRealmSelect = useCallback((realm) => {
     if (!user) { setPhase('auth'); return; }
     setSession({ realm });
-    setPhase('pre-game');
+    setTab('standings');
+    setPhase('in-game');
   }, [user]);
 
   const handleRealmCreate = useCallback(async (data) => {
@@ -74,7 +76,8 @@ export default function App() {
     const realm = await addRealm(data);
     if (!data.passwordHash) showToast('No passcode set — this realm is open to anyone.');
     setSession({ realm });
-    setPhase('pre-game');
+    setTab('standings');
+    setPhase('in-game');
   }, [user, addRealm, showToast]);
 
   const handleGameStart = useCallback((setup) => {
@@ -82,27 +85,29 @@ export default function App() {
     resetBoard(setup.players);
     setSession(prev => ({ ...prev, ...setup, finalScores: null }));
     setGameKey(k => k + 1);
-    setPhase('in-game');
-    setTab('board');
   }, []);
 
   const handleBoardReset = useCallback(() => {
-    setSession(prev => ({ realm: prev.realm }));
-    setPhase('pre-game');
+    setSession(prev => ({
+      realm: prev.realm,
+      lastMeeples:    prev.meeples,
+      lastExpansions: prev.expansions,
+    }));
   }, []);
 
   const handleFinishGame = useCallback((finalScores) => {
-    setSession(prev => {
-      resetBoard(prev.players || []);
-      return { ...prev, finalScores };
-    });
-    setPhase('record-game');
+    setSession(prev => ({ ...prev, finalScores }));
+    setTab('board');
   }, []);
 
   const handleRecordGame = useCallback((gameData) => {
     addGame({ ...gameData, realmId: session.realm.id });
     showToast('Game recorded in the logbook.');
-    setPhase('in-game');
+    setSession(prev => ({
+      realm: prev.realm,
+      lastMeeples:    prev.meeples,
+      lastExpansions: prev.expansions,
+    }));
     setTab('history');
   }, [addGame, session, showToast]);
 
@@ -150,22 +155,38 @@ export default function App() {
             <span style={{ color: 'var(--warm-gold)', fontSize: '1.1rem' }}>⚜</span>
             <div className="ornament-line" />
           </div>
-          <div style={{ position: 'relative' }}>
-            <h1 onClick={goHome} style={{ cursor: 'pointer' }}>Carcassonne</h1>
-            {user && (
-              <button
-                type="button"
-                onClick={signOut}
-                style={{
-                  position: 'absolute', right: 0, top: '50%', transform: 'translateY(-50%)',
-                  background: 'none', border: 'none', cursor: 'pointer',
-                  fontFamily: 'Cinzel, serif', fontSize: '0.7rem', letterSpacing: '0.06em',
-                  color: 'var(--stone-gray)', padding: '0.2rem 0.4rem',
-                }}
-              >
-                Sign Out
-              </button>
-            )}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-start' }}>
+              {phase === 'in-game' && (
+                <button
+                  type="button"
+                  onClick={goHome}
+                  style={{
+                    background: 'none', border: 'none', cursor: 'pointer',
+                    fontFamily: 'Cinzel, serif', fontSize: '1.0rem', letterSpacing: '0.06em',
+                    color: 'var(--stone-gray)', padding: '0.2rem 0.4rem',
+                  }}
+                >
+                  ←
+                </button>
+              )}
+            </div>
+            <h1 style={{ cursor: 'pointer' }} onClick={goHome}>Carcassonne</h1>
+            <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end' }}>
+              {user && (
+                <button
+                  type="button"
+                  onClick={() => { signOut(); goHome(); }}
+                  style={{
+                    background: 'none', border: 'none', cursor: 'pointer',
+                    fontFamily: 'Cinzel, serif', fontSize: '0.7rem', letterSpacing: '0.06em',
+                    color: 'var(--stone-gray)', padding: '0.2rem 0.4rem',
+                  }}
+                >
+                  Sign Out
+                </button>
+              )}
+            </div>
           </div>
           <div className="header-ornament" style={{ marginTop: '0.45rem' }}>
             <div className="ornament-line" />
@@ -203,30 +224,14 @@ export default function App() {
         </div>
       )}
 
-      {/* ── Pre-game setup ── */}
-      {!loading && !authLoading && phase === 'pre-game' && (
+      {/* ── In-game ── */}
+      {!loading && !authLoading && phase === 'in-game' && (
         <div className="app-wrapper">
-          <div className="section-panel">
-            <PreGame
-              realm={session.realm}
-              ownedExpansions={ownedExpansions}
-              onStart={handleGameStart}
-              onBack={() => { setSession(null); setPhase('realm'); setRealmInitialMode('join'); setRealmPickerKey(k => k + 1); }}
-            />
-          </div>
-        </div>
-      )}
-
-      {/* ── In-game + record-game ── */}
-      {!loading && !authLoading && (phase === 'in-game' || phase === 'record-game') && (
-        <div className="app-wrapper">
-          {/* Tab nav only shown during active in-game phase */}
-          {phase === 'in-game' && (
-            <nav className="tab-nav" role="tablist">
+          <nav className="tab-nav" role="tablist">
               {IN_GAME_TABS.map(({ id, label }) => (
                 <button
                   key={id}
-                  className={`tab-btn ${tab === id ? 'active' : ''}`}
+                  className={`tab-btn${tab === id ? ' active' : ''}${id === 'collection' ? ' tab-btn-right' : ''}`}
                   onClick={() => setTab(id)}
                   role="tab"
                   aria-selected={tab === id}
@@ -235,29 +240,23 @@ export default function App() {
                 </button>
               ))}
             </nav>
-          )}
 
           <div className="section-panel">
-            {phase === 'in-game' && tab === 'board' && (
-              <Board key={gameKey} session={session} onFinish={handleFinishGame} onReset={handleBoardReset} />
+            {tab === 'board' && (
+              session.finalScores
+                ? <GameLogForm
+                    session={session}
+                    ownedExpansions={ownedExpansions}
+                    onSubmit={handleRecordGame}
+                    onCancel={() => setSession(prev => ({ ...prev, finalScores: null }))}
+                  />
+                : session.players
+                  ? <Board key={gameKey} session={session} onFinish={handleFinishGame} onReset={handleBoardReset} />
+                  : <PreGame realm={session.realm} ownedExpansions={ownedExpansions} onStart={handleGameStart} defaultMeeples={session.lastMeeples} defaultExpansions={session.lastExpansions} />
             )}
-            {phase === 'in-game' && tab === 'history' && (
-              <GameHistory games={realmGames} onDelete={handleDelete} />
-            )}
-            {phase === 'in-game' && tab === 'standings' && (
-              <Stats games={realmGames} />
-            )}
-            {phase === 'in-game' && tab === 'collection' && (
-              <Collection expansions={expansions} onToggle={toggleExpansion} />
-            )}
-            {phase === 'record-game' && (
-              <GameLogForm
-                session={session}
-                ownedExpansions={ownedExpansions}
-                onSubmit={handleRecordGame}
-                onCancel={() => { setPhase('in-game'); setTab('board'); }}
-              />
-            )}
+            {tab === 'history' && <GameHistory games={realmGames} onDelete={handleDelete} />}
+            {tab === 'standings' && <Stats games={realmGames} />}
+            {tab === 'collection' && <Collection expansions={expansions} onToggle={toggleExpansion} userId={user?.id} />}
           </div>
         </div>
       )}
