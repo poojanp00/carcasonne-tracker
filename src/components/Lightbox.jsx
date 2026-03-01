@@ -32,6 +32,7 @@ export default function Lightbox({ game, games = [], onNavigate, onClose }) {
   const winnerText = isTie ? 'Tie' : `${topPlayers[0].name} wins`;
 
   const sorted = [...game.players].sort((a, b) => b.score - a.score);
+  const TYPE_ORDER = ['road', 'city', 'monastery', 'field'];
   const margin = !isTie && sorted.length > 1 ? sorted[0].score - sorted[1].score : null;
 
   const slideClass = animDir === 'down' ? 'lb-slide-down' : animDir === 'up' ? 'lb-slide-up' : '';
@@ -59,35 +60,54 @@ export default function Lightbox({ game, games = [], onNavigate, onClose }) {
 
           {/* Player scores */}
           <div style={{ marginBottom: '1.2rem' }}>
-            {sorted.map((p, i) => (
-              <div
-                key={p.name}
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  padding: '0.5rem 0',
-                  borderBottom: i < sorted.length - 1 ? '1px solid rgba(201,163,74,0.25)' : 'none',
-                }}
-              >
-                <span style={{
-                  fontFamily: 'Cinzel, serif',
-                  fontSize: '0.95rem',
-                  fontWeight: p.score === maxScore ? 700 : 400,
-                  color: p.score === maxScore ? 'var(--forest-green)' : 'var(--charcoal)',
-                }}>
-                  {p.name}
-                </span>
-                <span style={{
-                  fontFamily: 'Cinzel, serif',
-                  fontSize: '1.05rem',
-                  fontWeight: p.score === maxScore ? 700 : 400,
-                  color: p.score === maxScore ? 'var(--forest-green)' : 'var(--stone-gray)',
-                }}>
-                  {p.score}
-                </span>
-              </div>
-            ))}
+            {sorted.map((p, i) => {
+              const bd = p.breakdown || {};
+              const bdEntries = [
+                ...TYPE_ORDER.filter(t => (bd[t] ?? 0) > 0),
+                ...Object.keys(bd).filter(t => !TYPE_ORDER.includes(t) && (bd[t] ?? 0) > 0),
+              ].sort((a, b) => (bd[b] || 0) - (bd[a] || 0));
+              const isWinner = p.score === maxScore;
+              return (
+                <div
+                  key={p.name}
+                  style={{
+                    padding: '0.5rem 0',
+                    borderBottom: i < sorted.length - 1 ? '1px solid rgba(201,163,74,0.25)' : 'none',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{
+                      fontFamily: 'Cinzel, serif',
+                      fontSize: '0.95rem',
+                      fontWeight: isWinner ? 700 : 400,
+                      color: isWinner ? 'var(--forest-green)' : 'var(--charcoal)',
+                    }}>
+                      {p.name}
+                    </span>
+                    <span style={{
+                      fontFamily: 'Cinzel, serif',
+                      fontSize: '1.05rem',
+                      fontWeight: isWinner ? 700 : 400,
+                      color: isWinner ? 'var(--forest-green)' : 'var(--stone-gray)',
+                    }}>
+                      {p.score}
+                    </span>
+                  </div>
+                  {bdEntries.length > 0 && (
+                    <p style={{
+                      fontFamily: 'Crimson Text, serif',
+                      fontStyle: 'italic',
+                      fontSize: '0.82rem',
+                      color: 'var(--stone-gray)',
+                      margin: '0.15rem 0 0',
+                      letterSpacing: '0.01em',
+                    }}>
+                      {bdEntries.map(t => `${bd[t]} ${t.charAt(0).toUpperCase() + t.slice(1)}`).join(' · ')}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
           </div>
 
           {/* Expansions */}

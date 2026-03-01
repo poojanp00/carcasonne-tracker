@@ -52,7 +52,6 @@ export const BOARD_PATH = (() => {
   // Fill any missing positions (shouldn't happen) by copying nearest anchor
   for (let i = 0; i < 50; i++) {
     if (!path[i]) {
-      // find nearest anchor
       let nearest = ANCHORS[0];
       let best = Math.abs(i - ANCHORS[0].i);
       for (const a of ANCHORS) {

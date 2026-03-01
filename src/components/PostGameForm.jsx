@@ -30,10 +30,10 @@ function getMeepleColor(filename) {
 const today = () => new Date().toISOString().split('T')[0];
 
 export default function GameLogForm({ session, ownedExpansions, onSubmit, onCancel }) {
-  const { players = [], meeples = {}, expansions: prefillExp = [], finalScores = {} } = session || {};
+  const { players = [], meeples = {}, expansions: prefillExp = [], finalScores = {}, scoreBreakdown = {}, farmWin: autoFarmWin = false } = session || {};
 
-  const [date,   setDate]   = useState(today);
-  const [farmWin, setFarmWin] = useState(false);
+  const [date,    setDate]    = useState(today);
+  const [farmWin, setFarmWin] = useState(autoFarmWin);
 
   const scoreNums    = players.map(p => Number(finalScores[p]) || 0);
   const maxScore     = scoreNums.length > 0 ? Math.max(...scoreNums) : 0;
@@ -46,8 +46,9 @@ export default function GameLogForm({ session, ownedExpansions, onSubmit, onCanc
       date,
       players: players.map(name => ({
         name,
-        score:  parseInt(finalScores[name], 10) || 0,
-        meeple: meeples[name] || Object.keys(MEEPLE_IMGS)[0],
+        score:     parseInt(finalScores[name], 10) || 0,
+        meeple:    meeples[name] || Object.keys(MEEPLE_IMGS)[0],
+        breakdown: scoreBreakdown[name] || {},
       })),
       expansions: [...prefillExp].sort(),
       farmWin,

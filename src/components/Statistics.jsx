@@ -3,6 +3,20 @@ import crownImg from '../../images/icons/crown.png';
 
 // ─── Statistics ────────────────────────────────────────────────────────
 
+// Aggregate per-type score totals across all games for a player
+function calcBreakdown(games, name) {
+  const low    = name.toLowerCase();
+  const totals = {};
+  for (const g of games) {
+    const me = g.players.find(p => p.name.toLowerCase() === low);
+    if (!me?.breakdown) continue;
+    for (const [type, pts] of Object.entries(me.breakdown)) {
+      totals[type] = (totals[type] || 0) + pts;
+    }
+  }
+  return totals;
+}
+
 function calcStats(games, name) {
   const low  = name.toLowerCase();
   const mine = games.filter(g => g.players.some(p => p.name.toLowerCase() === low));
@@ -106,7 +120,15 @@ function WinRateBadge({ rate }) {
 
 const PLAYER_COLOR_CLASSES = ['p1', 'p2', 'p3', 'p4', 'p5', 'p6'];
 
-function PlayerCard({ name, stats, colorClass, isLeader }) {
+const TYPE_LABELS = { road: 'Road', city: 'City', monastery: 'Monastery', field: 'Field' };
+
+function PlayerCard({ name, stats, breakdown, colorClass, isLeader }) {
+  // Show types with any points, always in canonical order then extras
+  const canonicalOrder = ['road', 'city', 'monastery', 'field'];
+  const allTypes = [
+    ...canonicalOrder.filter(t => (breakdown[t] ?? 0) > 0),
+    ...Object.keys(breakdown).filter(t => !canonicalOrder.includes(t) && (breakdown[t] ?? 0) > 0),
+  ].sort((a, b) => (breakdown[b] || 0) - (breakdown[a] || 0));
   return (
     <div className={`player-card ${colorClass}`}>
       {isLeader && <img src={crownImg} alt="Leader" title="Current leader" className="card-crown" />}
@@ -199,6 +221,21 @@ function PlayerCard({ name, stats, colorClass, isLeader }) {
           </span>
         </ValInfo>
       </div>
+
+      {allTypes.length > 0 && (
+        <>
+          <div className="stat-divider" />
+          <div style={{ fontSize: '0.7rem', fontFamily: 'Cinzel, serif', letterSpacing: '0.1em', color: 'var(--stone-gray)', marginBottom: '0.35rem' }}>
+            POINT TOTALS
+          </div>
+          {allTypes.map(type => (
+            <div key={type} className="stat-row">
+              <span className="stat-label">{TYPE_LABELS[type] ?? type.charAt(0).toUpperCase() + type.slice(1)}</span>
+              <span className="stat-value">{breakdown[type]}</span>
+            </div>
+          ))}
+        </>
+      )}
     </div>
   );
 }
@@ -213,7 +250,7 @@ export default function Stats({ games, noRealm = false }) {
       if (!seenLower.has(n.toLowerCase())) seenLower.set(n.toLowerCase(), n);
     });
     const names    = [...seenLower.values()];
-    const allStats = names.map(name => ({ name, ...calcStats(games, name) }));
+    const allStats = names.map(name => ({ name, ...calcStats(games, name), breakdown: calcBreakdown(games, name) }));
 
     // Primary: win rate (highest first); tiebreaker: total wins
     const s = [...allStats].sort((a, b) => b.winRate - a.winRate || b.wins - a.wins);
@@ -249,6 +286,7 @@ export default function Stats({ games, noRealm = false }) {
             key={ps.name}
             name={ps.name}
             stats={ps}
+            breakdown={ps.breakdown}
             colorClass={PLAYER_COLOR_CLASSES[i % PLAYER_COLOR_CLASSES.length]}
             isLeader={ps.name === leader}
           />

@@ -66,8 +66,8 @@ export default function App() {
     setRealmPickerKey(k => k + 1);
   }, [addRealm]);
 
-  const handleGameStart = useCallback((setup) => {
-    resetBoard(setup.players);
+  const handleGameStart = useCallback(async (setup) => {
+    await resetBoard(setup.players);
     setSession(prev => ({ ...prev, ...setup, finalScores: null }));
     setGameKey(k => k + 1);
   }, []);
@@ -80,8 +80,8 @@ export default function App() {
     }));
   }, []);
 
-  const handleFinishGame = useCallback((finalScores) => {
-    setSession(prev => ({ ...prev, finalScores }));
+  const handleFinishGame = useCallback((finalScores, scoreBreakdown, farmWin) => {
+    setSession(prev => ({ ...prev, finalScores, scoreBreakdown, farmWin }));
     setTab('board');
   }, []);
 
@@ -207,6 +207,7 @@ export default function App() {
                 key={realmPickerKey}
                 realms={realms}
                 currentRealm={session?.realm || null}
+                games={realmGames}
                 onSelect={handleRealmSelect}
                 onCreate={handleRealmCreate}
                 onDelete={handleRealmDelete}

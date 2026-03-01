@@ -1,10 +1,20 @@
 import { supabase } from './supabase';
 
+// SQL migration required:
+//   ALTER TABLE board_state ADD COLUMN IF NOT EXISTS score_totals jsonb DEFAULT '{}';
+
+const BASE_BREAKDOWN = { road: 0, city: 0, monastery: 0, field: 0 };
+
 function makeDefault(players = []) {
-  const positions = {};
-  const laps      = {};
-  for (const p of players) { positions[p] = 0; laps[p] = 0; }
-  return { positions, laps, trackLength: 50, players };
+  const positions   = {};
+  const laps        = {};
+  const scoreTotals = {};
+  for (const p of players) {
+    positions[p]   = 0;
+    laps[p]        = 0;
+    scoreTotals[p] = { ...BASE_BREAKDOWN };
+  }
+  return { positions, laps, trackLength: 50, players, scoreTotals };
 }
 
 export async function getBoard(players = []) {
@@ -20,18 +30,24 @@ export async function getBoard(players = []) {
       const same = players.length === stored.length && players.every(p => stored.includes(p));
       if (!same) return makeDefault(players);
     }
+    // Ensure every player has a breakdown entry
+    const scoreTotals = data.score_totals || {};
+    for (const p of (data.players || [])) {
+      if (!scoreTotals[p]) scoreTotals[p] = { ...BASE_BREAKDOWN };
+    }
     return {
       positions:   data.positions    || {},
       laps:        data.laps         || {},
       trackLength: data.track_length || 50,
       players:     data.players      || [],
+      scoreTotals,
     };
   } catch {
     return makeDefault(players);
   }
 }
 
-// Fire-and-forget — no need to await in callers
+// Fire-and-forget for in-game saves
 export function saveBoard(board) {
   supabase.from('board_state').upsert({
     id:           1,
@@ -39,13 +55,22 @@ export function saveBoard(board) {
     laps:         board.laps,
     track_length: board.trackLength || 50,
     players:      board.players     || [],
+    score_totals: board.scoreTotals || {},
   }).then(({ error }) => {
     if (error) console.warn('Failed to save board:', error);
   });
 }
 
-export function resetBoard(players = []) {
+// Awaitable — callers that need the write to commit before reading should await this
+export async function resetBoard(players = []) {
   const d = makeDefault(players);
-  saveBoard(d);
+  await supabase.from('board_state').upsert({
+    id:           1,
+    positions:    d.positions,
+    laps:         d.laps,
+    track_length: d.trackLength,
+    players:      d.players,
+    score_totals: d.scoreTotals,
+  });
   return d;
 }

@@ -43,10 +43,14 @@ export default function Board({ session, onFinish, onReset }) {
   const players   = session?.players  || [];
   const meepleMap = session?.meeples  || {};
 
-  const [board,   setBoard]   = useState(null);
-  const [input,   setInput]   = useState(() => Object.fromEntries(players.map(p => [p, 0])));
-  const [history, setHistory] = useState([]);
-  const [log,     setLog]     = useState([]);
+  const [board,       setBoard]       = useState(null);
+  const [input,       setInput]       = useState(() => Object.fromEntries(players.map(p => [p, 0])));
+  const [history,     setHistory]     = useState([]);
+  const [log,         setLog]         = useState([]);
+  const [finishStep,       setFinishStep]       = useState(0); // 0 = normal, 1 = awaiting field confirm
+  const [leadersAtFinish,  setLeadersAtFinish]  = useState([]);
+  const [showTraders,      setShowTraders]      = useState(false);
+  const [traderSelections, setTraderSelections] = useState({ wine: [], grain: [], cloth: [] });
   const logEndRef = useRef(null);
 
   useEffect(() => { getBoard(players).then(b => setBoard(b)); }, []);
@@ -56,6 +60,8 @@ export default function Board({ session, onFinish, onReset }) {
   if (!board) return null;
 
   const track = board.trackLength || 50;
+  const hasTB  = (session?.expansions || []).includes('Traders & Builders');
+  const hasIC  = (session?.expansions || []).some(e => e === 'Inns & Cathedrals' || e === 'Bridges, Castles & Bazaars');
 
   function appendLog(msg, player = null) {
     const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
@@ -67,19 +73,19 @@ export default function Board({ session, onFinish, onReset }) {
   }
 
   function undoLastMove() {
+    if (finishStep === 1) { setFinishStep(0); return; }
     if (history.length === 0) return;
     const last = history[history.length - 1];
     for (const p of players) {
       const cur  = (board.laps[p] || 0) * track + (board.positions[p] || 0);
       const prev = (last.laps[p]  || 0) * track + (last.positions[p]  || 0);
-      const diff = cur - prev;
-      if (diff !== 0) appendLog(`Undo: ${p} → ${prev} pts`, p);
+      if (cur !== prev) appendLog(`Undo: ${p} → ${prev} pts`, p);
     }
     setBoard(last);
     setHistory(h => h.slice(0, -1));
   }
 
-  function addPoints(player, delta) {
+  function addPoints(player, delta, type = 'road') {
     delta = Number(delta) || 0;
     if (delta === 0) return;
     pushHistory();
@@ -90,12 +96,18 @@ export default function Board({ session, onFinish, onReset }) {
     const newPos  = ((sum % track) + track) % track;
     const newLaps = curLaps + (lapInc > 0 ? lapInc : 0);
     const newTotal = newLaps * track + newPos;
+    const prevBreakdown = board.scoreTotals?.[player] || { road: 0, city: 0, monastery: 0, field: 0 };
     setBoard(b => ({
       ...b,
-      positions: { ...b.positions, [player]: newPos  },
-      laps:      { ...b.laps,      [player]: newLaps },
+      positions:   { ...b.positions, [player]: newPos  },
+      laps:        { ...b.laps,      [player]: newLaps },
+      scoreTotals: {
+        ...b.scoreTotals,
+        [player]: { ...prevBreakdown, [type]: (prevBreakdown[type] || 0) + delta },
+      },
     }));
-    appendLog(`${player} scored +${delta} pts → ${newTotal} pts`, player);
+    const label = type === 'pig' ? 'Field (Pig)' : type === 'inn' ? 'Road (Inn)' : type === 'cathedral' ? 'City (Cathedral)' : type.charAt(0).toUpperCase() + type.slice(1);
+    appendLog(`${player} scored +${delta} ${label} → ${newTotal} pts`, player);
   }
 
   function handleReset() {
@@ -104,10 +116,40 @@ export default function Board({ session, onFinish, onReset }) {
   }
 
   function handleFinish() {
-    const finalScores = Object.fromEntries(
+    const finalScores    = Object.fromEntries(
       players.map(p => [p, (board.laps[p] || 0) * track + (board.positions[p] || 0)])
     );
-    onFinish(finalScores);
+    const scoreBreakdown = board.scoreTotals || {};
+    const maxFinal       = Math.max(...Object.values(finalScores), 0);
+    const finalWinners   = players.filter(p => finalScores[p] === maxFinal);
+    // Farm win: a single winner who was NOT leading when Finish Game was first pressed
+    const autoFarmWin    = finalWinners.length === 1 && !leadersAtFinish.includes(finalWinners[0]);
+    resetBoard(players);
+    onFinish(finalScores, scoreBreakdown, autoFarmWin);
+  }
+
+  function applyTraderBonuses() {
+    pushHistory();
+    const nb = JSON.parse(JSON.stringify(board));
+    for (const good of ['wine', 'grain', 'cloth']) {
+      for (const p of traderSelections[good]) {
+        const curPos  = nb.positions[p] || 0;
+        const curLaps = nb.laps[p] || 0;
+        const sum     = curPos + 10;
+        const lapInc  = Math.floor(sum / track);
+        const newPos  = ((sum % track) + track) % track;
+        const newLaps = curLaps + (lapInc > 0 ? lapInc : 0);
+        nb.positions[p] = newPos;
+        nb.laps[p] = newLaps;
+        if (!nb.scoreTotals[p]) nb.scoreTotals[p] = {};
+        nb.scoreTotals[p][good] = (nb.scoreTotals[p][good] || 0) + 10;
+        appendLog(`${p} scored +10 ${good.charAt(0).toUpperCase() + good.slice(1)} → ${newLaps * track + newPos} pts`, p);
+      }
+    }
+    setBoard(nb);
+    setTraderSelections({ wine: [], grain: [], cloth: [] });
+    setShowTraders(false);
+    setFinishStep(1);
   }
 
   // Lead text
@@ -131,6 +173,49 @@ export default function Board({ session, onFinish, onReset }) {
 
   return (
     <div>
+      {/* Traders & Builders modal */}
+      {showTraders && (
+        <div className="lightbox-overlay" onClick={() => setShowTraders(false)}>
+          <div className="lightbox-inner" onClick={e => e.stopPropagation()} style={{ maxWidth: '340px' }}>
+            <div className="lightbox-meta">
+              <div className="tile-card-header" style={{ marginBottom: '0.5rem' }}>Traders & Builders</div>
+              <p style={{ fontFamily: 'Crimson Text, serif', fontStyle: 'italic', fontSize: '0.88rem', color: 'var(--stone-gray)', marginBottom: '1rem' }}>
+                Select who won the most of each good. Each winner receives 10 pts.
+              </p>
+              {['wine', 'grain', 'cloth'].map(good => (
+                <div key={good} style={{ marginBottom: '0.9rem' }}>
+                  <div style={{ fontSize: '0.7rem', fontFamily: 'Cinzel, serif', letterSpacing: '0.1em', color: 'var(--stone-gray)', marginBottom: '0.35rem' }}>
+                    {good.toUpperCase()}
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+                    {players.map(p => {
+                      const selected = traderSelections[good].includes(p);
+                      return (
+                        <button
+                          key={p}
+                          type="button"
+                          className={`btn btn-sm${selected ? '' : ' btn-ghost'}`}
+                          style={{ justifyContent: 'center' }}
+                          onClick={() => setTraderSelections(prev => ({
+                            ...prev,
+                            [good]: selected ? prev[good].filter(x => x !== p) : [...prev[good], p],
+                          }))}
+                        >
+                          {p}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
+                <button className="btn" onClick={applyTraderBonuses}>OK</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="section-title">
         <h2>Game Board</h2>
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '0.7rem' }}>
@@ -207,9 +292,17 @@ export default function Board({ session, onFinish, onReset }) {
               type="button"
               className="btn"
               style={{ flex: '1 1 100%', justifyContent: 'center' }}
-              onClick={handleFinish}
+              onClick={() => {
+                if (finishStep === 0) {
+                  setLeadersAtFinish(leaders);
+                  if (hasTB) setShowTraders(true);
+                  else setFinishStep(1);
+                } else {
+                  handleFinish();
+                }
+              }}
             >
-              Finish Game
+              {finishStep === 1 ? 'Fielders Counted?' : 'Finish Game'}
             </button>
           </div>
         </div>
@@ -268,33 +361,93 @@ export default function Board({ session, onFinish, onReset }) {
                     className="form-input board-score-input"
                     value={input[name] || 0}
                     onChange={e => setInput(v => ({ ...v, [name]: e.target.value }))}
-                    onKeyDown={e => {
-                      if (e.key === 'Enter') {
-                        const val = Number(input[name] || 0);
-                        if (!Number.isNaN(val) && val !== 0) {
-                          addPoints(name, val);
-                          setInput(v => ({ ...v, [name]: 0 }));
-                        }
-                      }
-                    }}
                   />
                   <div className="board-btn-row">
                     <button type="button" className="btn btn-sm board-btn-equal" onClick={() => setInput(v => ({ ...v, [name]: String(Number(v[name] || 0) + 1) }))}>+1</button>
                     <button type="button" className="btn btn-sm board-btn-equal" onClick={() => setInput(v => ({ ...v, [name]: String(Number(v[name] || 0) + 2) }))}>+2</button>
                     <button type="button" className="btn btn-sm board-btn-equal" onClick={() => setInput(v => ({ ...v, [name]: String(Number(v[name] || 0) + 3) }))}>+3</button>
+                    {finishStep === 1 && hasTB && <button type="button" className="btn btn-sm board-btn-equal" onClick={() => setInput(v => ({ ...v, [name]: String(Number(v[name] || 0) + 4) }))}>+4</button>}
                   </div>
-                  <button
-                    type="button"
-                    className="btn btn-sm"
-                    style={{ width: '100%', justifyContent: 'center' }}
-                    onClick={() => {
-                      const val = Number(input[name] || 0);
-                      if (!Number.isNaN(val) && val !== 0) {
-                        addPoints(name, val);
-                        setInput(v => ({ ...v, [name]: 0 }));
-                      }
-                    }}
-                  >Add</button>
+                  <div className="board-btn-row">
+                    {['road', 'city', 'monastery'].map(type => (
+                      <button
+                        key={type}
+                        type="button"
+                        className="btn btn-sm board-btn-equal"
+                        style={{ justifyContent: 'center' }}
+                        onClick={() => {
+                          const val = Number(input[name] || 0);
+                          if (!Number.isNaN(val) && val !== 0) {
+                            addPoints(name, val, type);
+                            setInput(v => ({ ...v, [name]: 0 }));
+                          }
+                        }}
+                      >
+                        {type.charAt(0).toUpperCase() + type.slice(1)}
+                      </button>
+                    ))}
+                  </div>
+                  {hasIC && (
+                    <div className="board-btn-row">
+                      {[['inn', 'Inn'], ['cathedral', 'Cathedral']].map(([type, label]) => (
+                        <button
+                          key={type}
+                          type="button"
+                          className="btn btn-sm board-btn-equal"
+                          style={{ justifyContent: 'center' }}
+                          onClick={() => {
+                            const val = Number(input[name] || 0);
+                            if (!Number.isNaN(val) && val !== 0) {
+                              addPoints(name, val, type);
+                              setInput(v => ({ ...v, [name]: 0 }));
+                            }
+                          }}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {finishStep === 1 && (
+                    hasTB ? (
+                      <>
+                        <div className="board-btn-row">
+                          {[['field', 'Field'], ['pig', 'Pig']].map(([type, label]) => (
+                            <button
+                              key={type}
+                              type="button"
+                              className="btn btn-sm board-btn-equal"
+                              style={{ justifyContent: 'center' }}
+                              onClick={() => {
+                                const val = Number(input[name] || 0);
+                                if (!Number.isNaN(val) && val !== 0) {
+                                  addPoints(name, val, type);
+                                  setInput(v => ({ ...v, [name]: 0 }));
+                                }
+                              }}
+                            >
+                              {label}
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    ) : (
+                      <button
+                        type="button"
+                        className="btn btn-sm"
+                        style={{ width: '100%', justifyContent: 'center' }}
+                        onClick={() => {
+                          const val = Number(input[name] || 0);
+                          if (!Number.isNaN(val) && val !== 0) {
+                            addPoints(name, val, 'field');
+                            setInput(v => ({ ...v, [name]: 0 }));
+                          }
+                        }}
+                      >
+                        Field
+                      </button>
+                    )
+                  )}
                 </div>
               </div>
             );
