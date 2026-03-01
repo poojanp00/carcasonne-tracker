@@ -33,7 +33,7 @@ Meeple Log is a multi-tenant score tracking app built for groups who play Carcas
 | Meeple Picker | Each player selects a character meeple before each game |
 | Expansions | Per-user collection management; each user's owned expansions are independent |
 | Logbook | Filterable game history (date, winner, margin); click any row to open match detail lightbox |
-| Statistics | Per-realm statistics: wins, streaks, high scores, farm dominance, clutch factor |
+| Statistics | Per-realm statistics: wins, streaks, high scores, farm , clutch factor |
 | Auth | Sign-in page shown when signed out; tabbed layout only visible to authenticated users |
 
 ---
@@ -265,7 +265,7 @@ Lightbox keyboard controls: `Esc` / `Space` to close; `↑` / `↓` to navigate 
 
 ### Statistics
 
-Per-player cards showing: wins, losses, ties, win rate, high score, current streak, farm dominance, clutch factor, biggest blowout, net point differential. The leader card displays `crown.png`. Cards are sorted by win rate (tiebroken by total wins).
+Per-player cards showing: wins, losses, ties, win rate, high score, current streak, farm, clutch factor, biggest blowout, net point differential. The leader card displays `crown.png`. Cards are sorted by win rate (tiebroken by total wins).
 
 ---
 

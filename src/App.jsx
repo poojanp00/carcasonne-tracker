@@ -194,7 +194,7 @@ export default function App() {
 
       {/* ── Main (signed in) ── */}
       {!loading && !authLoading && user && (
-        <div className="app-wrapper">
+        <>
           <nav className="tab-nav" role="tablist">
             {TABS.map(({ id, label }) => (
               <button
@@ -209,6 +209,7 @@ export default function App() {
             ))}
           </nav>
 
+          <div className="app-wrapper">
           <div className="section-panel">
             {tab === 'realms' && (
               <RealmPicker
@@ -276,7 +277,8 @@ export default function App() {
             {tab === 'statistics' && <Statistics games={games} realms={realms} currentRealm={session?.realm || null} onRealmChange={handleRealmSelect} />}
             {tab === 'collection' && <Collection expansions={expansions} onToggle={toggleExpansion} userId={user?.id} />}
           </div>
-        </div>
+          </div>
+        </>
       )}
 
       {toast && <Toast message={toast} />}
