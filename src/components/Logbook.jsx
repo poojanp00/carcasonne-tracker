@@ -16,36 +16,13 @@ const TrashIcon = () => (
   </svg>
 );
 
-export default function GameHistory({ games, onDelete, noRealm = false }) {
-  const [activeFilters,   setActiveFilters]   = useState(new Set());
-  const [baseFilter,      setBaseFilter]      = useState(false);
+export default function GameHistory({ games, realms = [], currentRealm = null, onRealmChange, onDelete }) {
   const [selectedGame,    setSelectedGame]    = useState(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
 
-  const usedExpansions = [...new Set(games.flatMap(g => g.expansions))].sort();
-  const hasBaseGames   = games.some(g => g.expansions.length === 0);
-
-  const toggleFilter = (exp) => {
-    setBaseFilter(false);
-    setActiveFilters(prev => {
-      const next = new Set(prev);
-      next.has(exp) ? next.delete(exp) : next.add(exp);
-      return next;
-    });
-  };
-
-  const toggleBaseFilter = () => {
-    setActiveFilters(new Set());
-    setBaseFilter(v => !v);
-  };
-
-  const clearAll = () => { setActiveFilters(new Set()); setBaseFilter(false); };
-
-  const filtered = baseFilter
-    ? games.filter(g => g.expansions.length === 0)
-    : activeFilters.size === 0
-      ? games
-      : games.filter(g => [...activeFilters].every(exp => g.expansions.includes(exp)));
+  const realmGames = currentRealm
+    ? games.filter(g => g.realmId === currentRealm.id)
+    : [];
 
   const handleConfirmDelete = () => {
     onDelete(confirmDeleteId);
@@ -75,7 +52,7 @@ export default function GameHistory({ games, onDelete, noRealm = false }) {
       {selectedGame && (
         <Lightbox
           game={selectedGame}
-          games={filtered}
+          games={realmGames}
           onNavigate={setSelectedGame}
           onClose={() => setSelectedGame(null)}
         />
@@ -84,56 +61,36 @@ export default function GameHistory({ games, onDelete, noRealm = false }) {
       <div className="section-title">
         <h2>Logbook</h2>
         <div className="section-title-line" />
-        {!noRealm && <span className="game-count">{filtered.length} {filtered.length === 1 ? 'game' : 'games'}</span>}
+        {currentRealm && <span className="game-count">{realmGames.length} {realmGames.length === 1 ? 'game' : 'games'}</span>}
       </div>
 
-      {(usedExpansions.length > 0 || hasBaseGames) && (
+      {/* Realm filter chips */}
+      {realms.length > 0 && (
         <div style={{ marginBottom: '1.3rem' }}>
-          <div className="filter-label" style={{ marginBottom: '0.5rem' }}>
-            {baseFilter
-              ? 'Showing base game only'
-              : activeFilters.size > 0
-                ? `Showing games with all ${activeFilters.size} selected`
-                : 'Filter:'}
-          </div>
           <div className="expansion-chips">
-            {hasBaseGames && (
+            {realms.map(r => (
               <button
+                key={r.id}
                 type="button"
-                className={`expansion-chip ${baseFilter ? 'selected' : ''}`}
-                onClick={toggleBaseFilter}
+                className={`expansion-chip ${currentRealm?.id === r.id ? 'selected' : ''}`}
+                onClick={() => onRealmChange(r)}
               >
-                Base game
-              </button>
-            )}
-            {usedExpansions.map(exp => (
-              <button
-                key={exp}
-                type="button"
-                className={`expansion-chip ${activeFilters.has(exp) ? 'selected' : ''}`}
-                onClick={() => toggleFilter(exp)}
-              >
-                {exp}
+                {r.name}
               </button>
             ))}
-            {(activeFilters.size > 0 || baseFilter) && (
-              <button
-                type="button"
-                className="btn btn-ghost btn-sm"
-                onClick={clearAll}
-                style={{ marginLeft: '0.25rem' }}
-              >
-                Clear
-              </button>
-            )}
           </div>
         </div>
       )}
 
-      {filtered.length === 0 ? (
+      {!currentRealm ? (
         <div className="empty-state">
           <span className="empty-state-icon">📜</span>
-          {noRealm ? 'Load a realm to view game history.' : games.length === 0 ? 'No games have been recorded yet.' : 'No games match this filter.'}
+          Select a realm above to view its game history.
+        </div>
+      ) : realmGames.length === 0 ? (
+        <div className="empty-state">
+          <span className="empty-state-icon">📜</span>
+          No games recorded for this realm yet.
         </div>
       ) : (
         <div className="history-table-wrap">
@@ -147,7 +104,7 @@ export default function GameHistory({ games, onDelete, noRealm = false }) {
               </tr>
             </thead>
             <tbody>
-              {filtered.map(game => {
+              {realmGames.map(game => {
                 const scores     = game.players.map(p => p.score).sort((a, b) => b - a);
                 const maxScore   = scores[0] ?? 0;
                 const topPlayers = game.players.filter(p => p.score === maxScore);

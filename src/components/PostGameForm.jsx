@@ -32,8 +32,7 @@ const today = () => new Date().toISOString().split('T')[0];
 export default function GameLogForm({ session, ownedExpansions, onSubmit, onCancel }) {
   const { players = [], meeples = {}, expansions: prefillExp = [], finalScores = {}, scoreBreakdown = {}, farmWin: autoFarmWin = false } = session || {};
 
-  const [date,    setDate]    = useState(today);
-  const [farmWin, setFarmWin] = useState(autoFarmWin);
+  const [date, setDate] = useState(today);
 
   const scoreNums    = players.map(p => Number(finalScores[p]) || 0);
   const maxScore     = scoreNums.length > 0 ? Math.max(...scoreNums) : 0;
@@ -51,7 +50,7 @@ export default function GameLogForm({ session, ownedExpansions, onSubmit, onCanc
         breakdown: scoreBreakdown[name] || {},
       })),
       expansions: [...prefillExp].sort(),
-      farmWin,
+      farmWin: autoFarmWin,
     });
   };
 
@@ -90,7 +89,7 @@ export default function GameLogForm({ session, ownedExpansions, onSubmit, onCanc
                   {isWinner && (
                     <img src={crownImg} alt="winner" className="postgame-crown" />
                   )}
-                  {isWinner && farmWin && (
+                  {isWinner && autoFarmWin && (
                     <img src={pigImg} alt="farm win" className="postgame-pig" />
                   )}
                   <div className="postgame-score-display">
@@ -103,15 +102,11 @@ export default function GameLogForm({ session, ownedExpansions, onSubmit, onCanc
         </div>
 
         {/* Farm win — below all scores */}
-        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', marginTop: '1rem' }}>
-          <input
-            type="checkbox"
-            checked={farmWin}
-            onChange={e => setFarmWin(e.target.checked)}
-            style={{ width: '1.1rem', height: '1.1rem', accentColor: 'var(--gold-accent)', cursor: 'pointer' }}
-          />
-          <span style={{ fontFamily: 'Cinzel, serif', fontSize: '0.85rem', letterSpacing: '0.05em' }}>Won via Farm</span>
-        </label>
+        {autoFarmWin && (
+          <div style={{ marginTop: '1rem', fontFamily: 'Cinzel, serif', fontSize: '0.82rem', letterSpacing: '0.05em', color: 'var(--forest-green)', fontStyle: 'italic' }}>
+            Won via Farm
+          </div>
+        )}
       </div>
 
       {/* Expansions */}
@@ -122,7 +117,7 @@ export default function GameLogForm({ session, ownedExpansions, onSubmit, onCanc
       </div>
 
       {/* Submit */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         {onCancel && (
           <button type="button" className="btn btn-ghost" onClick={onCancel}>← Back</button>
         )}
