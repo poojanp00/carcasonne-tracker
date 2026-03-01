@@ -185,6 +185,33 @@ export default function Board({ session, onFinish, onReset }) {
               <div ref={logEndRef} />
             </div>
           )}
+          <div style={{ display: 'flex', gap: '0.5rem', marginTop: 'auto', paddingTop: '0.9rem', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              style={{ flex: '1 1 0', justifyContent: 'center' }}
+              onClick={undoLastMove}
+              disabled={history.length === 0}
+            >
+              Undo
+            </button>
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              style={{ flex: '1 1 0', justifyContent: 'center' }}
+              onClick={handleReset}
+            >
+              Reset
+            </button>
+            <button
+              type="button"
+              className="btn"
+              style={{ flex: '1 1 100%', justifyContent: 'center' }}
+              onClick={handleFinish}
+            >
+              Finish Game
+            </button>
+          </div>
         </div>
 
         {/* Board image */}
@@ -274,34 +301,6 @@ export default function Board({ session, onFinish, onReset }) {
           })}
           </div>
 
-          {/* Action buttons */}
-          <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
-            <button
-              type="button"
-              className="btn btn-ghost btn-sm"
-              style={{ flex: '0 0 auto', justifyContent: 'center' }}
-              onClick={undoLastMove}
-              disabled={history.length === 0}
-            >
-              Undo
-            </button>
-            <button
-              type="button"
-              className="btn btn-ghost btn-sm"
-              style={{ flex: '0 0 auto', justifyContent: 'center' }}
-              onClick={handleReset}
-            >
-              Reset
-            </button>
-            <button
-              type="button"
-              className="btn"
-              style={{ flex: '0 0 auto', justifyContent: 'center' }}
-              onClick={handleFinish}
-            >
-              Finish Game
-            </button>
-          </div>
         </div>
       </div>
     </div>
