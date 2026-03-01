@@ -10,6 +10,7 @@ import Auth          from './components/Auth';
 import { useGameData } from './hooks/useGameData';
 import { useAuth }     from './hooks/useAuth';
 import { resetBoard }  from './data/boardStorage';
+import crownImg from '../images/icons/crown.png';
 
 const TABS = [
   { id: 'realms',     label: 'Realms'     },
@@ -141,27 +142,27 @@ export default function App() {
         <div className="app-wrapper">
           <div className="header-ornament">
             <div className="ornament-line" />
-            <span style={{ color: 'var(--warm-gold)', fontSize: '1.1rem' }}>⚜</span>
+            <img src={crownImg} alt="" style={{ width: '18px', height: 'auto', opacity: 0.85 }} />
             <div className="ornament-line" />
           </div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <div style={{ flex: 1 }} />
-            <h1 style={{ cursor: 'pointer' }} onClick={goHome}>Meeple Log</h1>
-            <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end' }}>
+            <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-start' }}>
               {user && (
                 <button
                   type="button"
                   onClick={() => { signOut(); goHome(); }}
                   style={{
                     background: 'none', border: 'none', cursor: 'pointer',
-                    fontFamily: 'Cinzel, serif', fontSize: '0.7rem', letterSpacing: '0.06em',
-                    color: 'var(--stone-gray)', padding: '0.2rem 0.4rem',
+                    fontFamily: 'Cinzel, serif', fontSize: '0.62rem', letterSpacing: '0.06em',
+                    color: 'var(--stone-gray)', padding: '0.1rem 0.3rem',
                   }}
                 >
                   Sign Out
                 </button>
               )}
             </div>
+            <h1 style={{ cursor: 'pointer' }} onClick={goHome}>Meeple Log</h1>
+            <div style={{ flex: 1 }} />
           </div>
           <div className="header-ornament" style={{ marginTop: '0.45rem' }}>
             <div className="ornament-line" />
