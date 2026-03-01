@@ -66,18 +66,9 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
   if (step === 2) {
     return (
       <div className="pregame-screen">
-        <div className="section-title" style={{ position: 'relative' }}>
+        <div className="section-title">
           <h2>Choose Your Meeples</h2>
           <div className="section-title-line" />
-          <span style={{
-            position: 'absolute', top: 0, right: 0,
-            fontFamily: 'Cinzel, serif', fontSize: '0.75rem', fontWeight: 600,
-            letterSpacing: '0.06em', color: 'var(--earth-brown)',
-            background: 'var(--warm-gold)', opacity: 0.85,
-            padding: '0.2rem 0.55rem', borderRadius: '999px',
-          }}>
-            {realm.name}
-          </span>
         </div>
 
         <div className="tile-card" style={{ marginBottom: '1.4rem' }}>
@@ -103,13 +94,13 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: '0.7rem', flexWrap: 'wrap', alignItems: 'center' }}>
-          <button type="button" className="btn" onClick={handleNextStep}>Next: Expansions →</button>
+        <div style={{ display: 'flex', gap: '0.7rem', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'flex-end' }}>
           {meepleError && (
             <span style={{ fontStyle: 'italic', color: 'var(--red, #DC2626)', fontSize: '0.88rem' }}>
               {meepleError}
             </span>
           )}
+          <button type="button" className="btn" onClick={handleNextStep}>Next: Expansions →</button>
         </div>
       </div>
     );
@@ -118,18 +109,9 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
   // ── Step 3: Expansions + Start ──
   return (
     <div className="pregame-screen">
-      <div className="section-title" style={{ position: 'relative' }}>
+      <div className="section-title">
         <h2>Expansions in Play</h2>
         <div className="section-title-line" />
-        <span style={{
-          position: 'absolute', top: 0, right: 0,
-          fontFamily: 'Cinzel, serif', fontSize: '0.75rem', fontWeight: 600,
-          letterSpacing: '0.06em', color: 'var(--earth-brown)',
-          background: 'var(--warm-gold)', opacity: 0.85,
-          padding: '0.2rem 0.55rem', borderRadius: '999px',
-        }}>
-          {realm.name}
-        </span>
       </div>
 
       <div className="tile-card" style={{ marginBottom: '1.4rem' }}>
@@ -153,7 +135,7 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
         )}
       </div>
 
-      <div style={{ display: 'flex', gap: '0.7rem', flexWrap: 'wrap', alignItems: 'center' }}>
+      <div style={{ display: 'flex', gap: '0.7rem', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
         <button type="button" className="btn btn-ghost" onClick={() => setStep(2)}>← Back</button>
         <button type="button" className="btn" onClick={handleStart}>Begin</button>
       </div>

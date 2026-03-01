@@ -19,17 +19,6 @@ const TABS = [
   { id: 'collection', label: 'Collection' },
 ];
 
-function NoiseOverlay() {
-  return (
-    <svg className="noise-overlay" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      <filter id="parchmentNoise">
-        <feTurbulence type="fractalNoise" baseFrequency="0.72" numOctaves="4" stitchTiles="stitch" />
-        <feColorMatrix type="saturate" values="0" />
-      </filter>
-      <rect width="100%" height="100%" filter="url(#parchmentNoise)" />
-    </svg>
-  );
-}
 
 function Toast({ message }) {
   return (
@@ -38,6 +27,11 @@ function Toast({ message }) {
     </div>
   );
 }
+
+const normalizeMeeples = (meeples) =>
+  meeples
+    ? Object.fromEntries(Object.entries(meeples).map(([p, k]) => [p, k.startsWith('fun/') ? 'mystery.png' : k]))
+    : meeples;
 
 export default function App() {
   const [session,        setSession]        = useState(null);
@@ -80,7 +74,7 @@ export default function App() {
   const handleBoardReset = useCallback(() => {
     setSession(prev => ({
       realm: prev.realm,
-      lastMeeples:    prev.meeples,
+      lastMeeples:    normalizeMeeples(prev.meeples),
       lastExpansions: prev.expansions,
     }));
   }, []);
@@ -95,7 +89,7 @@ export default function App() {
     showToast('Game recorded in the logbook.');
     setSession(prev => ({
       realm: prev.realm,
-      lastMeeples:    prev.meeples,
+      lastMeeples:    normalizeMeeples(prev.meeples),
       lastExpansions: prev.expansions,
     }));
     setTab('history');
@@ -143,8 +137,6 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <NoiseOverlay />
-
       <header className="site-header">
         <div className="app-wrapper">
           <div className="header-ornament">

@@ -150,6 +150,9 @@ h3 { font-size: 1.15rem; font-weight: 600; }
 .tab-nav {
   display: flex;
   overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  touch-action: pan-x;
   padding: 1.2rem 0 0;
   gap: 3px;
   border-bottom: 2.5px solid var(--warm-gold);
@@ -1125,9 +1128,10 @@ input[type="file"] { display: none; }
 
 .realm-btn-group {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   gap: 0.9rem;
   align-items: flex-start;
+  flex-wrap: wrap;
 }
 
 .realm-btn {
