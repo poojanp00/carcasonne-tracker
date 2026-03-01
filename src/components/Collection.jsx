@@ -44,7 +44,9 @@ const EXPANSION_ICONS = {
   'Crop Circles':                iconCropCircles,
 };
 
-function ExpansionGroup({ label, expansions, onToggle }) {
+const COLLECTION_OWNER = '96a5dd42-6ac6-49e9-86a7-dc8b466743d5';
+
+function ExpansionGroup({ label, expansions, onToggle, canEdit }) {
   const [open, setOpen] = useState(true);
   const owned   = expansions.filter((e) => e.owned);
   const unowned = expansions.filter((e) => !e.owned);
@@ -69,9 +71,9 @@ function ExpansionGroup({ label, expansions, onToggle }) {
                 {owned.map((exp) => (
                   <div
                     key={exp.name}
-                    className="expansion-item owned"
-                    onClick={() => onToggle(exp.name)}
-                    title="Click to mark as not owned"
+                    className={`expansion-item owned${canEdit ? '' : ' read-only'}`}
+                    onClick={canEdit ? () => onToggle(exp.name) : undefined}
+                    title={canEdit ? 'Click to mark as not owned' : undefined}
                   >
                     <div className="status-dot" />
                     {EXPANSION_ICONS[exp.name] && (
@@ -91,9 +93,9 @@ function ExpansionGroup({ label, expansions, onToggle }) {
                 {unowned.map((exp) => (
                   <div
                     key={exp.name}
-                    className="expansion-item unowned"
-                    onClick={() => onToggle(exp.name)}
-                    title="Click to mark as owned"
+                    className={`expansion-item unowned${canEdit ? '' : ' read-only'}`}
+                    onClick={canEdit ? () => onToggle(exp.name) : undefined}
+                    title={canEdit ? 'Click to mark as owned' : undefined}
                   >
                     <div className="status-dot" />
                     {EXPANSION_ICONS[exp.name] && (
@@ -112,7 +114,8 @@ function ExpansionGroup({ label, expansions, onToggle }) {
   );
 }
 
-export default function Collection({ expansions, onToggle }) {
+export default function Collection({ expansions, onToggle, userId }) {
+  const canEdit = userId === COLLECTION_OWNER;
   const owned = expansions.filter((e) => e.owned);
   const full  = expansions.filter((e) => e.type === 'full');
   const mini  = expansions.filter((e) => e.type === 'mini');
@@ -126,11 +129,13 @@ export default function Collection({ expansions, onToggle }) {
       </div>
 
       <p className="section-intro">
-        Click an expansion to toggle ownership. Owned expansions appear as options when logging a game.
+        {canEdit
+          ? 'Click an expansion to toggle ownership. Owned expansions appear as options when logging a game.'
+          : 'Owned expansions appear as options when logging a game.'}
       </p>
 
-      <ExpansionGroup label="Full Expansions" expansions={full} onToggle={onToggle} />
-      <ExpansionGroup label="Mini Expansions" expansions={mini} onToggle={onToggle} />
+      <ExpansionGroup label="Full Expansions" expansions={full} onToggle={onToggle} canEdit={canEdit} />
+      <ExpansionGroup label="Mini Expansions" expansions={mini} onToggle={onToggle} canEdit={canEdit} />
     </div>
   );
 }

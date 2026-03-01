@@ -16,19 +16,23 @@ const FUN_MEEPLES = Object.entries(FUN_MODULES)
 
 const MAX_GAME_PLAYERS = 6;
 
-export default function PreGame({ realm, ownedExpansions, onStart, onBack }) {
+export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeples, defaultExpansions }) {
   const [step, setStep] = useState(2);
 
   const activePlayers = (realm.players || []).slice(0, MAX_GAME_PLAYERS);
 
-  // Step 2: meeple per active player
+  // Step 2: meeple per active player — seed from last game if available
   const [meeples, setMeeples] = useState(() =>
-    Object.fromEntries(activePlayers.map(p => [p, MEEPLES[0]?.key || 'poojan.png']))
+    Object.fromEntries(
+      activePlayers.map((p, i) => [p, defaultMeeples?.[p] || MEEPLES[i]?.key || MEEPLES[0]?.key || 'poojan.png'])
+    )
   );
 
-  // Step 3: expansions
+  // Step 3: expansions — seed from last game if available, filtered to owned
   const [selectedExp, setSelectedExp] = useState(() =>
-    ['The River', 'The Abbot'].filter(name => ownedExpansions.includes(name))
+    defaultExpansions
+      ? defaultExpansions.filter(name => ownedExpansions.includes(name))
+      : ['The River', 'The Abbot'].filter(name => ownedExpansions.includes(name))
   );
 
   const [meepleError, setMeepleError] = useState(null);
@@ -101,7 +105,6 @@ export default function PreGame({ realm, ownedExpansions, onStart, onBack }) {
         </div>
 
         <div style={{ display: 'flex', gap: '0.7rem', flexWrap: 'wrap', alignItems: 'center' }}>
-          <button type="button" className="btn btn-ghost" onClick={onBack}>← Back</button>
           <button type="button" className="btn" onClick={handleNextStep}>Next: Expansions →</button>
           {meepleError && (
             <span style={{ fontStyle: 'italic', color: 'var(--red, #DC2626)', fontSize: '0.88rem' }}>

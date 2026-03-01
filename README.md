@@ -1,134 +1,310 @@
-# Carcassonne Logbook
+# Carcassonne Tracker
 
-A small single-page React app (Vite) for recording two-player Carcassonne games, tracking owned expansions, viewing a logbook, and inspecting player statistics. This README collects the app structure, data shapes, run instructions, known limitations, and suggested improvements.
+A full-stack web app for tracking Carcassonne board game sessions across multiple groups. Supports expansion management, real-time score tracking, game history, and player statistics — all scoped to password-protected realms.
 
-## Quick start
+**Stack:** React (Vite) · Supabase (Postgres + Auth) · Vercel
 
-Prerequisites: Node.js (recommended v18+), npm.
+---
 
-From your shell, change into the project directory and install dependencies, then run the dev server:
+## Table of Contents
 
-```bash
-cd carcassonne-tracker
-npm install
-npm run dev
+1. [Project Overview](#1-project-overview)
+2. [Architecture Overview](#2-architecture-overview)
+3. [Visual Diagrams](#3-visual-diagrams)
+4. [Database Design](#4-database-design)
+5. [Game Flow](#5-game-flow)
+6. [Authentication](#6-authentication)
+7. [Deployment](#7-deployment)
+8. [Local Development](#8-local-development)
+9. [Future Improvements](#9-future-improvements)
+
+---
+
+## 1. Project Overview
+
+Carcassonne Tracker is a multi-tenant score tracking app built for groups who play Carcassonne regularly. Each group operates within a **Realm** — an isolated space with its own players, game history, standings, and expansion configuration.
+
+**Core features:**
+
+| Feature | Description |
+|---|---|
+| Realms | Isolated game groups, each optionally password-protected |
+| Score Board | Live position tracking on a 50-point track with lap counting |
+| Meeple Picker | Each player selects a character meeple before each game |
+| Expansions | Per-group expansion selection; owner-gated collection management |
+| Logbook | Filterable game history with winner, margin, farm win flag |
+| Standings | Per-realm statistics: wins, streaks, high scores, farm dominance |
+| Auth | Supabase-managed authentication; realm creation requires sign-in |
+
+---
+
+## 2. Architecture Overview
+
+```
+Browser (React SPA)
+        │
+        │  HTTPS
+        ▼
+  Vercel CDN / Edge
+  (static build output)
+        │
+        │  Supabase JS client
+        ▼
+  Supabase Platform
+  ┌─────────────────────┐
+  │  Auth (JWT sessions) │
+  │  Postgres (data)     │
+  └─────────────────────┘
 ```
 
-Open the local URL printed by Vite (default http://localhost:5173).
+**Data flow:**
 
-Build for production:
+1. User loads the app from Vercel's CDN (static React bundle).
+2. Supabase JS client resolves the existing session from `localStorage`.
+3. All reads/writes go directly from the browser to Supabase via its REST/PostgREST API — no custom backend server.
+4. Auth state changes (sign in, sign out) are broadcast via `onAuthStateChange` and update React state immediately.
 
-```bash
-npm run build
-npm run preview
+---
+
+## 3. Visual Diagrams
+
+### System Architecture
+
+```mermaid
+graph TD
+    User["User (Browser)"]
+    Vercel["Vercel CDN\nReact + Vite SPA"]
+    SupaAuth["Supabase Auth\nJWT / Sessions"]
+    SupaDB["Supabase Postgres\nrealms · games · expansions · board_state"]
+
+    User -->|"HTTPS"| Vercel
+    Vercel -->|"Supabase JS client"| SupaAuth
+    Vercel -->|"PostgREST API"| SupaDB
+    SupaAuth -->|"session token"| SupaDB
 ```
 
-## What this app does
+### Database Schema
 
-- Record a game with: two fixed players (Poojan and Diya), date, scores, expansions used, optional photo, and a "farm win" flag.
-- Persist games and expansion ownership to `localStorage`.
-- View the logbook, filter by expansions, open photos in a lightbox, and delete entries.
-- See per-player statistics (wins, losses, streaks, high score, clutch factor, farm dominance, biggest blowout).
-- Toggle owned/unowned expansions in a collection view.
+```mermaid
+erDiagram
+    REALMS {
+        text id PK
+        text name
+        text[] players
+        text password_hash
+        date created_at
+    }
 
-## Project layout
+    GAMES {
+        text id PK
+        text realm_id FK
+        date date
+        jsonb[] players
+        text[] expansions
+        bool farm_win
+        timestamp inserted_at
+    }
 
-- `index.html` — HTML shell and Google Fonts.
-- `package.json` — scripts & dependencies (React, Vite).
-- `vite.config.js` — Vite + React plugin.
-- `src/main.jsx` — application entry; mounts `App`.
-- `src/App.jsx` — top-level UI: navigation, toast, tab routing.
-- `src/index.css` — full app styling (medieval/parchment theme).
-- `src/components/`
-  - `GameLogForm.jsx` — form to record a new game; reads photos as data URLs.
-  - `GameHistory.jsx` — table of games; expansion filters; delete; open `Lightbox`.
-  - `Lightbox.jsx` — modal for game photo + metadata.
-  - `Stats.jsx` — computes and displays player statistics.
-  - `Collection.jsx` — view and toggle owned expansions.
-- `src/data/`
-  - `expansions.js` — `DEFAULT_EXPANSIONS` list with names/types/owned flags.
-  - `storage.js` — localStorage read/write, migration helpers, `generateId()`.
-- `src/hooks/`
-  - `useGameData.js` — custom hook exposing `{ games, expansions, addGame, deleteGame, toggleExpansion }`.
-- `images/` — static images used by the UI.
+    EXPANSIONS {
+        text name PK
+        text type
+        bool owned
+    }
 
-## Data shapes
+    BOARD_STATE {
+        int id PK
+        jsonb positions
+        jsonb laps
+        int track_length
+        text[] players
+    }
 
-Games are stored as an array at the `localStorage` key `carcassonne_games`.
+    REALMS ||--o{ GAMES : "has many"
+```
 
-Each game (example):
+### Auth Flow
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant A as App (React)
+    participant S as Supabase Auth
+
+    U->>A: Visit app
+    A->>S: getSession()
+    S-->>A: session (or null)
+
+    alt No session
+        U->>A: Sign in (email/password)
+        A->>S: signInWithPassword()
+        S-->>A: JWT session
+        A->>A: setUser(session.user)
+    end
+
+    U->>A: Sign out
+    A->>S: signOut()
+    S-->>A: session cleared
+    A->>A: goHome() → realm picker
+```
+
+### Scoring Flow
+
+```mermaid
+flowchart TD
+    A[Player enters point delta] --> B[addPoints called]
+    B --> C[Compute new position\npos + delta mod trackLength]
+    C --> D{Lap completed?}
+    D -->|Yes| E[Increment lap counter]
+    D -->|No| F[Update position only]
+    E --> G[Save to board_state\npositions + laps]
+    F --> G
+    G --> H[Append to score log]
+    H --> I[Re-render board SVG\nmeeple positions update]
+```
+
+---
+
+## 4. Database Design
+
+### Schema rationale
+
+**`games.players`** is stored as a `jsonb[]` array rather than a normalised `players` table. Each element holds `{ name, score, meeple }` for a single game. This avoids joins for the common read path (rendering the logbook) and keeps game records self-contained.
+
+**`games.expansions`** is a `text[]` column listing the expansion names active during that game. This allows straightforward AND-filtering in the logbook without a join table.
+
+**`realms.password_hash`** stores a client-side SHA-256 hex digest (Web Crypto API). Passwords are never sent in plaintext; the hash is compared on the client after hashing the user's input.
+
+### Example records
+
+**realms**
 
 ```json
 {
-  "id": "1670000000000-abc123",
-  "date": "2026-02-27",
-  "player1": { "name": "Poojan", "score": 80 },
-  "player2": { "name": "Diya", "score": 72 },
-  "expansions": ["Inns & Cathedrals", "The River"],
-  "photo": "data:image/png;base64,iVBORw0KGgoAAAANS...",
-  "farmWin": false
+  "id": "ABCD1234",
+  "name": "The Keep",
+  "players": ["Poojan", "Diya"],
+  "password_hash": "8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918",
+  "created_at": "2026-01-15"
 }
 ```
 
-Expansions are stored at `carcassonne_expansions` as an array of objects like:
+**games**
 
 ```json
-{ "name": "Inns & Cathedrals", "type": "full", "owned": true }
+{
+  "id": "1706000000000-x7k2m",
+  "realm_id": "ABCD1234",
+  "date": "2026-02-20",
+  "players": [
+    { "name": "Poojan", "score": 94, "meeple": "blue.png" },
+    { "name": "Diya",   "score": 87, "meeple": "red.png"  }
+  ],
+  "expansions": ["Inns & Cathedrals", "The River"],
+  "farm_win": false
+}
 ```
 
-## Important implementation notes & limitations
+---
 
-- Players are currently hard-coded: `Poojan` and `Diya` (see `src/components/GameLogForm.jsx`).
-- Images attached in the form are read with `FileReader.readAsDataURL()` and saved as data URLs into localStorage. This is simple but can quickly exhaust browser localStorage (typical limit 5–10 MB). If you plan to store many photos or large images, consider one of:
-  - Provide an export/import backup feature (recommended) to move data off the device.
-  - Resize/compress images client-side before saving.
-  - Use IndexedDB for larger binary storage.
-  - Or host images externally and save URLs instead.
-- `useGameData` writes to localStorage synchronously after state updates. There is no error handling for quota/full storage.
-- Name deduplication in `Stats.jsx` is case-insensitive and keeps the first-seen capitalization. Varying capitalization will be merged but capitalization won't be normalized.
-- Filtering in `GameHistory.jsx` is an AND filter: selected expansions must all be present in the game to match.
+## 5. Game Flow
 
-## Storage migration
+### Pre-game setup
 
-`src/data/storage.js` includes a small migration step to rename a few legacy expansion names and to merge any stored expansions with the current defaults (this ensures newly-released expansions are appended to stored lists).
+1. User selects or creates a Realm (password-gated if protected).
+2. On the **Game Board** tab, players choose their meeple characters. Defaults seed from the previous game's selections.
+3. Active expansions are confirmed on the next step; only owned expansions are shown.
 
-## Suggestions & possible improvements (low-risk)
+### Live scoring
 
-- Add an "Export / Import JSON" backup feature (easy): allow the user to download a JSON file containing `games` and `expansions` and re-import it.
-- Add a settings screen to configure player names (instead of hard-coding them in the form).
-- Add client-side image resizing/compression (e.g., draw on a canvas and call `toDataURL()` with quality) to reduce localStorage usage.
-- Migrate from localStorage to IndexedDB for photos and larger datasets.
-- Add unit tests for `calcStats()` and storage migration logic.
-- Optionally convert to TypeScript or add `prop-types` to components for clearer runtime validation.
+The board uses a **50-point circular track** (configurable via `trackLength`). Each player has:
+- `position` — current cell (0–49)
+- `laps` — number of full circuits completed
 
-## Example: backup/export guidance
+**Total score = `laps × trackLength + position`**
 
-Minimal export: serialize both `carcassonne_games` and `carcassonne_expansions` into a single JSON file. On import, validate shape and optionally prompt to merge or replace.
+Points are added via a numeric input or quick-add buttons (+1, +2, +3). Every move is appended to a score log with timestamp, and the full undo history is kept in memory for the session.
 
-Example export pseudo-flow:
+### Finishing a game
 
-1. Read `localStorage.getItem('carcassonne_games')` and `localStorage.getItem('carcassonne_expansions')`.
-2. Build an object `{ games: [...], expansions: [...] }` and `JSON.stringify()` it.
-3. Create a blob and `URL.createObjectURL` to offer a download.
+Clicking **Finish Game** snapshots final scores and navigates to the **Final Scores** form. The player can:
+- Confirm the date
+- Mark a **Farm Win** (pig icon shown in logbook)
+- Record the game to the Supabase `games` table
 
-## How I validated things in this repo
+Clicking **← Back** returns to the live board with scores intact (board state is not reset until a new game starts).
 
-I inspected the following files while preparing this README:
-- `index.html`, `package.json`, `vite.config.js`
-- `src/main.jsx`, `src/App.jsx`, `src/index.css`
-- `src/components/*` (GameLogForm, GameHistory, Lightbox, Stats, Collection)
-- `src/data/*` (expansions.js, storage.js)
-- `src/hooks/useGameData.js`
+---
 
-If you want, I can also:
-- Add this README as a new file in the repo (done).
-- Add an in-app Export/Import UI. I can implement that next and add a simple test for export format.
-- Annotate specific files with inline comments to explain logic line-by-line.
+## 6. Authentication
 
-## Next steps I can take for you
+Supabase Auth handles identity. The app uses email/password sign-in via the Supabase JS client.
 
-- Implement Export/Import JSON backup feature and a small UI control (download/upload). This is a safe, high-value change.
-- Add a small `README` section that shows an example `localStorage` payload for easier debugging.
-- Add simple unit tests for `calcStats()` and storage migration.
+| Behaviour | Detail |
+|---|---|
+| Session persistence | JWT stored in `localStorage` by the Supabase client |
+| Auth guard | Realm creation requires a signed-in user; viewing is open |
+| Sign out | Clears session and returns user to the realm picker immediately |
+| Collection editing | Gated to a single hardcoded owner user ID (client-side check) |
 
-Tell me which of the next steps above you'd like me to implement and I'll proceed.
+Auth state is kept in sync via `supabase.auth.onAuthStateChange`, which updates React state reactively without polling.
+
+---
+
+## 7. Deployment
+
+The app is deployed as a static SPA on **Vercel**.
+
+```
+Production URL  →  used in Supabase allowed origins + Auth redirect URLs
+Preview URLs    →  auto-generated per branch/PR (e.g. carcassonne-abc123.vercel.app)
+Local dev       →  http://localhost:5173 (Vite dev server)
+```
+
+**Important:** Only the production URL should be added to Supabase's **Authentication → URL Configuration** (Site URL + Redirect URLs). Preview deployment URLs will not work with Supabase Auth unless explicitly added.
+
+Vercel build settings:
+
+| Setting | Value |
+|---|---|
+| Framework preset | Vite |
+| Build command | `npm run build` |
+| Output directory | `dist` |
+| Environment variables | `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` |
+
+---
+
+## 8. Local Development
+
+**Prerequisites:** Node.js 18+, npm, a Supabase project.
+
+```bash
+git clone <repo-url>
+cd carcassonne-tracker-obs
+npm install
+```
+
+Create `.env.local` in the project root:
+
+```
+VITE_SUPABASE_URL=https://<your-project>.supabase.co
+VITE_SUPABASE_ANON_KEY=<your-anon-key>
+```
+
+Both values are safe to expose client-side (they are the public anon key, not the service role key).
+
+```bash
+npm run dev       # start dev server at http://localhost:5173
+npm run build     # production build → dist/
+npm run preview   # serve the dist/ build locally
+```
+
+**Required Supabase tables:** `realms`, `games`, `expansions`, `board_state`. See the schema in §4 for column definitions.
+
+---
+
+## 9. Future Improvements
+
+- **Row-level security (RLS):** Add Supabase RLS policies so realm data is only readable/writable by authenticated users, removing reliance on client-side password hashing as the sole access control.
+- **Realm membership:** Associate realms with a specific owner user ID in Postgres, enabling server-enforced ownership rather than a hardcoded client-side check.
+- **Real-time updates:** Use Supabase Realtime to sync score changes across devices during a live game session.
+- **Export / backup:** Allow realm owners to download a full JSON export of their game history.
