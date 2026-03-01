@@ -495,8 +495,25 @@ h3 { font-size: 1.15rem; font-weight: 600; }
 }
 
 @media (max-width: 880px) {
-  .board-ui { grid-template-columns: 1fr; }
-  .board-image .meeple img { width: 44px; height: 44px; }
+  .board-ui {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto;
+  }
+  .board-ui .board-canvas   { grid-column: 1; grid-row: 1; }
+  .board-ui .board-controls { grid-column: 1; grid-row: 2; }
+  .board-ui .board-log      { grid-column: 1; grid-row: 3; }
+  .board-image .meeple img  { width: 44px; height: 44px; }
+}
+
+@media (max-width: 880px) and (orientation: landscape) {
+  .board-ui {
+    grid-template-columns: 160px 1fr;
+    grid-template-rows: 1fr auto;
+  }
+  .board-ui .board-log      { grid-column: 1; grid-row: 1 / -1; }
+  .board-ui .board-canvas   { grid-column: 2; grid-row: 1; }
+  .board-ui .board-controls { grid-column: 2; grid-row: 2; }
+  .board-log { height: 100%; min-height: 0; }
 }
 .player-card:hover {
   transform: translateY(-3px);
