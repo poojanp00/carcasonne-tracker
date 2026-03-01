@@ -74,8 +74,18 @@ export default function App() {
     setRealmPickerKey(k => k + 1);
   }, [addRealm]);
 
+  // Maps expansion names to the score types they add beyond the base four
+  const EXPANSION_TYPES = {
+    'Inns & Cathedrals':          ['inn', 'cathedral'],
+    'Bridges, Castles & Bazaars': ['inn', 'cathedral'],
+    'The Princess & the Dragon':  ['princess', 'fairy'],
+    'Traders & Builders':         ['wine', 'grain', 'cloth', 'pig'],
+    'Count, King & Robber':       ['largest_city', 'largest_road'],
+  };
+
   const handleGameStart = useCallback(async (setup) => {
-    await resetBoard(setup.players);
+    const extraTypes = (setup.expansions || []).flatMap(e => EXPANSION_TYPES[e] || []);
+    await resetBoard(setup.players, extraTypes);
     setSession(prev => ({ ...prev, ...setup, finalScores: null }));
     setGameKey(k => k + 1);
   }, []);
@@ -148,11 +158,6 @@ export default function App() {
     <div className="app-shell">
       <header className="site-header">
         <div className="app-wrapper">
-          <div className="header-ornament">
-            <div className="ornament-line" />
-            <img src={crownImg} alt="" style={{ width: '18px', height: 'auto', opacity: 0.85 }} />
-            <div className="ornament-line" />
-          </div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-start' }}>
               {user && (
@@ -171,11 +176,6 @@ export default function App() {
             </div>
             <h1 style={{ cursor: 'pointer' }} onClick={goHome}>Meeple Log</h1>
             <div style={{ flex: 1 }} />
-          </div>
-          <div className="header-ornament" style={{ marginTop: '0.45rem' }}>
-            <div className="ornament-line" />
-            <span style={{ color: 'var(--warm-gold)', fontSize: '0.75rem', letterSpacing: '0.3em' }}>✦ ✦ ✦</span>
-            <div className="ornament-line" />
           </div>
         </div>
       </header>
@@ -233,7 +233,17 @@ export default function App() {
                     />
                   : session.players
                     ? <Board key={gameKey} session={session} onFinish={handleFinishGame} onReset={handleBoardReset} />
-                    : <PreGameSetup realm={session.realm} ownedExpansions={ownedExpansions} onStart={handleGameStart} defaultMeeples={session.lastMeeples} defaultExpansions={session.lastExpansions} />
+                    : <PreGameSetup
+                        key={session.realm.id}
+                        realm={session.realm}
+                        ownedExpansions={ownedExpansions}
+                        onStart={handleGameStart}
+                        defaultMeeples={session.lastMeeples}
+                        defaultExpansions={session.lastExpansions}
+                        realms={realms}
+                        currentRealm={session?.realm || null}
+                        onRealmChange={handleRealmSelect}
+                      />
                 : (
                   <div>
                     <div className="section-title">

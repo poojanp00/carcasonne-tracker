@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import crownImg from '../../images/icons/crown.png';
 import pigImg   from '../../images/icons/pig.png';
+import cImg     from '../../images/icons/C.png';
 
 // Dynamically load all meeple PNGs (root + fun/)
 const MEEPLE_MODULES = import.meta.glob('../../images/meeples/*.png',     { eager: true, import: 'default' });
@@ -39,6 +40,11 @@ export default function GameLogForm({ session, ownedExpansions, onSubmit, onCanc
   const winners      = maxScore > 0 ? players.filter(p => (Number(finalScores[p]) || 0) === maxScore) : [];
   const sortedPlayers = [...players].sort((a, b) => (Number(finalScores[b]) || 0) - (Number(finalScores[a]) || 0));
 
+  const sortedScores = [...scoreNums].sort((a, b) => b - a);
+  const s1 = sortedScores[0] ?? 0, s2 = sortedScores[1] ?? 0;
+  const combined = s1 + s2;
+  const isClutch = winners.length === 1 && combined > 0 && (s1 - s2) / combined < 0.10;
+
   const handleSubmit = (e) => {
     e.preventDefault();
     onSubmit({
@@ -50,7 +56,8 @@ export default function GameLogForm({ session, ownedExpansions, onSubmit, onCanc
         breakdown: scoreBreakdown[name] || {},
       })),
       expansions: [...prefillExp].sort(),
-      farmWin: autoFarmWin,
+      farmWin:   autoFarmWin,
+      clutchWin: isClutch,
     });
   };
 
@@ -89,8 +96,17 @@ export default function GameLogForm({ session, ownedExpansions, onSubmit, onCanc
                   {isWinner && (
                     <img src={crownImg} alt="winner" className="postgame-crown" />
                   )}
+                  {isWinner && isClutch && (
+                    <span className="val-info-wrap">
+                      <img src={cImg} alt="clutch" className="postgame-crown" />
+                      <span className="val-info-tooltip" style={{ right: 'auto', left: '50%', top: 'auto', bottom: 'calc(100% + 6px)', transform: 'translateX(-50%)', whiteSpace: 'nowrap' }}>Clutch win</span>
+                    </span>
+                  )}
                   {isWinner && autoFarmWin && (
-                    <img src={pigImg} alt="farm win" className="postgame-pig" />
+                    <span className="val-info-wrap">
+                      <img src={pigImg} alt="farm win" className="postgame-pig" />
+                      <span className="val-info-tooltip" style={{ right: 'auto', left: '50%', top: 'auto', bottom: 'calc(100% + 6px)', transform: 'translateX(-50%)', whiteSpace: 'nowrap' }}>Farm win</span>
+                    </span>
                   )}
                   <div className="postgame-score-display">
                     {finalScores[name] ?? 0}
@@ -101,12 +117,6 @@ export default function GameLogForm({ session, ownedExpansions, onSubmit, onCanc
           })}
         </div>
 
-        {/* Farm win — below all scores */}
-        {autoFarmWin && (
-          <div style={{ marginTop: '1rem', fontFamily: 'Cinzel, serif', fontSize: '0.82rem', letterSpacing: '0.05em', color: 'var(--forest-green)', fontStyle: 'italic' }}>
-            Won via Farm
-          </div>
-        )}
       </div>
 
       {/* Expansions */}

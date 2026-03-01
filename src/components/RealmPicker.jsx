@@ -2,6 +2,14 @@ import { useState } from 'react';
 
 const TYPE_ORDER = ['road', 'city', 'monastery', 'field'];
 
+const TYPE_LABELS = {
+  road: 'Road', city: 'City', monastery: 'Monastery', field: 'Field',
+  inn: 'Inn', cathedral: 'Cathedral',
+  princess: 'Princess', fairy: 'Fairy',
+  wine: 'Wine', grain: 'Grain', cloth: 'Cloth', pig: 'Pig',
+  largest_city: 'Largest City', largest_road: 'Largest Road',
+};
+
 function calcRealmStats(games) {
   let totalPoints = 0, farmWins = 0, clutchGames = 0;
   const typePoints = {};
@@ -108,6 +116,7 @@ export default function RealmPicker({ realms, currentRealm = null, games = [], o
       <div className="section-title">
         <h2>Realms</h2>
         <div className="section-title-line" />
+        {currentRealm && <span className="game-count">{realms.length} {realms.length === 1 ? 'realm' : 'realms'}</span>}
       </div>
 
       {/* Delete confirmation modal */}
@@ -223,8 +232,8 @@ export default function RealmPicker({ realms, currentRealm = null, games = [], o
             const rs      = calcRealmStats(games);
             const records = calcPlayerRecords(games, currentRealm.players);
             const typeEntries = [
-              ...TYPE_ORDER.filter(t => (rs.typePoints[t] ?? 0) > 0),
-              ...Object.keys(rs.typePoints).filter(t => !TYPE_ORDER.includes(t) && (rs.typePoints[t] ?? 0) > 0),
+              ...TYPE_ORDER,
+              ...Object.keys(rs.typePoints).filter(t => !TYPE_ORDER.includes(t)),
             ];
             return (
               <div className="tile-card" style={{ marginBottom: '1.2rem', borderTop: '4px solid var(--warm-gold)' }}>
@@ -248,63 +257,51 @@ export default function RealmPicker({ realms, currentRealm = null, games = [], o
                   </button>
                 </div>
 
-                {games.length > 0 && (
-                  <>
-                    <div style={{ marginBottom: '1rem', fontFamily: 'Cinzel, serif', fontSize: '0.85rem' }}>
-                      {[...currentRealm.players]
-                        .sort((a, b) => (records[b.toLowerCase()]?.w || 0) - (records[a.toLowerCase()]?.w || 0))
-                        .map((name, i) => {
-                          const w = records[name.toLowerCase()]?.w || 0;
-                          return (
-                            <span key={name}>
-                              {i > 0 && <span style={{ color: 'var(--stone-gray)' }}> · </span>}
-                              <span style={{ color: 'var(--charcoal)' }}>{name}</span>
-                              {' '}
-                              <span style={{ color: 'var(--forest-green)', fontWeight: 600 }}>{w}</span>
-                            </span>
-                          );
-                        })}
-                    </div>
-                    <div className="stat-divider" style={{ margin: '0.5rem 0 0.8rem' }} />
-                  </>
-                )}
+                <div style={{ marginBottom: '1rem', fontFamily: 'Cinzel, serif', fontSize: '0.85rem' }}>
+                  {[...currentRealm.players]
+                    .sort((a, b) => (records[b.toLowerCase()]?.w || 0) - (records[a.toLowerCase()]?.w || 0))
+                    .map((name, i) => {
+                      const w = records[name.toLowerCase()]?.w || 0;
+                      return (
+                        <span key={name}>
+                          {i > 0 && <span style={{ color: 'var(--stone-gray)' }}> · </span>}
+                          <span style={{ color: 'var(--charcoal)' }}>{name}</span>
+                          {' '}
+                          <span style={{ color: 'var(--forest-green)', fontWeight: 600 }}>{w}</span>
+                        </span>
+                      );
+                    })}
+                </div>
+                <div className="stat-divider" style={{ margin: '0.5rem 0 0.8rem' }} />
 
-                {games.length > 0 && (
-                  <>
-                    <div style={{ fontSize: '0.7rem', fontFamily: 'Cinzel, serif', letterSpacing: '0.1em', color: 'var(--stone-gray)', marginBottom: '0.5rem' }}>
-                      REALM STATS
+                <div style={{ fontSize: '0.7rem', fontFamily: 'Cinzel, serif', letterSpacing: '0.1em', color: 'var(--stone-gray)', marginBottom: '0.5rem' }}>
+                  REALM STATS
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.3rem 1.2rem', marginBottom: '0.9rem' }}>
+                  {[
+                    ['Games',        games.length],
+                    ['Total Pts',    rs.totalPoints],
+                    ['Farm Wins',    rs.farmWins],
+                    ['Clutch Games', rs.clutchGames],
+                  ].map(([label, val]) => (
+                    <div key={label} className="stat-row" style={{ margin: 0 }}>
+                      <span className="stat-label" style={{ fontSize: '0.82rem' }}>{label}</span>
+                      <span className="stat-value" style={{ fontSize: '0.82rem' }}>{val}</span>
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.3rem 1.2rem', marginBottom: typeEntries.length > 0 ? '0.9rem' : 0 }}>
-                      {[
-                        ['Games',        games.length],
-                        ['Total Pts',    rs.totalPoints],
-                        ['Farm Wins',    rs.farmWins],
-                        ['Clutch Games', rs.clutchGames],
-                      ].map(([label, val]) => (
-                        <div key={label} className="stat-row" style={{ margin: 0 }}>
-                          <span className="stat-label" style={{ fontSize: '0.82rem' }}>{label}</span>
-                          <span className="stat-value" style={{ fontSize: '0.82rem' }}>{val}</span>
-                        </div>
-                      ))}
-                    </div>
+                  ))}
+                </div>
 
-                    {typeEntries.length > 0 && (
-                      <>
-                        <div style={{ fontSize: '0.7rem', fontFamily: 'Cinzel, serif', letterSpacing: '0.1em', color: 'var(--stone-gray)', marginBottom: '0.5rem' }}>
-                          POINT TOTALS
-                        </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.3rem 1.2rem' }}>
-                          {typeEntries.map(t => (
-                            <div key={t} className="stat-row" style={{ margin: 0 }}>
-                              <span className="stat-label" style={{ fontSize: '0.82rem' }}>{t.charAt(0).toUpperCase() + t.slice(1)}</span>
-                              <span className="stat-value" style={{ fontSize: '0.82rem' }}>{rs.typePoints[t]}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </>
-                    )}
-                  </>
-                )}
+                <div style={{ fontSize: '0.7rem', fontFamily: 'Cinzel, serif', letterSpacing: '0.1em', color: 'var(--stone-gray)', marginBottom: '0.5rem' }}>
+                  POINT TOTALS
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.3rem 1.2rem' }}>
+                  {typeEntries.map(t => (
+                    <div key={t} className="stat-row" style={{ margin: 0 }}>
+                      <span className="stat-label" style={{ fontSize: '0.82rem' }}>{TYPE_LABELS[t] ?? t.charAt(0).toUpperCase() + t.slice(1)}</span>
+                      <span className="stat-value" style={{ fontSize: '0.82rem' }}>{rs.typePoints[t] || 0}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             );
           })()}

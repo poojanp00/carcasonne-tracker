@@ -111,7 +111,6 @@ export default function GameHistory({ games, realms = [], currentRealm = null, o
                 const isTie      = topPlayers.length > 1;
                 const winner     = isTie ? null : topPlayers[0];
                 const margin     = isTie ? 0 : maxScore - (scores[1] ?? 0);
-
                 return (
                   <tr key={game.id} onClick={() => setSelectedGame(game)} style={{ cursor: 'pointer' }}>
                     <td className="cell-date">{formatDate(game.date)}</td>

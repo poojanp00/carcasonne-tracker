@@ -3,16 +3,18 @@ import { supabase } from './supabase';
 // SQL migration required:
 //   ALTER TABLE board_state ADD COLUMN IF NOT EXISTS score_totals jsonb DEFAULT '{}';
 
-const BASE_BREAKDOWN = { road: 0, city: 0, monastery: 0, field: 0 };
+const BASE_TYPES = ['road', 'city', 'monastery', 'field'];
 
-function makeDefault(players = []) {
+function makeDefault(players = [], extraTypes = []) {
+  const allTypes   = [...BASE_TYPES, ...extraTypes.filter(t => !BASE_TYPES.includes(t))];
+  const breakdown  = Object.fromEntries(allTypes.map(t => [t, 0]));
   const positions   = {};
   const laps        = {};
   const scoreTotals = {};
   for (const p of players) {
     positions[p]   = 0;
     laps[p]        = 0;
-    scoreTotals[p] = { ...BASE_BREAKDOWN };
+    scoreTotals[p] = { ...breakdown };
   }
   return { positions, laps, trackLength: 50, players, scoreTotals };
 }
@@ -62,8 +64,8 @@ export function saveBoard(board) {
 }
 
 // Awaitable — callers that need the write to commit before reading should await this
-export async function resetBoard(players = []) {
-  const d = makeDefault(players);
+export async function resetBoard(players = [], extraTypes = []) {
+  const d = makeDefault(players, extraTypes);
   await supabase.from('board_state').upsert({
     id:           1,
     positions:    d.positions,
