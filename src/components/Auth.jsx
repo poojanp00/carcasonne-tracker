@@ -81,7 +81,7 @@ export default function Auth({ onSuccess }) {
         <div style={{ marginTop: '1.1rem', textAlign: 'center', fontSize: '0.88rem', color: 'var(--stone-gray)', fontFamily: 'Crimson Text, serif' }}>
           {mode === 'signin' ? (
             <>No account?{' '}
-              <button type="button" className="btn-ghost" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--earth-brown)', fontFamily: 'inherit', fontSize: 'inherit', textDecoration: 'underline', padding: 0 }}
+              <button type="button" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--earth-brown)', fontFamily: 'inherit', fontSize: 'inherit', textDecoration: 'underline', padding: 0 }}
                 onClick={() => { setMode('signup'); setError(null); setNotice(null); }}>
                 Create one
               </button>

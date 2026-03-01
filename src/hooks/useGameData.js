@@ -18,8 +18,8 @@ export function useGameData(user, authLoading) {
 
     async function init() {
       setLoading(true);
-      if (user) await migrateFromLocalStorage();
-      const [g, e, r] = await Promise.all([getGames(), getExpansions(), getRealms()]);
+      if (user) await migrateFromLocalStorage(user.id);
+      const [g, e, r] = await Promise.all([getGames(), getExpansions(user?.id), getRealms(user?.id)]);
       setGames(g);
       setExpansions(e);
       setRealms(r);
@@ -45,10 +45,10 @@ export function useGameData(user, authLoading) {
     setExpansions(prev => {
       const u   = prev.map(e => e.name === name ? { ...e, owned: !e.owned } : e);
       const exp = u.find(e => e.name === name);
-      if (exp) upsertExpansion(exp.name, exp.type, exp.owned);
+      if (exp) upsertExpansion(exp.name, exp.type, exp.owned, user?.id);
       return u;
     });
-  }, []);
+  }, [user]);
 
   const addRealm = useCallback(async (data) => {
     const realm = {
@@ -56,19 +56,19 @@ export function useGameData(user, authLoading) {
       id:        generateRealmId(),
       createdAt: new Date().toISOString().split('T')[0],
     };
-    await saveRealm(realm);
+    await saveRealm(realm, user?.id);
     setRealms(prev => [...prev, realm]);
     return realm;
-  }, []);
+  }, [user]);
 
   const updateRealm = useCallback((id, patch) => {
     setRealms(prev => {
       const u       = prev.map(r => r.id === id ? { ...r, ...patch } : r);
       const updated = u.find(r => r.id === id);
-      if (updated) saveRealm(updated);
+      if (updated) saveRealm(updated, user?.id);
       return u;
     });
-  }, []);
+  }, [user]);
 
   const removeRealm = useCallback(async (realmId) => {
     await deleteRealm(realmId);

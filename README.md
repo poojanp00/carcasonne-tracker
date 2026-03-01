@@ -1,6 +1,6 @@
-# Carcassonne Tracker
+# Meeple Log
 
-A full-stack web app for tracking Carcassonne board game sessions across multiple groups. Supports expansion management, real-time score tracking, game history, and player statistics — all scoped to password-protected realms.
+A full-stack web app for tracking Carcassonne board game sessions across multiple groups. Supports expansion management, real-time score tracking, game history, and player statistics — all scoped to per-user realms.
 
 **Stack:** React (Vite) · Supabase (Postgres + Auth) · Vercel
 
@@ -22,19 +22,19 @@ A full-stack web app for tracking Carcassonne board game sessions across multipl
 
 ## 1. Project Overview
 
-Carcassonne Tracker is a multi-tenant score tracking app built for groups who play Carcassonne regularly. Each group operates within a **Realm** — an isolated space with its own players, game history, standings, and expansion configuration.
+Meeple Log is a multi-tenant score tracking app built for groups who play Carcassonne regularly. Each group operates within a **Realm** — an isolated space with its own players, game history, standings, and expansion configuration.
 
 **Core features:**
 
 | Feature | Description |
 |---|---|
-| Realms | Isolated game groups, each optionally password-protected |
+| Realms | Per-user isolated game groups; only realms you created are visible to you |
 | Score Board | Live position tracking on a 50-point track with lap counting |
 | Meeple Picker | Each player selects a character meeple before each game |
-| Expansions | Per-group expansion selection; owner-gated collection management |
-| Logbook | Filterable game history with winner, margin, farm win flag |
-| Standings | Per-realm statistics: wins, streaks, high scores, farm dominance |
-| Auth | Supabase-managed authentication; realm creation requires sign-in |
+| Expansions | Per-user collection management; each user's owned expansions are independent |
+| Logbook | Filterable game history (date, winner, margin); click any row to open match detail lightbox |
+| Statistics | Per-realm statistics: wins, streaks, high scores, farm dominance, clutch factor |
+| Auth | Sign-in page shown when signed out; tabbed layout only visible to authenticated users |
 
 ---
 
@@ -91,8 +91,8 @@ erDiagram
         text id PK
         text name
         text[] players
-        text password_hash
         date created_at
+        uuid user_id FK
     }
 
     GAMES {
@@ -106,7 +106,8 @@ erDiagram
     }
 
     EXPANSIONS {
-        text name PK
+        uuid user_id FK
+        text name
         text type
         bool owned
     }
@@ -135,16 +136,17 @@ sequenceDiagram
     S-->>A: session (or null)
 
     alt No session
+        A->>A: Show sign-in page
         U->>A: Sign in (email/password)
         A->>S: signInWithPassword()
         S-->>A: JWT session
-        A->>A: setUser(session.user)
+        A->>A: Show tabbed layout (Realms tab)
     end
 
     U->>A: Sign out
     A->>S: signOut()
     S-->>A: session cleared
-    A->>A: goHome() → realm picker
+    A->>A: Show sign-in page
 ```
 
 ### Scoring Flow
@@ -172,7 +174,7 @@ flowchart TD
 
 **`games.expansions`** is a `text[]` column listing the expansion names active during that game. This allows straightforward AND-filtering in the logbook without a join table.
 
-**`realms.password_hash`** stores a client-side SHA-256 hex digest (Web Crypto API). Passwords are never sent in plaintext; the hash is compared on the client after hashing the user's input.
+**`realms.password_hash`** column exists in the schema but is unused — realms are scoped to the authenticated user and require no password.
 
 ### Example records
 
@@ -183,7 +185,6 @@ flowchart TD
   "id": "ABCD1234",
   "name": "The Keep",
   "players": ["Poojan", "Diya"],
-  "password_hash": "8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918",
   "created_at": "2026-01-15"
 }
 ```
@@ -208,10 +209,30 @@ flowchart TD
 
 ## 5. Game Flow
 
+### Navigation
+
+The app has two top-level views:
+- **Sign-in page** — shown when the user is not authenticated
+- **Tabbed layout** — shown when authenticated; 5 tabs always visible: **Realms · Statistics · Logbook · Game Board · Collection**
+
+Auth state is derived purely from the Supabase user object — there is no separate `phase` state.
+
+### Realms tab
+
+The Realms tab is the landing page after sign-in. It shows:
+- The currently active realm (name + players) if one is loaded
+- **Load Realm** — opens the realm list; selecting a realm sets it as active and returns to the landing
+- **Create New Realm** — form to create a realm (name must be unique per user); on submit returns to landing
+
+Realm behaviour:
+- Deleting the active realm clears it from the session
+- Deleting the last realm resets to the landing; deleting a non-last realm stays in the realm list
+- Statistics, Logbook, and Game Board all show an empty state when no realm is loaded
+
 ### Pre-game setup
 
-1. User selects or creates a Realm (password-gated if protected).
-2. On the **Game Board** tab, players choose their meeple characters. Defaults seed from the previous game's selections.
+1. With a realm loaded, navigate to the **Game Board** tab.
+2. Players choose their meeple characters. Defaults seed from the previous game's selections.
 3. Active expansions are confirmed on the next step; only owned expansions are shown.
 
 ### Live scoring
@@ -233,6 +254,19 @@ Clicking **Finish Game** snapshots final scores and navigates to the **Final Sco
 
 Clicking **← Back** returns to the live board with scores intact (board state is not reset until a new game starts).
 
+### Logbook
+
+Filterable game history table (date, winner, margin). Filters by expansion using AND logic. Clicking a row opens a **match detail lightbox** showing:
+- Full date, winner, point margin
+- Per-player scores
+- Expansions played
+
+Lightbox keyboard controls: `Esc` / `Space` to close; `↑` / `↓` to navigate between entries with a slide animation.
+
+### Statistics
+
+Per-player cards showing: wins, losses, ties, win rate, high score, current streak, farm dominance, clutch factor, biggest blowout, net point differential. The leader card displays `crown.png`. Cards are sorted by win rate (tiebroken by total wins).
+
 ---
 
 ## 6. Authentication
@@ -242,9 +276,10 @@ Supabase Auth handles identity. The app uses email/password sign-in via the Supa
 | Behaviour | Detail |
 |---|---|
 | Session persistence | JWT stored in `localStorage` by the Supabase client |
-| Auth guard | Realm creation requires a signed-in user; viewing is open |
-| Sign out | Clears session and returns user to the realm picker immediately |
-| Collection editing | Gated to a single hardcoded owner user ID (client-side check) |
+| Front page | Sign-in screen shown when not authenticated; no tabs visible |
+| Per-user realms | Only realms created by the signed-in user appear in "Load Realm" |
+| Per-user collection | Each user's expansion ownership is stored independently in `expansions` |
+| Sign out | Clears session and returns to sign-in page |
 
 Auth state is kept in sync via `supabase.auth.onAuthStateChange`, which updates React state reactively without polling.
 
@@ -279,7 +314,7 @@ Vercel build settings:
 
 ```bash
 git clone <repo-url>
-cd carcassonne-tracker-obs
+cd meeple-log
 npm install
 ```
 
@@ -300,11 +335,22 @@ npm run preview   # serve the dist/ build locally
 
 **Required Supabase tables:** `realms`, `games`, `expansions`, `board_state`. See the schema in §4 for column definitions.
 
+**Required schema migrations** (run in Supabase SQL editor):
+
+```sql
+-- Per-user realms
+ALTER TABLE realms ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES auth.users(id);
+
+-- Per-user expansions
+ALTER TABLE expansions ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES auth.users(id);
+ALTER TABLE expansions DROP CONSTRAINT IF EXISTS expansions_pkey;
+ALTER TABLE expansions ADD CONSTRAINT expansions_name_user_id_key UNIQUE (name, user_id);
+```
+
 ---
 
 ## 9. Future Improvements
 
-- **Row-level security (RLS):** Add Supabase RLS policies so realm data is only readable/writable by authenticated users, removing reliance on client-side password hashing as the sole access control.
-- **Realm membership:** Associate realms with a specific owner user ID in Postgres, enabling server-enforced ownership rather than a hardcoded client-side check.
+- **Row-level security (RLS):** Add Supabase RLS policies so realm/expansion data is only readable/writable by the owning user, enforcing per-user scoping at the database level instead of only in the client query.
 - **Real-time updates:** Use Supabase Realtime to sync score changes across devices during a live game session.
 - **Export / backup:** Allow realm owners to download a full JSON export of their game history.

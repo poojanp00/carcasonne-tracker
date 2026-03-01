@@ -16,9 +16,11 @@ export function generateId() {
 }
 
 // ── Realms ────────────────────────────────────────────────────────────────────
+// Schema requires: ALTER TABLE realms ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES auth.users(id);
 
-export async function getRealms() {
-  const { data } = await supabase.from('realms').select('*').order('created_at');
+export async function getRealms(userId) {
+  if (!userId) return [];
+  const { data } = await supabase.from('realms').select('*').eq('user_id', userId).order('created_at');
   return (data || []).map(r => ({
     id:           r.id,
     name:         r.name,
@@ -28,13 +30,14 @@ export async function getRealms() {
   }));
 }
 
-export async function saveRealm(realm) {
+export async function saveRealm(realm, userId) {
   await supabase.from('realms').upsert({
     id:            realm.id,
     name:          realm.name,
     players:       realm.players || [],
     created_at:    realm.createdAt,
     password_hash: realm.passwordHash || null,
+    user_id:       userId || null,
   });
 }
 
@@ -76,9 +79,13 @@ export async function removeGame(id) {
 }
 
 // ── Expansions ────────────────────────────────────────────────────────────────
+// Schema requires:
+//   ALTER TABLE expansions ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES auth.users(id);
+//   ALTER TABLE expansions ADD CONSTRAINT expansions_name_user_id_key UNIQUE (name, user_id);
 
-export async function getExpansions() {
-  const { data } = await supabase.from('expansions').select('*');
+export async function getExpansions(userId) {
+  if (!userId) return DEFAULT_EXPANSIONS;
+  const { data } = await supabase.from('expansions').select('*').eq('user_id', userId);
   if (!data || data.length === 0) return DEFAULT_EXPANSIONS;
   const defaultByName = Object.fromEntries(DEFAULT_EXPANSIONS.map(e => [e.name, e]));
   const storedNames   = new Set(data.map(e => e.name));
@@ -88,13 +95,16 @@ export async function getExpansions() {
   ];
 }
 
-export async function upsertExpansion(name, type, owned) {
-  await supabase.from('expansions').upsert({ name, type, owned });
+export async function upsertExpansion(name, type, owned, userId) {
+  await supabase.from('expansions').upsert(
+    { name, type, owned, user_id: userId || null },
+    { onConflict: 'name,user_id' }
+  );
 }
 
 // ── localStorage migration (runs once on first load) ─────────────────────────
 
-export async function migrateFromLocalStorage() {
+export async function migrateFromLocalStorage(userId) {
   const LS_MIGRATED = 'carcassonne_migrated_v1';
   if (localStorage.getItem(LS_MIGRATED)) return;
 
@@ -118,6 +128,7 @@ export async function migrateFromLocalStorage() {
             name:       r.name,
             players:    r.players || [],
             created_at: r.createdAt || new Date().toISOString().split('T')[0],
+            user_id:    userId || null,
           }))
         );
       }
@@ -142,7 +153,8 @@ export async function migrateFromLocalStorage() {
       const exps = JSON.parse(rawExpansions);
       if (exps.length > 0) {
         await supabase.from('expansions').upsert(
-          exps.map(e => ({ name: e.name, type: e.type || 'full', owned: e.owned || false }))
+          exps.map(e => ({ name: e.name, type: e.type || 'full', owned: e.owned || false, user_id: userId || null })),
+          { onConflict: 'name,user_id' }
         );
       }
     }
