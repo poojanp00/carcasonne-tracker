@@ -1,4 +1,4 @@
-# Meeple Log
+# Carcasscore
 
 A full-stack web app for tracking Carcassonne board game sessions across multiple groups. Supports expansion management, real-time score tracking, game history, and player statistics — all scoped to per-user realms.
 
@@ -22,7 +22,7 @@ A full-stack web app for tracking Carcassonne board game sessions across multipl
 
 ## 1. Project Overview
 
-Meeple Log is a multi-tenant score tracking app built for groups who play Carcassonne regularly. Each group operates within a **Realm** — an isolated space with its own players, game history, standings, and expansion configuration.
+Carcasscore is a multi-tenant score tracking app built for groups who play Carcassonne regularly. Each group operates within a **Realm** — an isolated space with its own players, game history, standings, and expansion configuration.
 
 **Core features:**
 
