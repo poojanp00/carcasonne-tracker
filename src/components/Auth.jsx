@@ -1,37 +1,98 @@
 import { useState } from 'react';
 import { supabase } from '../data/supabase';
 
+const EyeOpen = () => (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+    <circle cx="12" cy="12" r="3"/>
+  </svg>
+);
+
+const EyeClosed = () => (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+    <line x1="1" y1="1" x2="23" y2="23"/>
+  </svg>
+);
+
+const EyeBtn = ({ show, onToggle }) => (
+  <button
+    type="button"
+    tabIndex={-1}
+    onClick={onToggle}
+    style={{
+      position: 'absolute', right: '0.65rem', top: '50%', transform: 'translateY(-50%)',
+      background: 'none', border: 'none', cursor: 'pointer',
+      color: 'var(--stone-gray)', padding: 0, display: 'flex', alignItems: 'center',
+    }}
+  >
+    {show ? <EyeOpen /> : <EyeClosed />}
+  </button>
+);
+
 export default function Auth({ onSuccess }) {
-  const [mode,     setMode]     = useState('signin');
-  const [email,    setEmail]    = useState('');
-  const [password, setPassword] = useState('');
-  const [error,    setError]    = useState(null);
-  const [notice,   setNotice]   = useState(null);
-  const [loading,  setLoading]  = useState(false);
+  const [mode,    setMode]    = useState('signin');  // 'signin' | 'signup'
+  const [name,    setName]    = useState('');
+  const [email,   setEmail]   = useState('');
+  const [pw,      setPw]      = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [showPw,  setShowPw]  = useState(false);
+  const [showCf,  setShowCf]  = useState(false);
+  const [error,   setError]   = useState(null);
+  const [notice,  setNotice]  = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  const switchMode = (m) => {
+    setMode(m);
+    setError(null); setNotice(null);
+    setPw(''); setConfirm('');
+    setShowPw(false); setShowCf(false);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError(null);
-    setNotice(null);
+    setError(null); setNotice(null);
+
+    if (mode === 'signup' && pw !== confirm) {
+      setError('Passwords do not match.');
+      return;
+    }
+
     setLoading(true);
 
     if (mode === 'signup') {
-      const { data, error: err } = await supabase.auth.signUp({ email, password });
+      const { data, error: err } = await supabase.auth.signUp({
+        email, password: pw,
+        options: { data: { full_name: name.trim() } },
+      });
       setLoading(false);
-      if (err) { setError(err.message); return; }
-      // Email confirmation required — session won't exist yet
+      if (err) {
+        if (err.message.toLowerCase().includes('already registered')) {
+          setError('An account with this email already exists.');
+          switchMode('signin');
+        } else {
+          setError(err.message);
+        }
+        return;
+      }
       if (data.user && !data.session) {
         setNotice('Check your email to confirm your account, then sign in.');
-        setMode('signin');
+        switchMode('signin');
         return;
       }
     } else {
-      const { error: err } = await supabase.auth.signInWithPassword({ email, password });
+      const { error: err } = await supabase.auth.signInWithPassword({ email, password: pw });
       setLoading(false);
       if (err) { setError(err.message); return; }
     }
 
     onSuccess?.();
+  };
+
+  const linkStyle = {
+    background: 'none', border: 'none', cursor: 'pointer',
+    color: 'var(--earth-brown)', fontFamily: 'inherit', fontSize: 'inherit',
+    textDecoration: 'underline', padding: 0,
   };
 
   return (
@@ -43,6 +104,25 @@ export default function Auth({ onSuccess }) {
 
       <div className="tile-card" style={{ maxWidth: '360px', margin: '0 auto' }}>
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
+
+          {/* Name (signup only) */}
+          {mode === 'signup' && (
+            <div>
+              <label className="form-label" htmlFor="auth-name">Name</label>
+              <input
+                id="auth-name"
+                className="form-input"
+                type="text"
+                value={name}
+                onChange={e => setName(e.target.value)}
+                required
+                autoComplete="name"
+                autoFocus
+              />
+            </div>
+          )}
+
+          {/* Email */}
           <div>
             <label className="form-label" htmlFor="auth-email">Email</label>
             <input
@@ -53,22 +133,49 @@ export default function Auth({ onSuccess }) {
               onChange={e => setEmail(e.target.value)}
               required
               autoComplete="email"
+              autoFocus={mode === 'signin'}
             />
           </div>
 
+          {/* Password */}
           <div>
-            <label className="form-label" htmlFor="auth-password">Password</label>
-            <input
-              id="auth-password"
-              className="form-input"
-              type="password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              required
-              autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
-              minLength={6}
-            />
+            <label className="form-label" htmlFor="auth-pw">Password</label>
+            <div style={{ position: 'relative' }}>
+              <input
+                id="auth-pw"
+                className="form-input"
+                type={showPw ? 'text' : 'password'}
+                value={pw}
+                onChange={e => setPw(e.target.value)}
+                required
+                autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+                minLength={6}
+                style={{ paddingRight: '2.4rem' }}
+              />
+              <EyeBtn show={showPw} onToggle={() => setShowPw(v => !v)} />
+            </div>
           </div>
+
+          {/* Confirm (signup only) */}
+          {mode === 'signup' && (
+            <div>
+              <label className="form-label" htmlFor="auth-confirm">Confirm Password</label>
+              <div style={{ position: 'relative' }}>
+                <input
+                  id="auth-confirm"
+                  className="form-input"
+                  type={showCf ? 'text' : 'password'}
+                  value={confirm}
+                  onChange={e => setConfirm(e.target.value)}
+                  required
+                  autoComplete="new-password"
+                  minLength={6}
+                  style={{ paddingRight: '2.4rem' }}
+                />
+                <EyeBtn show={showCf} onToggle={() => setShowCf(v => !v)} />
+              </div>
+            </div>
+          )}
 
           {error  && <p style={{ color: '#DC2626', fontStyle: 'italic', fontSize: '0.88rem', margin: 0 }}>{error}</p>}
           {notice && <p style={{ color: 'var(--stone-gray)', fontStyle: 'italic', fontSize: '0.88rem', margin: 0 }}>{notice}</p>}
@@ -81,17 +188,11 @@ export default function Auth({ onSuccess }) {
         <div style={{ marginTop: '1.1rem', textAlign: 'center', fontSize: '0.88rem', color: 'var(--stone-gray)', fontFamily: 'Crimson Text, serif' }}>
           {mode === 'signin' ? (
             <>No account?{' '}
-              <button type="button" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--earth-brown)', fontFamily: 'inherit', fontSize: 'inherit', textDecoration: 'underline', padding: 0 }}
-                onClick={() => { setMode('signup'); setError(null); setNotice(null); }}>
-                Create one
-              </button>
+              <button type="button" style={linkStyle} onClick={() => switchMode('signup')}>Create one</button>
             </>
           ) : (
             <>Already have an account?{' '}
-              <button type="button" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--earth-brown)', fontFamily: 'inherit', fontSize: 'inherit', textDecoration: 'underline', padding: 0 }}
-                onClick={() => { setMode('signin'); setError(null); setNotice(null); }}>
-                Sign in
-              </button>
+              <button type="button" style={linkStyle} onClick={() => switchMode('signin')}>Sign in</button>
             </>
           )}
         </div>

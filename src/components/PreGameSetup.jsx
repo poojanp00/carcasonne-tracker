@@ -16,7 +16,7 @@ const FUN_MEEPLES = Object.entries(FUN_MODULES)
 
 const MAX_GAME_PLAYERS = 6;
 
-export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeples, defaultExpansions }) {
+export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeples, defaultExpansions, realms = [], currentRealm = null, onRealmChange }) {
   const [step, setStep] = useState(2);
 
   const activePlayers = (realm.players || []).slice(0, MAX_GAME_PLAYERS);
@@ -62,6 +62,23 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
     onStart({ players: activePlayers, meeples: resolved, expansions: selectedExp });
   };
 
+  const realmChips = realms.length > 0 && onRealmChange && (
+    <div style={{ marginBottom: '1.3rem' }}>
+      <div className="expansion-chips">
+        {realms.map(r => (
+          <button
+            key={r.id}
+            type="button"
+            className={`expansion-chip${currentRealm?.id === r.id ? ' selected' : ''}`}
+            onClick={() => onRealmChange(r)}
+          >
+            {r.name}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+
   // ── Step 2: Meeples ──
   if (step === 2) {
     return (
@@ -70,6 +87,8 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
           <h2>Choose Your Meeples</h2>
           <div className="section-title-line" />
         </div>
+
+        {realmChips}
 
         <div className="tile-card" style={{ marginBottom: '1.4rem' }}>
           <div className="meeple-picker-grid">
@@ -113,6 +132,8 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
         <h2>Expansions in Play</h2>
         <div className="section-title-line" />
       </div>
+
+      {realmChips}
 
       <div className="tile-card" style={{ marginBottom: '1.4rem' }}>
         {ownedExpansions.length === 0 ? (

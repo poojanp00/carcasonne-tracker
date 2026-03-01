@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import pigImg from '../../images/icons/pig.png';
+import cImg   from '../../images/icons/C.png';
 
 function formatDate(dateStr) {
   return new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', {
@@ -34,6 +35,8 @@ export default function Lightbox({ game, games = [], onNavigate, onClose }) {
   const sorted = [...game.players].sort((a, b) => b.score - a.score);
   const TYPE_ORDER = ['road', 'city', 'monastery', 'field'];
   const margin = !isTie && sorted.length > 1 ? sorted[0].score - sorted[1].score : null;
+  const s1 = sorted[0]?.score ?? 0, s2 = sorted[1]?.score ?? 0;
+  const isClutch = !isTie && (s1 + s2) > 0 && (s1 - s2) / (s1 + s2) < 0.10;
 
   const slideClass = animDir === 'down' ? 'lb-slide-down' : animDir === 'up' ? 'lb-slide-up' : '';
 
@@ -47,8 +50,17 @@ export default function Lightbox({ game, games = [], onNavigate, onClose }) {
 
           <h3 style={{ fontFamily: 'Cinzel, serif', color: 'var(--earth-brown)', marginBottom: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             {winnerText}
+            {isClutch && (
+              <span className="val-info-wrap">
+                <img src={cImg} alt="clutch" style={{ height: 20, width: 'auto', opacity: 0.85 }} />
+                <span className="val-info-tooltip" style={{ right: 'auto', left: '50%', top: 'auto', bottom: 'calc(100% + 6px)', transform: 'translateX(-50%)', whiteSpace: 'nowrap' }}>Clutch win</span>
+              </span>
+            )}
             {game.farmWin && !isTie && (
-              <img src={pigImg} alt="farm win" title="Won via farm" style={{ height: 14, width: 'auto', opacity: 0.85 }} />
+              <span className="val-info-wrap">
+                <img src={pigImg} alt="farm win" style={{ height: 14, width: 'auto', opacity: 0.85 }} />
+                <span className="val-info-tooltip" style={{ right: 'auto', left: '50%', top: 'auto', bottom: 'calc(100% + 6px)', transform: 'translateX(-50%)', whiteSpace: 'nowrap' }}>Farm win</span>
+              </span>
             )}
           </h3>
 

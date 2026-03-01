@@ -59,18 +59,20 @@ export async function getGames() {
     date:       g.date,
     players:    g.players    || [],
     expansions: g.expansions || [],
+    clutchWin:  g.clutch_win || false,
     farmWin:    g.farm_win   || false,
   }));
 }
 
 export async function insertGame(game) {
   await supabase.from('games').insert({
-    id:         game.id,
-    realm_id:   game.realmId || null,
-    date:       game.date,
-    players:    game.players,
-    expansions: game.expansions || [],
-    farm_win:   game.farmWin || false,
+    id:          game.id,
+    realm_id:    game.realmId  || null,
+    date:        game.date,
+    players:     game.players,
+    expansions:  game.expansions || [],
+    clutch_win:  game.clutchWin  || false,
+    farm_win:    game.farmWin    || false,
   });
 }
 

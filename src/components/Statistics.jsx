@@ -121,14 +121,21 @@ function WinRateBadge({ rate }) {
 
 const PLAYER_COLOR_CLASSES = ['p1', 'p2', 'p3', 'p4', 'p5', 'p6'];
 
-const TYPE_LABELS = { road: 'Road', city: 'City', monastery: 'Monastery', field: 'Field' };
+const TYPE_LABELS = {
+  road: 'Road', city: 'City', monastery: 'Monastery', field: 'Field',
+  inn: 'Inn', cathedral: 'Cathedral',
+  princess: 'Princess', fairy: 'Fairy',
+  wine: 'Wine', grain: 'Grain', cloth: 'Cloth', pig: 'Pig',
+  largest_city: 'Largest City', largest_road: 'Largest Road',
+};
 
 function PlayerCard({ name, stats, breakdown, colorClass, isLeader, typeLeaders }) {
-  // Show types with any points, always in canonical order then extras
   const canonicalOrder = ['road', 'city', 'monastery', 'field'];
+  // Show canonical types if they exist in breakdown (even at 0), extras only when > 0
+  // Show canonical types if present in breakdown (even at 0), extras if key exists (expansion was played)
   const allTypes = [
-    ...canonicalOrder.filter(t => (breakdown[t] ?? 0) > 0),
-    ...Object.keys(breakdown).filter(t => !canonicalOrder.includes(t) && (breakdown[t] ?? 0) > 0),
+    ...canonicalOrder.filter(t => t in breakdown),
+    ...Object.keys(breakdown).filter(t => !canonicalOrder.includes(t)),
   ];
   return (
     <div className={`player-card ${colorClass}`}>
@@ -247,24 +254,34 @@ function PlayerCard({ name, stats, breakdown, colorClass, isLeader, typeLeaders 
 export default function Stats({ games, realms = [], currentRealm = null, onRealmChange }) {
   const realmGames = currentRealm ? games.filter(g => g.realmId === currentRealm.id) : [];
 
+  const BASE_BREAKDOWN = { road: 0, city: 0, monastery: 0, field: 0 };
+
   const { sorted, leader, typeLeaders } = useMemo(() => {
-    if (realmGames.length === 0) return { sorted: [], leader: null };
+    // Derive player names: from games if available, else from realm roster
+    let names;
+    if (realmGames.length > 0) {
+      const seenLower = new Map();
+      realmGames.flatMap(g => g.players.map(p => p.name)).forEach(n => {
+        if (!seenLower.has(n.toLowerCase())) seenLower.set(n.toLowerCase(), n);
+      });
+      names = [...seenLower.values()];
+    } else {
+      names = currentRealm?.players || [];
+    }
 
-    // Deduplicate case-insensitively, keeping first-seen capitalization
-    const seenLower = new Map();
-    realmGames.flatMap(g => g.players.map(p => p.name)).forEach(n => {
-      if (!seenLower.has(n.toLowerCase())) seenLower.set(n.toLowerCase(), n);
-    });
-    const names    = [...seenLower.values()];
-    const allStats = names.map(name => ({ name, ...calcStats(realmGames, name), breakdown: calcBreakdown(realmGames, name) }));
+    const allStats = names.map(name => ({
+      name,
+      ...calcStats(realmGames, name),
+      breakdown: realmGames.length > 0 ? calcBreakdown(realmGames, name) : { ...BASE_BREAKDOWN },
+    }));
 
-    // Crown leader: best win rate (independent of display order)
+    // Crown leader: best win rate — only meaningful with games
     const byWinRate = [...allStats].sort((a, b) => b.winRate - a.winRate || b.wins - a.wins);
 
     // Display order: most wins first; tiebreaker by win rate
     const s = [...allStats].sort((a, b) => b.wins - a.wins || b.winRate - a.winRate);
 
-    // Per-type leaders: for each category, which player has the most points
+    // Per-type leaders: only when there are actual points
     const typeLeaders = {};
     for (const ps of allStats) {
       for (const [type, pts] of Object.entries(ps.breakdown)) {
@@ -273,8 +290,8 @@ export default function Stats({ games, realms = [], currentRealm = null, onRealm
         }
       }
     }
-    return { sorted: s, leader: byWinRate[0]?.name, typeLeaders };
-  }, [realmGames]);
+    return { sorted: s, leader: realmGames.length > 0 ? byWinRate[0]?.name : null, typeLeaders };
+  }, [realmGames, currentRealm]);
 
   return (
     <div>
@@ -307,25 +324,20 @@ export default function Stats({ games, realms = [], currentRealm = null, onRealm
           <span className="empty-state-icon">🏰</span>
           Select a realm above to view statistics.
         </div>
-      ) : realmGames.length === 0 ? (
-        <div className="empty-state">
-          <span className="empty-state-icon">🏰</span>
-          No games recorded for this realm yet.
-        </div>
       ) : (
-      <div className="stats-grid">
-        {sorted.map((ps, i) => (
-          <PlayerCard
-            key={ps.name}
-            name={ps.name}
-            stats={ps}
-            breakdown={ps.breakdown}
-            colorClass={PLAYER_COLOR_CLASSES[i % PLAYER_COLOR_CLASSES.length]}
-            isLeader={ps.name === leader}
-            typeLeaders={typeLeaders}
-          />
-        ))}
-      </div>
+        <div className="stats-grid" style={{ gridTemplateColumns: sorted.length === 4 ? 'repeat(2, 1fr)' : sorted.length >= 3 ? 'repeat(3, 1fr)' : 'repeat(2, 1fr)' }}>
+          {sorted.map((ps, i) => (
+            <PlayerCard
+              key={ps.name}
+              name={ps.name}
+              stats={ps}
+              breakdown={ps.breakdown}
+              colorClass={PLAYER_COLOR_CLASSES[i % PLAYER_COLOR_CLASSES.length]}
+              isLeader={ps.name === leader}
+              typeLeaders={typeLeaders}
+            />
+          ))}
+        </div>
       )}
     </div>
   );

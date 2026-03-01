@@ -276,7 +276,7 @@ export default function Board({ session, onFinish, onReset }) {
               className="btn btn-ghost btn-sm"
               style={{ flex: '1 1 0', justifyContent: 'center' }}
               onClick={undoLastMove}
-              disabled={history.length === 0}
+              disabled={history.length === 0 && finishStep === 0}
             >
               Undo
             </button>
