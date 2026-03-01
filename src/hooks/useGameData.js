@@ -1,50 +1,71 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import {
-  getGames, saveGames, getExpansions, saveExpansions, generateId,
-  getRealms, saveRealms, generateRealmId,
+  getGames, insertGame, removeGame,
+  getExpansions, upsertExpansion,
+  getRealms, saveRealm,
+  generateId, generateRealmId,
+  migrateFromLocalStorage,
 } from '../data/storage';
 
 export function useGameData() {
-  const [games,      setGames]      = useState(() => getGames());
-  const [expansions, setExpansions] = useState(() => getExpansions());
-  const [realms,     setRealms]     = useState(() => getRealms());
+  const [games,      setGames]      = useState([]);
+  const [expansions, setExpansions] = useState([]);
+  const [realms,     setRealms]     = useState([]);
+  const [loading,    setLoading]    = useState(true);
 
-  const addGame = useCallback((gameData) => {
+  useEffect(() => {
+    async function init() {
+      await migrateFromLocalStorage();
+      const [g, e, r] = await Promise.all([getGames(), getExpansions(), getRealms()]);
+      setGames(g);
+      setExpansions(e);
+      setRealms(r);
+      setLoading(false);
+    }
+    init();
+  }, []);
+
+  const addGame = useCallback(async (gameData) => {
     const id      = generateId();
     const newGame = { ...gameData, id };
-    setGames(prev => { const u = [newGame, ...prev]; saveGames(u); return u; });
+    await insertGame(newGame);
+    setGames(prev => [newGame, ...prev]);
     return id;
   }, []);
 
-  const deleteGame = useCallback((id) => {
-    setGames(prev => { const u = prev.filter(g => g.id !== id); saveGames(u); return u; });
+  const deleteGame = useCallback(async (id) => {
+    await removeGame(id);
+    setGames(prev => prev.filter(g => g.id !== id));
   }, []);
 
   const toggleExpansion = useCallback((name) => {
     setExpansions(prev => {
-      const u = prev.map(e => e.name === name ? { ...e, owned: !e.owned } : e);
-      saveExpansions(u);
+      const u   = prev.map(e => e.name === name ? { ...e, owned: !e.owned } : e);
+      const exp = u.find(e => e.name === name);
+      if (exp) upsertExpansion(exp.name, exp.type, exp.owned);
       return u;
     });
   }, []);
 
-  const addRealm = useCallback((data) => {
+  const addRealm = useCallback(async (data) => {
     const realm = {
       ...data,
       id:        generateRealmId(),
       createdAt: new Date().toISOString().split('T')[0],
     };
-    setRealms(prev => { const u = [...prev, realm]; saveRealms(u); return u; });
+    await saveRealm(realm);
+    setRealms(prev => [...prev, realm]);
     return realm;
   }, []);
 
   const updateRealm = useCallback((id, patch) => {
     setRealms(prev => {
-      const u = prev.map(r => r.id === id ? { ...r, ...patch } : r);
-      saveRealms(u);
+      const u       = prev.map(r => r.id === id ? { ...r, ...patch } : r);
+      const updated = u.find(r => r.id === id);
+      if (updated) saveRealm(updated);
       return u;
     });
   }, []);
 
-  return { games, expansions, realms, addGame, deleteGame, toggleExpansion, addRealm, updateRealm };
+  return { games, expansions, realms, loading, addGame, deleteGame, toggleExpansion, addRealm, updateRealm };
 }

@@ -46,9 +46,21 @@ export default function GameLogForm({ session, ownedExpansions, onSubmit, onCanc
   const handlePhoto = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => { setPhoto(ev.target.result); setPhotoPreview(ev.target.result); };
-    reader.readAsDataURL(file);
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const MAX    = 800;
+      const scale  = Math.min(1, MAX / Math.max(img.width, img.height));
+      const canvas = document.createElement('canvas');
+      canvas.width  = Math.round(img.width  * scale);
+      canvas.height = Math.round(img.height * scale);
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      const compressed = canvas.toDataURL('image/jpeg', 0.7);
+      URL.revokeObjectURL(url);
+      setPhoto(compressed);
+      setPhotoPreview(compressed);
+    };
+    img.src = url;
   };
 
   const handleSubmit = (e) => {
@@ -102,7 +114,7 @@ export default function GameLogForm({ session, ownedExpansions, onSubmit, onCanc
                     <img src={crownImg} alt="winner" className="postgame-crown" />
                   )}
                   {isWinner && farmWin && (
-                    <img src={pigImg} alt="farm win" className="postgame-crown" />
+                    <img src={pigImg} alt="farm win" className="postgame-pig" />
                   )}
                   <div className="postgame-score-display">
                     {finalScores[name] ?? 0}

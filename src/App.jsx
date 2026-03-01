@@ -46,7 +46,7 @@ export default function App() {
   const [realmPickerKey,   setRealmPickerKey]   = useState(0);
   const [realmInitialMode, setRealmInitialMode] = useState(null);
 
-  const { games, expansions, realms, addGame, deleteGame, toggleExpansion, addRealm, updateRealm } = useGameData();
+  const { games, expansions, realms, loading, addGame, deleteGame, toggleExpansion, addRealm, updateRealm } = useGameData();
 
   const goHome = useCallback(() => {
     setSession(null);
@@ -87,7 +87,7 @@ export default function App() {
 
   const handleFinishGame = useCallback((finalScores) => {
     setSession(prev => {
-      resetBoard(prev.players);
+      resetBoard(prev.players || []);
       return { ...prev, finalScores };
     });
     setPhase('record-game');
@@ -148,8 +148,15 @@ export default function App() {
         </div>
       </header>
 
+      {/* ── Loading ── */}
+      {loading && (
+        <div className="app-wrapper" style={{ textAlign: 'center', paddingTop: '4rem', fontFamily: 'Cinzel, serif', color: 'var(--stone-gray)', letterSpacing: '0.1em' }}>
+          Loading...
+        </div>
+      )}
+
       {/* ── Realm picker ── */}
-      {phase === 'realm' && (
+      {!loading && phase === 'realm' && (
         <div className="app-wrapper">
           <RealmPicker
             key={realmPickerKey}
@@ -162,7 +169,7 @@ export default function App() {
       )}
 
       {/* ── Pre-game setup ── */}
-      {phase === 'pre-game' && (
+      {!loading && phase === 'pre-game' && (
         <div className="app-wrapper">
           <div className="section-panel">
             <PreGame
@@ -176,7 +183,7 @@ export default function App() {
       )}
 
       {/* ── In-game + record-game ── */}
-      {(phase === 'in-game' || phase === 'record-game') && (
+      {!loading && (phase === 'in-game' || phase === 'record-game') && (
         <div className="app-wrapper">
           {/* Tab nav only shown during active in-game phase */}
           {phase === 'in-game' && (

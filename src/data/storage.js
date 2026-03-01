@@ -1,90 +1,180 @@
+import { supabase } from './supabase';
 import { DEFAULT_EXPANSIONS } from './expansions';
 
-const KEYS = {
-  GAMES:      'carcassonne_games',
-  EXPANSIONS: 'carcassonne_expansions',
-  REALMS:     'carcassonne_realms',
-};
-
-// ── Realm ──────────────────────────────────────────────────────────────────────
-
 export function generateRealmId() {
-  // Exclude 0/O and 1/I to avoid confusion
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   return Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
 }
 
-export function getRealms() {
-  try {
-    return JSON.parse(localStorage.getItem(KEYS.REALMS) || '[]');
-  } catch {
-    return [];
-  }
+export function generateId() {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
-export function saveRealms(realms) {
-  localStorage.setItem(KEYS.REALMS, JSON.stringify(realms));
+// ── Realms ────────────────────────────────────────────────────────────────────
+
+export async function getRealms() {
+  const { data } = await supabase.from('realms').select('*').order('created_at');
+  return (data || []).map(r => ({
+    id:        r.id,
+    name:      r.name,
+    players:   r.players || [],
+    createdAt: r.created_at,
+  }));
+}
+
+export async function saveRealm(realm) {
+  await supabase.from('realms').upsert({
+    id:         realm.id,
+    name:       realm.name,
+    players:    realm.players || [],
+    created_at: realm.createdAt,
+  });
 }
 
 // ── Games ─────────────────────────────────────────────────────────────────────
 
-// Migrate old two-player shape → new N-player shape
-function migrateGame(g) {
-  if (Array.isArray(g.players)) return g;
-  return {
+export async function getGames() {
+  const { data } = await supabase
+    .from('games')
+    .select('*')
+    .order('inserted_at', { ascending: false });
+  return (data || []).map(g => ({
     id:         g.id,
-    realmId:    g.realmId || null,
+    realmId:    g.realm_id,
     date:       g.date,
-    players: [
-      { name: g.player1?.name || 'Player 1', score: g.player1?.score ?? 0, meeple: 'poojan.png' },
-      { name: g.player2?.name || 'Player 2', score: g.player2?.score ?? 0, meeple: 'diya.png'   },
-    ],
+    players:    g.players    || [],
     expansions: g.expansions || [],
-    photo:      g.photo || null,
-    farmWin:    g.farmWin || false,
-  };
+    photo:      g.photo      || null,
+    farmWin:    g.farm_win   || false,
+  }));
 }
 
-export function getGames() {
-  try {
-    return JSON.parse(localStorage.getItem(KEYS.GAMES) || '[]').map(migrateGame);
-  } catch {
-    return [];
+export async function insertGame(game) {
+  let photo = game.photo || null;
+  if (photo?.startsWith('data:')) {
+    photo = await uploadPhoto(game.id, photo);
   }
+  await supabase.from('games').insert({
+    id:         game.id,
+    realm_id:   game.realmId || null,
+    date:       game.date,
+    players:    game.players,
+    expansions: game.expansions || [],
+    photo,
+    farm_win:   game.farmWin || false,
+  });
 }
 
-export function saveGames(games) {
-  localStorage.setItem(KEYS.GAMES, JSON.stringify(games));
+export async function removeGame(id) {
+  await supabase.storage.from('game-photos').remove([`${id}.jpg`]);
+  await supabase.from('games').delete().eq('id', id);
+}
+
+async function uploadPhoto(gameId, base64) {
+  try {
+    const blob = await fetch(base64).then(r => r.blob());
+    const path = `${gameId}.jpg`;
+    await supabase.storage.from('game-photos').upload(path, blob, {
+      contentType: 'image/jpeg',
+      upsert: true,
+    });
+    const { data: { publicUrl } } = supabase.storage.from('game-photos').getPublicUrl(path);
+    return publicUrl;
+  } catch (err) {
+    console.warn('Photo upload failed, storing inline:', err);
+    return base64;
+  }
 }
 
 // ── Expansions ────────────────────────────────────────────────────────────────
 
-export function getExpansions() {
+export async function getExpansions() {
+  const { data } = await supabase.from('expansions').select('*');
+  if (!data || data.length === 0) return DEFAULT_EXPANSIONS;
+  const defaultByName = Object.fromEntries(DEFAULT_EXPANSIONS.map(e => [e.name, e]));
+  const storedNames   = new Set(data.map(e => e.name));
+  return [
+    ...data.map(e => ({ name: e.name, type: e.type || defaultByName[e.name]?.type || 'full', owned: e.owned })),
+    ...DEFAULT_EXPANSIONS.filter(e => !storedNames.has(e.name)),
+  ];
+}
+
+export async function upsertExpansion(name, type, owned) {
+  await supabase.from('expansions').upsert({ name, type, owned });
+}
+
+// ── localStorage migration (runs once on first load) ─────────────────────────
+
+export async function migrateFromLocalStorage() {
+  const LS_MIGRATED = 'carcassonne_migrated_v1';
+  if (localStorage.getItem(LS_MIGRATED)) return;
+
+  const LS_REALMS     = 'carcassonne_realms';
+  const LS_GAMES      = 'carcassonne_games';
+  const LS_EXPANSIONS = 'carcassonne_expansions';
+  const LS_BOARD      = 'carcassonne_board_v1';
+
   try {
-    const stored = localStorage.getItem(KEYS.EXPANSIONS);
-    if (!stored) { saveExpansions(DEFAULT_EXPANSIONS); return DEFAULT_EXPANSIONS; }
-    const parsed = JSON.parse(stored);
-    const RENAMES = {
-      'Count King & Robber':         'Count, King & Robber',
-      'Bridges Castles & Bazaars':   'Bridges, Castles & Bazaars',
-      'Ghosts Castles & Cemeteries': 'Ghosts, Castles & Cemeteries',
-    };
-    const migrated    = parsed.map(e => RENAMES[e.name] ? { ...e, name: RENAMES[e.name] } : e);
-    const defaultByName = Object.fromEntries(DEFAULT_EXPANSIONS.map(e => [e.name, e]));
-    const storedNames   = new Set(migrated.map(e => e.name));
-    return [
-      ...migrated.map(e => ({ type: defaultByName[e.name]?.type ?? 'full', ...e })),
-      ...DEFAULT_EXPANSIONS.filter(e => !storedNames.has(e.name)),
-    ];
-  } catch {
-    return DEFAULT_EXPANSIONS;
+    const rawRealms     = localStorage.getItem(LS_REALMS);
+    const rawGames      = localStorage.getItem(LS_GAMES);
+    const rawExpansions = localStorage.getItem(LS_EXPANSIONS);
+    const rawBoard      = localStorage.getItem(LS_BOARD);
+
+    if (rawRealms) {
+      const realms = JSON.parse(rawRealms);
+      if (realms.length > 0) {
+        await supabase.from('realms').upsert(
+          realms.map(r => ({
+            id:         r.id,
+            name:       r.name,
+            players:    r.players || [],
+            created_at: r.createdAt || new Date().toISOString().split('T')[0],
+          }))
+        );
+      }
+    }
+
+    if (rawGames) {
+      const games = JSON.parse(rawGames);
+      for (const g of games) {
+        if (!Array.isArray(g.players)) continue;
+        let photo = g.photo || null;
+        if (photo?.startsWith('data:')) photo = await uploadPhoto(g.id, photo);
+        await supabase.from('games').upsert({
+          id:         g.id,
+          realm_id:   g.realmId || null,
+          date:       g.date,
+          players:    g.players,
+          expansions: g.expansions || [],
+          photo,
+          farm_win:   g.farmWin || false,
+        });
+      }
+    }
+
+    if (rawExpansions) {
+      const exps = JSON.parse(rawExpansions);
+      if (exps.length > 0) {
+        await supabase.from('expansions').upsert(
+          exps.map(e => ({ name: e.name, type: e.type || 'full', owned: e.owned || false }))
+        );
+      }
+    }
+
+    if (rawBoard) {
+      const b = JSON.parse(rawBoard);
+      await supabase.from('board_state').upsert({
+        id:           1,
+        positions:    b.positions    || {},
+        laps:         b.laps         || {},
+        track_length: b.trackLength  || 50,
+        players:      b.players      || [],
+      });
+    }
+
+    localStorage.setItem(LS_MIGRATED, '1');
+    [LS_REALMS, LS_GAMES, LS_EXPANSIONS, LS_BOARD].forEach(k => localStorage.removeItem(k));
+  } catch (err) {
+    console.warn('localStorage migration error:', err);
   }
-}
-
-export function saveExpansions(expansions) {
-  localStorage.setItem(KEYS.EXPANSIONS, JSON.stringify(expansions));
-}
-
-export function generateId() {
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }

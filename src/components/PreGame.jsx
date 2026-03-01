@@ -31,6 +31,18 @@ export default function PreGame({ realm, ownedExpansions, onStart, onBack }) {
     ['The River', 'The Abbot'].filter(name => ownedExpansions.includes(name))
   );
 
+  const [meepleError, setMeepleError] = useState(null);
+
+  const handleNextStep = () => {
+    const chosen = activePlayers.map(p => meeples[p]).filter(k => k !== 'mystery.png');
+    if (new Set(chosen).size < chosen.length) {
+      setMeepleError('Meeples must be unique.');
+      return;
+    }
+    setMeepleError(null);
+    setStep(3);
+  };
+
   const toggleExpansion = (name) =>
     setSelectedExp(prev => prev.includes(name) ? prev.filter(e => e !== name) : [...prev, name]);
 
@@ -76,7 +88,7 @@ export default function PreGame({ realm, ownedExpansions, onStart, onBack }) {
                       key={key}
                       type="button"
                       className={`meeple-option ${meeples[name] === key ? 'selected' : ''}`}
-                      onClick={() => setMeeples(prev => ({ ...prev, [name]: key }))}
+                      onClick={() => { setMeepleError(null); setMeeples(prev => ({ ...prev, [name]: key })); }}
                       title={label}
                     >
                       <img src={img} alt={label} />
@@ -88,9 +100,14 @@ export default function PreGame({ realm, ownedExpansions, onStart, onBack }) {
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: '0.7rem' }}>
+        <div style={{ display: 'flex', gap: '0.7rem', flexWrap: 'wrap', alignItems: 'center' }}>
           <button type="button" className="btn btn-ghost" onClick={onBack}>← Back</button>
-          <button type="button" className="btn" onClick={() => setStep(3)}>Next: Expansions →</button>
+          <button type="button" className="btn" onClick={handleNextStep}>Next: Expansions →</button>
+          {meepleError && (
+            <span style={{ fontStyle: 'italic', color: 'var(--red, #DC2626)', fontSize: '0.88rem' }}>
+              {meepleError}
+            </span>
+          )}
         </div>
       </div>
     );

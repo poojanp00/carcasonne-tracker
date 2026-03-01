@@ -43,14 +43,17 @@ export default function Board({ session, onFinish, onReset }) {
   const players   = session?.players  || [];
   const meepleMap = session?.meeples  || {};
 
-  const [board,   setBoard]   = useState(() => getBoard(players));
+  const [board,   setBoard]   = useState(null);
   const [input,   setInput]   = useState(() => Object.fromEntries(players.map(p => [p, 0])));
   const [history, setHistory] = useState([]);
   const [log,     setLog]     = useState([]);
   const logEndRef = useRef(null);
 
-  useEffect(() => { saveBoard(board); }, [board]);
+  useEffect(() => { getBoard(players).then(b => setBoard(b)); }, []);
+  useEffect(() => { if (board) saveBoard(board); }, [board]);
   useEffect(() => { logEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [log]);
+
+  if (!board) return null;
 
   const track = board.trackLength || 50;
 
@@ -70,7 +73,7 @@ export default function Board({ session, onFinish, onReset }) {
       const cur  = (board.laps[p] || 0) * track + (board.positions[p] || 0);
       const prev = (last.laps[p]  || 0) * track + (last.positions[p]  || 0);
       const diff = cur - prev;
-      if (diff !== 0) appendLog(`Undo: ${p} ${diff > 0 ? '-' : '+'}${Math.abs(diff)} pts → ${prev} pts`, p);
+      if (diff !== 0) appendLog(`Undo: ${p} → ${prev} pts`, p);
     }
     setBoard(last);
     setHistory(h => h.slice(0, -1));
@@ -92,7 +95,7 @@ export default function Board({ session, onFinish, onReset }) {
       positions: { ...b.positions, [player]: newPos  },
       laps:      { ...b.laps,      [player]: newLaps },
     }));
-    appendLog(`${player} +${delta} pts → ${newTotal} pts`, player);
+    appendLog(`${player} scored +${delta} pts → ${newTotal} pts`, player);
   }
 
   function handleReset() {
@@ -167,7 +170,16 @@ export default function Board({ session, onFinish, onReset }) {
                 const color = entry.player ? getMeepleColor(meepleMap[entry.player]) : 'var(--stone-gray)';
                 return (
                   <div key={entry.id} className="board-log-entry" style={{ color }}>
-                    <span className="board-log-msg">{entry.msg}</span>
+                    <span className="board-log-msg">
+                      {entry.player && (
+                        <img
+                          src={MEEPLE_IMGS[meepleMap[entry.player]] || FALLBACK_MEEPLE}
+                          alt=""
+                          style={{ height: 16, width: 'auto', verticalAlign: 'middle', marginRight: '0.3rem' }}
+                        />
+                      )}
+                      {entry.msg}
+                    </span>
                     <span className="board-log-time">{entry.time}</span>
                   </div>
                 );
@@ -221,10 +233,9 @@ export default function Board({ session, onFinish, onReset }) {
             const color = getMeepleColor(meepleMap[name]);
             return (
               <div key={name} className="board-player-card tile-card">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '0.4rem' }}>
-                  <img src={MEEPLE_IMGS[meepleMap[name]] || FALLBACK_MEEPLE} alt="meeple" style={{ height: 26, width: 'auto' }} />
-                  <div style={{ fontFamily: 'Cinzel, serif', fontSize: '0.95rem', fontWeight: 500, color, flex: 1 }}>{name}</div>
-                  <div style={{ fontStyle: 'italic', color, fontSize: '1rem', fontWeight: 600 }}>{totals[name]}</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '0.4rem', overflow: 'visible' }}>
+                  <img src={MEEPLE_IMGS[meepleMap[name]] || FALLBACK_MEEPLE} alt="meeple" style={{ height: 48, width: 'auto' }} />
+                  <div style={{ fontFamily: 'Cinzel, serif', fontSize: '0.95rem', fontWeight: 700, color, flex: 1 }}>{name}</div>
                 </div>
                 <div className="board-btn-group">
                   <input

@@ -1,4 +1,4 @@
-const KEY = 'carcassonne_board_v1';
+import { supabase } from './supabase';
 
 function makeDefault(players = []) {
   const positions = {};
@@ -7,26 +7,41 @@ function makeDefault(players = []) {
   return { positions, laps, trackLength: 50, players };
 }
 
-export function getBoard(players = []) {
+export async function getBoard(players = []) {
   try {
-    const raw = localStorage.getItem(KEY);
-    if (!raw) return makeDefault(players);
-    const parsed = JSON.parse(raw);
-    // Reset if player set changed
+    const { data } = await supabase
+      .from('board_state')
+      .select('*')
+      .eq('id', 1)
+      .single();
+    if (!data) return makeDefault(players);
+    const stored = data.players || [];
     if (players.length > 0) {
-      const stored = parsed.players || Object.keys(parsed.positions || {});
-      const same   = players.length === stored.length && players.every(p => stored.includes(p));
+      const same = players.length === stored.length && players.every(p => stored.includes(p));
       if (!same) return makeDefault(players);
     }
-    return parsed;
+    return {
+      positions:   data.positions    || {},
+      laps:        data.laps         || {},
+      trackLength: data.track_length || 50,
+      players:     data.players      || [],
+    };
   } catch {
     return makeDefault(players);
   }
 }
 
+// Fire-and-forget — no need to await in callers
 export function saveBoard(board) {
-  try   { localStorage.setItem(KEY, JSON.stringify(board)); }
-  catch (e) { console.warn('Failed to save board', e); }
+  supabase.from('board_state').upsert({
+    id:           1,
+    positions:    board.positions,
+    laps:         board.laps,
+    track_length: board.trackLength || 50,
+    players:      board.players     || [],
+  }).then(({ error }) => {
+    if (error) console.warn('Failed to save board:', error);
+  });
 }
 
 export function resetBoard(players = []) {
