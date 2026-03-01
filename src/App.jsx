@@ -174,7 +174,7 @@ export default function App() {
                 </button>
               )}
             </div>
-            <h1 style={{ cursor: 'pointer' }} onClick={goHome}>Meeple Log</h1>
+            <h1 style={{ cursor: 'pointer' }} onClick={goHome}>Carcasscore</h1>
             <div style={{ flex: 1 }} />
           </div>
         </div>
