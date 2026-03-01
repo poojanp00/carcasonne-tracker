@@ -63,7 +63,7 @@ function calcStats(games, name) {
 
   const total       = mine.length;
   const winRate     = total > 0 ? Math.round((wins / total) * 100) : 0;
-  const farmDominance = wins > 0 ? Math.round((farmWins / wins) * 100) : null;
+  const farm = wins > 0 ? Math.round((farmWins / wins) * 100) : null;
   const clutchFactor  = clutchGames > 0 ? Math.round((clutchWins / clutchGames) * 100) / 100 : null;
 
   // Current streak (games stored newest-first)
@@ -90,7 +90,7 @@ function calcStats(games, name) {
 
   return {
     wins, losses, ties, winRate, highScore, highScoreDate, total,
-    winStreak, lossStreak, farmWins, farmDominance,
+    winStreak, lossStreak, farmWins, farm,
     biggestBlowout, biggestBlowoutDate, biggestBlowoutMyScore, biggestBlowoutTheirScore,
     clutchFactor, clutchGames, clutchWins, netPtDiff, totalPoints,
   };
@@ -195,9 +195,9 @@ function PlayerCard({ name, stats, breakdown, colorClass, isLeader, typeLeaders 
       <div className="stat-divider" />
 
       <div className="stat-row">
-        <span className="stat-label">Farm dominance <StatInfo>How often your wins came via farm.</StatInfo></span>
-        <ValInfo tip={stats.farmDominance !== null ? `${stats.farmWins} farm win / ${stats.wins} total wins` : null}>
-          <span className="stat-value">{stats.farmDominance !== null ? `${stats.farmDominance}%` : '—'}</span>
+        <span className="stat-label">Farm <StatInfo>How often your wins came via farm.</StatInfo></span>
+        <ValInfo tip={stats.farm !== null ? `${stats.farmWins} farm win / ${stats.wins} total wins` : null}>
+          <span className="stat-value">{stats.farm !== null ? `${stats.farm}%` : '—'}</span>
         </ValInfo>
       </div>
       <div className="stat-row">

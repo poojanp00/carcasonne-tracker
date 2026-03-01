@@ -153,7 +153,7 @@ h3 { font-size: 1.15rem; font-weight: 600; }
   overflow-y: hidden;
   overscroll-behavior-x: contain;
   touch-action: pan-x;
-  padding: 1.2rem 0 0;
+  padding: 1.2rem 1.5rem 0;
   gap: 3px;
   border-bottom: 2.5px solid var(--warm-gold);
   scrollbar-width: none;
@@ -400,8 +400,11 @@ h3 { font-size: 1.15rem; font-weight: 600; }
   box-shadow: var(--shadow-tile);
   padding: 0.75rem 1rem;
   position: relative;
-  overflow: hidden;
+  z-index: 0;
   transition: transform var(--transition-lift), box-shadow var(--transition-lift);
+}
+.player-card:has(.stat-info-wrap:hover) {
+  z-index: 10;
 }
 
 /* Board styles */
@@ -427,18 +430,19 @@ h3 { font-size: 1.15rem; font-weight: 600; }
 
 .board-score-input { width: 100%; min-width: 0; box-sizing: border-box; padding-top: 0.25rem; padding-bottom: 0.25rem; font-size: 0.9rem; }
 
-.board-canvas { padding: 0; align-self: start; }
+.board-canvas { padding: 0; align-self: start; overflow: hidden; }
 
 .board-image {
   position: relative;
   width: 100%;
-  overflow: visible;
+  overflow: hidden;
 }
 
 .board-image-bg {
   width: 100%;
   height: auto;
   display: block;
+  border-radius: var(--radius-tile);
 }
 
 .board-image .meeple {
@@ -612,7 +616,7 @@ h3 { font-size: 1.15rem; font-weight: 600; }
   border-radius: 4px;
   white-space: normal;
   width: 210px;
-  z-index: 20;
+  z-index: 200;
   pointer-events: none;
   box-shadow: 0 2px 8px rgba(0,0,0,0.25);
 }
@@ -1400,6 +1404,7 @@ input[type="file"] { display: none; }
   }
 
   .tab-btn { font-size: 0.72rem; padding: 0.5rem 0.9rem; }
+  .tab-nav { padding-left: 0.9rem; padding-right: 0.9rem; }
 
   .history-table-wrap { font-size: 0.85rem; }
   .history-table thead th,
