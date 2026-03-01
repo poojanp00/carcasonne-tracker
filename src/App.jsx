@@ -65,8 +65,8 @@ export default function App() {
     setPhase('pre-game');
   }, []);
 
-  const handleRealmCreate = useCallback((data) => {
-    const realm = addRealm(data);
+  const handleRealmCreate = useCallback(async (data) => {
+    const realm = await addRealm(data);
     setSession({ realm });
     setPhase('pre-game');
   }, [addRealm]);
