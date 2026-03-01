@@ -1,6 +1,45 @@
 import { useState } from 'react';
 
-export default function RealmPicker({ realms, currentRealm = null, onSelect, onCreate, onDelete, initialMode = null }) {
+const TYPE_ORDER = ['road', 'city', 'monastery', 'field'];
+
+function calcRealmStats(games) {
+  let totalPoints = 0, farmWins = 0, clutchGames = 0;
+  const typePoints = {};
+  for (const g of games) {
+    const scores = g.players.map(p => p.score);
+    const sorted = [...scores].sort((a, b) => b - a);
+    totalPoints += scores.reduce((s, v) => s + v, 0);
+    if (g.farmWin) farmWins++;
+    if (sorted.length >= 2) {
+      const combined = sorted[0] + sorted[1];
+      if (combined > 0 && (sorted[0] - sorted[1]) / combined < 0.05) clutchGames++;
+    }
+    for (const p of g.players) {
+      for (const [type, pts] of Object.entries(p.breakdown || {})) {
+        typePoints[type] = (typePoints[type] || 0) + pts;
+      }
+    }
+  }
+  return { totalPoints, farmWins, clutchGames, typePoints };
+}
+
+function calcPlayerRecords(games, players) {
+  const records = Object.fromEntries(players.map(p => [p.toLowerCase(), { w: 0, l: 0, t: 0 }]));
+  for (const g of games) {
+    const maxScore = Math.max(...g.players.map(p => p.score));
+    const winners  = g.players.filter(p => p.score === maxScore);
+    for (const p of g.players) {
+      const key = p.name.toLowerCase();
+      if (!records[key]) continue;
+      if (winners.length > 1 && p.score === maxScore) records[key].t++;
+      else if (p.score === maxScore)                   records[key].w++;
+      else                                             records[key].l++;
+    }
+  }
+  return records;
+}
+
+export default function RealmPicker({ realms, currentRealm = null, games = [], onSelect, onCreate, onDelete, initialMode = null }) {
   const [mode,             setMode]             = useState(initialMode);
   const [hoveredId,        setHoveredId]        = useState(null);
   const [realmName,        setRealmName]        = useState('');
@@ -198,19 +237,83 @@ export default function RealmPicker({ realms, currentRealm = null, onSelect, onC
       {/* Landing */}
       {!mode && (
         <div style={{ paddingTop: '0.5rem' }}>
-          {currentRealm && (
-            <div className="tile-card" style={{ marginBottom: '1.5rem', borderTop: '4px solid var(--warm-gold)' }}>
-              <div style={{ fontSize: '0.7rem', fontFamily: 'Cinzel, serif', letterSpacing: '0.12em', color: 'var(--stone-gray)', marginBottom: '0.5rem' }}>
-                ACTIVE REALM
+          {currentRealm && (() => {
+            const rs = calcRealmStats(games);
+            const records = calcPlayerRecords(games, currentRealm.players);
+            const typeEntries = [
+              ...TYPE_ORDER.filter(t => (rs.typePoints[t] ?? 0) > 0),
+              ...Object.keys(rs.typePoints).filter(t => !TYPE_ORDER.includes(t) && (rs.typePoints[t] ?? 0) > 0),
+            ];
+            return (
+              <div className="tile-card" style={{ marginBottom: '1.5rem', borderTop: '4px solid var(--warm-gold)' }}>
+                <div style={{ fontSize: '0.7rem', fontFamily: 'Cinzel, serif', letterSpacing: '0.12em', color: 'var(--stone-gray)', marginBottom: '0.5rem' }}>
+                  ACTIVE REALM
+                </div>
+                <div style={{ fontFamily: 'Cinzel, serif', fontSize: '1.3rem', fontWeight: 700, color: 'var(--earth-brown)', marginBottom: '0.35rem' }}>
+                  {currentRealm.name}
+                </div>
+
+                {games.length > 0 && (
+                  <>
+                    {/* Per-player record */}
+                    <div style={{ marginBottom: '1rem', fontFamily: 'Cinzel, serif', fontSize: '0.85rem' }}>
+                      {[...currentRealm.players]
+                        .sort((a, b) => (records[b.toLowerCase()]?.w || 0) - (records[a.toLowerCase()]?.w || 0))
+                        .map((name, i) => {
+                          const w = records[name.toLowerCase()]?.w || 0;
+                          return (
+                            <span key={name}>
+                              {i > 0 && <span style={{ color: 'var(--stone-gray)' }}> · </span>}
+                              <span style={{ color: 'var(--charcoal)' }}>{name}</span>
+                              {' '}
+                              <span style={{ color: 'var(--forest-green)', fontWeight: 600 }}>{w}</span>
+                            </span>
+                          );
+                        })}
+                    </div>
+                    <div className="stat-divider" style={{ margin: '0.5rem 0 0.8rem' }} />
+                  </>
+                )}
+
+                {games.length > 0 && (
+                  <>
+                    <div style={{ fontSize: '0.7rem', fontFamily: 'Cinzel, serif', letterSpacing: '0.1em', color: 'var(--stone-gray)', marginBottom: '0.5rem' }}>
+                      REALM STATS
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.3rem 1.2rem', marginBottom: typeEntries.length > 0 ? '0.9rem' : 0 }}>
+                      {[
+                        ['Games',       games.length],
+                        ['Total Pts',   rs.totalPoints],
+                        ['Farm Wins',   rs.farmWins],
+                        ['Clutch Games', rs.clutchGames],
+                      ].map(([label, val]) => (
+                        <div key={label} className="stat-row" style={{ margin: 0 }}>
+                          <span className="stat-label" style={{ fontSize: '0.82rem' }}>{label}</span>
+                          <span className="stat-value" style={{ fontSize: '0.82rem' }}>{val}</span>
+                        </div>
+                      ))}
+                    </div>
+
+                    {typeEntries.length > 0 && (
+                      <>
+                        <div style={{ fontSize: '0.7rem', fontFamily: 'Cinzel, serif', letterSpacing: '0.1em', color: 'var(--stone-gray)', marginBottom: '0.5rem' }}>
+                          POINT TOTALS
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.3rem 1.2rem' }}>
+                          {typeEntries.map(t => (
+                            <div key={t} className="stat-row" style={{ margin: 0 }}>
+                              <span className="stat-label" style={{ fontSize: '0.82rem' }}>{t.charAt(0).toUpperCase() + t.slice(1)}</span>
+                              <span className="stat-value" style={{ fontSize: '0.82rem' }}>{rs.typePoints[t]}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </>
+                )}
               </div>
-              <div style={{ fontFamily: 'Cinzel, serif', fontSize: '1.3rem', fontWeight: 700, color: 'var(--earth-brown)', marginBottom: '0.35rem' }}>
-                {currentRealm.name}
-              </div>
-              <div style={{ fontFamily: 'Crimson Text, serif', fontStyle: 'italic', color: 'var(--stone-gray)', fontSize: '1rem' }}>
-                {currentRealm.players.join(' · ')}
-              </div>
-            </div>
-          )}
+            );
+          })()}
           <div className="realm-btn-group">
             <button
               className="btn realm-btn"
