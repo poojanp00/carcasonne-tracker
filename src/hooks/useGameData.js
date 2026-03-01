@@ -2,20 +2,23 @@ import { useState, useCallback, useEffect } from 'react';
 import {
   getGames, insertGame, removeGame,
   getExpansions, upsertExpansion,
-  getRealms, saveRealm,
+  getRealms, saveRealm, deleteRealm,
   generateId, generateRealmId,
   migrateFromLocalStorage,
 } from '../data/storage';
 
-export function useGameData() {
+export function useGameData(user, authLoading) {
   const [games,      setGames]      = useState([]);
   const [expansions, setExpansions] = useState([]);
   const [realms,     setRealms]     = useState([]);
   const [loading,    setLoading]    = useState(true);
 
   useEffect(() => {
+    if (authLoading) return; // wait for auth to resolve before fetching
+
     async function init() {
-      await migrateFromLocalStorage();
+      setLoading(true);
+      if (user) await migrateFromLocalStorage();
       const [g, e, r] = await Promise.all([getGames(), getExpansions(), getRealms()]);
       setGames(g);
       setExpansions(e);
@@ -23,7 +26,7 @@ export function useGameData() {
       setLoading(false);
     }
     init();
-  }, []);
+  }, [user, authLoading]);
 
   const addGame = useCallback(async (gameData) => {
     const id      = generateId();
@@ -67,5 +70,11 @@ export function useGameData() {
     });
   }, []);
 
-  return { games, expansions, realms, loading, addGame, deleteGame, toggleExpansion, addRealm, updateRealm };
+  const removeRealm = useCallback(async (realmId) => {
+    await deleteRealm(realmId);
+    setRealms(prev => prev.filter(r => r.id !== realmId));
+    setGames(prev => prev.filter(g => g.realmId !== realmId));
+  }, []);
+
+  return { games, expansions, realms, loading, addGame, deleteGame, toggleExpansion, addRealm, updateRealm, removeRealm };
 }

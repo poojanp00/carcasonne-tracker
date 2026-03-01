@@ -6,7 +6,9 @@ import Collection   from './components/Collection';
 import Board        from './components/Board';
 import RealmPicker  from './components/RealmPicker';
 import PreGame      from './components/PreGame';
+import Auth         from './components/Auth';
 import { useGameData } from './hooks/useGameData';
+import { useAuth }     from './hooks/useAuth';
 import { resetBoard }  from './data/boardStorage';
 
 const IN_GAME_TABS = [
@@ -46,7 +48,8 @@ export default function App() {
   const [realmPickerKey,   setRealmPickerKey]   = useState(0);
   const [realmInitialMode, setRealmInitialMode] = useState(null);
 
-  const { games, expansions, realms, loading, addGame, deleteGame, toggleExpansion, addRealm, updateRealm } = useGameData();
+  const { user, authLoading, signOut } = useAuth();
+  const { games, expansions, realms, loading, addGame, deleteGame, toggleExpansion, addRealm, updateRealm, removeRealm } = useGameData(user, authLoading);
 
   const goHome = useCallback(() => {
     setSession(null);
@@ -61,15 +64,18 @@ export default function App() {
   }, []);
 
   const handleRealmSelect = useCallback((realm) => {
+    if (!user) { setPhase('auth'); return; }
     setSession({ realm });
     setPhase('pre-game');
-  }, []);
+  }, [user]);
 
   const handleRealmCreate = useCallback(async (data) => {
+    if (!user) { setPhase('auth'); return; }
     const realm = await addRealm(data);
+    if (!data.passwordHash) showToast('No passcode set — this realm is open to anyone.');
     setSession({ realm });
     setPhase('pre-game');
-  }, [addRealm]);
+  }, [user, addRealm, showToast]);
 
   const handleGameStart = useCallback((setup) => {
     // setup = { players, meeples, expansions }
@@ -106,6 +112,11 @@ export default function App() {
     showToast('Game removed.');
   }, [deleteGame, showToast]);
 
+  const handleRealmDelete = useCallback(async (realmId) => {
+    await removeRealm(realmId);
+    showToast('Realm deleted.');
+  }, [removeRealm, showToast]);
+
   const handleUpdateRealm = useCallback((patch) => {
     if (!session?.realm?.id) return;
     updateRealm(session.realm.id, patch);
@@ -139,7 +150,23 @@ export default function App() {
             <span style={{ color: 'var(--warm-gold)', fontSize: '1.1rem' }}>⚜</span>
             <div className="ornament-line" />
           </div>
-          <h1 onClick={goHome} style={{ cursor: 'pointer' }}>Carcassonne</h1>
+          <div style={{ position: 'relative' }}>
+            <h1 onClick={goHome} style={{ cursor: 'pointer' }}>Carcassonne</h1>
+            {user && (
+              <button
+                type="button"
+                onClick={signOut}
+                style={{
+                  position: 'absolute', right: 0, top: '50%', transform: 'translateY(-50%)',
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  fontFamily: 'Cinzel, serif', fontSize: '0.7rem', letterSpacing: '0.06em',
+                  color: 'var(--stone-gray)', padding: '0.2rem 0.4rem',
+                }}
+              >
+                Sign Out
+              </button>
+            )}
+          </div>
           <div className="header-ornament" style={{ marginTop: '0.45rem' }}>
             <div className="ornament-line" />
             <span style={{ color: 'var(--warm-gold)', fontSize: '0.75rem', letterSpacing: '0.3em' }}>✦ ✦ ✦</span>
@@ -149,14 +176,19 @@ export default function App() {
       </header>
 
       {/* ── Loading ── */}
-      {loading && (
+      {(loading || authLoading) && (
         <div className="app-wrapper" style={{ textAlign: 'center', paddingTop: '4rem', fontFamily: 'Cinzel, serif', color: 'var(--stone-gray)', letterSpacing: '0.1em' }}>
           Loading...
         </div>
       )}
 
+      {/* ── Auth ── */}
+      {!loading && !authLoading && phase === 'auth' && (
+        <Auth onSuccess={() => setPhase('realm')} />
+      )}
+
       {/* ── Realm picker ── */}
-      {!loading && phase === 'realm' && (
+      {!loading && !authLoading && phase === 'realm' && (
         <div className="app-wrapper">
           <RealmPicker
             key={realmPickerKey}
@@ -164,12 +196,15 @@ export default function App() {
             realms={realms}
             onSelect={handleRealmSelect}
             onCreate={handleRealmCreate}
+            onDelete={handleRealmDelete}
+            isAuthed={!!user}
+            onAuthRequired={() => setPhase('auth')}
           />
         </div>
       )}
 
       {/* ── Pre-game setup ── */}
-      {!loading && phase === 'pre-game' && (
+      {!loading && !authLoading && phase === 'pre-game' && (
         <div className="app-wrapper">
           <div className="section-panel">
             <PreGame
@@ -183,7 +218,7 @@ export default function App() {
       )}
 
       {/* ── In-game + record-game ── */}
-      {!loading && (phase === 'in-game' || phase === 'record-game') && (
+      {!loading && !authLoading && (phase === 'in-game' || phase === 'record-game') && (
         <div className="app-wrapper">
           {/* Tab nav only shown during active in-game phase */}
           {phase === 'in-game' && (
