@@ -4,7 +4,7 @@ import {
   getExpansions, upsertExpansion,
   getRealms, saveRealm, deleteRealm,
   generateId, generateRealmId,
-  migrateFromLocalStorage,
+  migrateFromLocalStorage, seedDefaultRealm,
 } from '../data/storage';
 
 export function useGameData(user, authLoading) {
@@ -19,6 +19,7 @@ export function useGameData(user, authLoading) {
     async function init() {
       setLoading(true);
       if (user) await migrateFromLocalStorage(user.id);
+      if (user) await seedDefaultRealm(user.id);
       const [g, e, r] = await Promise.all([getGames(), getExpansions(user?.id), getRealms(user?.id)]);
       setGames(g);
       setExpansions(e);
