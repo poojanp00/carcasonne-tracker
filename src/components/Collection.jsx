@@ -1,26 +1,26 @@
 import { useState } from 'react';
 
 // ── Full expansion icons ──────────────────────────────────────────
-import iconInnsCathedrals        from '../../images/full-expansion-icons/Symbol_InnsCathedrals_C1C2.png';
-import iconTradersBuilders        from '../../images/full-expansion-icons/Symbol_TradersBuilders_C2.png';
-import iconPrincessDragon         from '../../images/full-expansion-icons/Symbol_PrincessDragon_C1C2.png';
-import iconTower                  from '../../images/full-expansion-icons/Symbol_Tower_C1C2.png';
-import iconAbbeyMayor             from '../../images/full-expansion-icons/Symbol_AbbeyMayor_C1C2.png';
-import iconCountKingRobber        from '../../images/full-expansion-icons/Symbol_CountKingRobber_C1C2.png';
-import iconCatapult               from '../../images/full-expansion-icons/Symbol_Catapult_C1.png';
-import iconBridgesCastlesBazaars  from '../../images/full-expansion-icons/Symbol_BridgesCastlesBazaars_C1C2.png';
-import iconHillsSheep             from '../../images/full-expansion-icons/Symbol_HillsSheep_C1C2.png';
-import iconUnderBigTop            from '../../images/full-expansion-icons/Symbol_UnderTheBigTop_C2.png';
+import iconInnsCathedrals        from '../../images/icons/full-expansion-icons/Symbol_InnsCathedrals_C1C2.png';
+import iconTradersBuilders        from '../../images/icons/full-expansion-icons/Symbol_TradersBuilders_C2.png';
+import iconPrincessDragon         from '../../images/icons/full-expansion-icons/Symbol_PrincessDragon_C1C2.png';
+import iconTower                  from '../../images/icons/full-expansion-icons/Symbol_Tower_C1C2.png';
+import iconAbbeyMayor             from '../../images/icons/full-expansion-icons/Symbol_AbbeyMayor_C1C2.png';
+import iconCountKingRobber        from '../../images/icons/full-expansion-icons/Symbol_CountKingRobber_C1C2.png';
+import iconCatapult               from '../../images/icons/full-expansion-icons/Symbol_Catapult_C1.png';
+import iconBridgesCastlesBazaars  from '../../images/icons/full-expansion-icons/Symbol_BridgesCastlesBazaars_C1C2.png';
+import iconHillsSheep             from '../../images/icons/full-expansion-icons/Symbol_HillsSheep_C1C2.png';
+import iconUnderBigTop            from '../../images/icons/full-expansion-icons/Symbol_UnderTheBigTop_C2.png';
 
 // ── Mini expansion icons ──────────────────────────────────────────
-import iconAbbot          from '../../images/mini-expansion-icons/Symbol_Abbot_C2.png';
-import iconRiverII        from '../../images/mini-expansion-icons/Symbol_RiverIII_C1C2.png';
-import iconFlyingMachines from '../../images/mini-expansion-icons/Symbol_Flier_C1C2.png';
-import iconFerries        from '../../images/mini-expansion-icons/Symbol_Ferries_C1C2.png';
-import iconGoldMines      from '../../images/mini-expansion-icons/Symbol_GoldMines_C1C2.png';
-import iconMageWitch      from '../../images/mini-expansion-icons/Symbol_MageWitch_C1C2.png';
-import iconRobbers        from '../../images/mini-expansion-icons/Symbol_Robbers_C1C2.png';
-import iconCropCircles    from '../../images/mini-expansion-icons/Symbol_CropCircles_C1C2.png';
+import iconAbbot          from '../../images/icons/mini-expansion-icons/Symbol_Abbot_C2.png';
+import iconRiverII        from '../../images/icons/mini-expansion-icons/Symbol_RiverIII_C1C2.png';
+import iconFlyingMachines from '../../images/icons/mini-expansion-icons/Symbol_Flier_C1C2.png';
+import iconFerries        from '../../images/icons/mini-expansion-icons/Symbol_Ferries_C1C2.png';
+import iconGoldMines      from '../../images/icons/mini-expansion-icons/Symbol_GoldMines_C1C2.png';
+import iconMageWitch      from '../../images/icons/mini-expansion-icons/Symbol_MageWitch_C1C2.png';
+import iconRobbers        from '../../images/icons/mini-expansion-icons/Symbol_Robbers_C1C2.png';
+import iconCropCircles    from '../../images/icons/mini-expansion-icons/Symbol_CropCircles_C1C2.png';
 
 const EXPANSION_ICONS = {
   'Inns & Cathedrals':           iconInnsCathedrals,

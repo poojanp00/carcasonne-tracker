@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import pigImg from '../../images/icons/pig.png';
 import Lightbox from './Lightbox';
 
 function formatDate(dateStr) {
@@ -163,7 +164,7 @@ export default function GameHistory({ games, onDelete }) {
                     }}>
                       {isTie ? 'Tie' : winner?.name}
                       {game.farmWin && !isTie && (
-                        <span title="Won via farm" style={{ marginLeft: '0.35rem', fontSize: '0.75rem', opacity: 0.75 }}>🌾</span>
+                        <img src={pigImg} alt="farm win" title="Won via farm" style={{ height: 16, width: 'auto', marginLeft: '0.35rem', verticalAlign: 'middle', opacity: 0.85 }} />
                       )}
                     </td>
 

@@ -38,13 +38,22 @@ function Toast({ message }) {
 
 export default function App() {
   // 'realm' | 'pre-game' | 'in-game' | 'record-game'
-  const [phase,   setPhase]   = useState('realm');
-  const [session, setSession] = useState(null);
-  const [tab,     setTab]     = useState('board');
-  const [gameKey, setGameKey] = useState(0); // incremented each new game so Board remounts fresh
-  const [toast,   setToast]   = useState(null);
+  const [phase,            setPhase]            = useState('realm');
+  const [session,          setSession]          = useState(null);
+  const [tab,              setTab]              = useState('board');
+  const [gameKey,          setGameKey]          = useState(0); // incremented each new game so Board remounts fresh
+  const [toast,            setToast]            = useState(null);
+  const [realmPickerKey,   setRealmPickerKey]   = useState(0);
+  const [realmInitialMode, setRealmInitialMode] = useState(null);
 
   const { games, expansions, realms, addGame, deleteGame, toggleExpansion, addRealm, updateRealm } = useGameData();
+
+  const goHome = useCallback(() => {
+    setSession(null);
+    setPhase('realm');
+    setRealmInitialMode(null);
+    setRealmPickerKey(k => k + 1);
+  }, []);
 
   const showToast = useCallback((msg) => {
     setToast(msg);
@@ -69,6 +78,11 @@ export default function App() {
     setGameKey(k => k + 1);
     setPhase('in-game');
     setTab('board');
+  }, []);
+
+  const handleBoardReset = useCallback(() => {
+    setSession(prev => ({ realm: prev.realm }));
+    setPhase('pre-game');
   }, []);
 
   const handleFinishGame = useCallback((finalScores) => {
@@ -98,7 +112,18 @@ export default function App() {
     setSession(prev => ({ ...prev, realm: { ...prev.realm, ...patch } }));
   }, [session, updateRealm]);
 
-  const ownedExpansions = expansions.filter(e => e.owned).map(e => e.name);
+  const PINNED_EXPANSIONS = ['The River', 'The Abbot'];
+  const ownedExpansions = expansions
+    .filter(e => e.owned)
+    .sort((a, b) => {
+      const ai = PINNED_EXPANSIONS.indexOf(a.name);
+      const bi = PINNED_EXPANSIONS.indexOf(b.name);
+      if (ai !== -1 && bi !== -1) return ai - bi;
+      if (ai !== -1) return -1;
+      if (bi !== -1) return 1;
+      return 0;
+    })
+    .map(e => e.name);
   const realmGames = session?.realm?.id
     ? games.filter(g => g.realmId === session.realm.id)
     : games;
@@ -114,7 +139,7 @@ export default function App() {
             <span style={{ color: 'var(--warm-gold)', fontSize: '1.1rem' }}>⚜</span>
             <div className="ornament-line" />
           </div>
-          <h1>Carcassonne</h1>
+          <h1 onClick={goHome} style={{ cursor: 'pointer' }}>Carcassonne</h1>
           <div className="header-ornament" style={{ marginTop: '0.45rem' }}>
             <div className="ornament-line" />
             <span style={{ color: 'var(--warm-gold)', fontSize: '0.75rem', letterSpacing: '0.3em' }}>✦ ✦ ✦</span>
@@ -127,6 +152,8 @@ export default function App() {
       {phase === 'realm' && (
         <div className="app-wrapper">
           <RealmPicker
+            key={realmPickerKey}
+            initialMode={realmInitialMode}
             realms={realms}
             onSelect={handleRealmSelect}
             onCreate={handleRealmCreate}
@@ -142,7 +169,7 @@ export default function App() {
               realm={session.realm}
               ownedExpansions={ownedExpansions}
               onStart={handleGameStart}
-              onBack={() => { setSession(null); setPhase('realm'); }}
+              onBack={() => { setSession(null); setPhase('realm'); setRealmInitialMode('join'); setRealmPickerKey(k => k + 1); }}
             />
           </div>
         </div>
@@ -170,7 +197,7 @@ export default function App() {
 
           <div className="section-panel">
             {phase === 'in-game' && tab === 'board' && (
-              <Board key={gameKey} session={session} onFinish={handleFinishGame} />
+              <Board key={gameKey} session={session} onFinish={handleFinishGame} onReset={handleBoardReset} />
             )}
             {phase === 'in-game' && tab === 'history' && (
               <GameHistory games={realmGames} onDelete={handleDelete} />

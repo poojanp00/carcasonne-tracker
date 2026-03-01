@@ -402,47 +402,16 @@ h3 { font-size: 1.15rem; font-weight: 600; }
 /* Board styles */
 .board-ui {
   display: grid;
-  grid-template-columns: 220px 1fr 220px;
+  grid-template-columns: 260px 1fr;
+  grid-template-rows: auto auto;
   gap: 1.2rem;
 }
-
-/* 4-6 players: log + board on top, controls span full width below */
-.board-ui-many {
-  grid-template-columns: 200px 1fr;
-  grid-template-rows: auto auto;
-}
-.board-ui-many .board-log    { grid-column: 1; grid-row: 1; }
-.board-ui-many .board-canvas { grid-column: 2; grid-row: 1; }
-.board-ui-many .board-controls { grid-column: 1 / -1; grid-row: 2; }
+.board-ui .board-log     { grid-column: 1; grid-row: 1; }
+.board-ui .board-canvas  { grid-column: 2; grid-row: 1; }
+.board-ui .board-controls { grid-column: 1 / -1; grid-row: 2; }
 
 .board-controls { }
 
-/* Compact player card for 4-6 player layout */
-.board-player-card-compact {
-  padding: 0.45rem 0.5rem;
-}
-.board-player-card-compact .board-btn-group {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 0.25rem;
-  flex-wrap: nowrap;
-}
-.board-player-card-compact .board-score-input {
-  width: 2.8rem;
-  min-width: 0;
-  padding: 0.15rem 0.3rem;
-  font-size: 0.8rem;
-}
-.board-player-card-compact .board-btn-row {
-  display: contents; /* flatten into parent flex row */
-}
-.board-player-card-compact .board-btn-equal {
-  flex: 0 0 auto;
-  padding: 0.15rem 0.3rem;
-  font-size: 0.75rem;
-  min-width: 0;
-}
 
 /* button group: row of 3 equal buttons, then input same total width */
 .board-btn-group { display: flex; flex-direction: column; gap: 0.35rem; }
@@ -1294,36 +1263,34 @@ input[type="file"] { display: none; }
 
 /* ── Post-game record form ── */
 .postgame-scores-grid {
-  display: grid;
-  /* columns overridden inline per player count */
-  grid-template-columns: repeat(2, 1fr);
-  gap: 0.8rem;
-  margin-bottom: 0.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
 .postgame-player-card {
   background: var(--parchment);
   border: 1.5px solid rgba(43,43,43,0.28);
   border-radius: var(--radius-sm);
-  padding: 0.8rem;
+  padding: 0.6rem 0.8rem;
   box-shadow: 1px 2px 4px rgba(0,0,0,0.1);
 }
 
 .postgame-crown {
-  height: 52px;
+  height: 22px;
   width: auto;
   filter: drop-shadow(0 2px 6px rgba(0,0,0,0.35));
   animation: crownFloat 3s ease-in-out infinite;
+  flex-shrink: 0;
 }
 
 .postgame-score-display {
   font-family: 'Cinzel', serif;
-  font-size: 1.6rem;
+  font-size: 1.1rem;
   font-weight: 700;
-  text-align: center;
   color: var(--earth-brown);
-  padding: 0.3rem 0;
   letter-spacing: 0.04em;
+  flex-shrink: 0;
 }
 
 /* ── History results column ── */
