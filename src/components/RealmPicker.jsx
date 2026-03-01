@@ -39,9 +39,17 @@ function calcPlayerRecords(games, players) {
   return records;
 }
 
+const TrashIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="3 6 5 6 21 6" />
+    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+    <path d="M10 11v6M14 11v6" />
+    <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+  </svg>
+);
+
 export default function RealmPicker({ realms, currentRealm = null, games = [], onSelect, onCreate, onDelete, initialMode = null }) {
   const [mode,             setMode]             = useState(initialMode);
-  const [hoveredId,        setHoveredId]        = useState(null);
   const [realmName,        setRealmName]        = useState('');
   const [playerCount,      setPlayerCount]      = useState(2);
   const [playerNames,      setPlayerNames]      = useState(['', '']);
@@ -79,12 +87,7 @@ export default function RealmPicker({ realms, currentRealm = null, games = [], o
     setPlayerCount(2);
   };
 
-  const openJoin = (realm) => {
-    onSelect(realm);
-  };
-
-  const openDelete = (e, realm) => {
-    e.stopPropagation();
+  const openDelete = (realm) => {
     setPendingAction({ type: 'delete', realm });
     setConfirmingDelete(true);
   };
@@ -119,47 +122,6 @@ export default function RealmPicker({ realms, currentRealm = null, games = [], o
               <button className="btn btn-ghost btn-sm" onClick={closeModal}>Cancel</button>
               <button className="btn btn-danger btn-sm" onClick={handleDeleteConfirm}>Delete</button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Join mode */}
-      {mode === 'join' && (
-        <div className="realm-screen">
-          <div className="realm-list">
-            {realms.map(realm => (
-              <div
-                key={realm.id}
-                className="realm-card"
-                onClick={() => openJoin(realm)}
-                onMouseEnter={() => setHoveredId(realm.id)}
-                onMouseLeave={() => setHoveredId(null)}
-              >
-                <div className="realm-card-top">
-                  <span className="realm-card-name">{realm.name}</span>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                    <button
-                      className="realm-trash-btn"
-                      onClick={e => openDelete(e, realm)}
-                      title="Delete realm"
-                    >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="3 6 5 6 21 6" />
-                        <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                        <path d="M10 11v6M14 11v6" />
-                        <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-                <div className={`realm-card-players ${hoveredId === realm.id ? 'visible' : ''}`}>
-                  {realm.players.join(' · ')}
-                </div>
-              </div>
-            ))}
-          </div>
-          <div style={{ marginTop: '1rem' }}>
-            <button type="button" className="btn btn-ghost" onClick={() => setMode(null)}>← Back</button>
           </div>
         </div>
       )}
@@ -237,25 +199,57 @@ export default function RealmPicker({ realms, currentRealm = null, games = [], o
       {/* Landing */}
       {!mode && (
         <div style={{ paddingTop: '0.5rem' }}>
+
+          {/* Realm chips */}
+          {realms.length > 0 && (
+            <div style={{ marginBottom: '1.3rem' }}>
+              <div className="expansion-chips">
+                {realms.map(r => (
+                  <button
+                    key={r.id}
+                    type="button"
+                    className={`expansion-chip ${currentRealm?.id === r.id ? 'selected' : ''}`}
+                    onClick={() => onSelect(r)}
+                  >
+                    {r.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Active realm stats */}
           {currentRealm && (() => {
-            const rs = calcRealmStats(games);
+            const rs      = calcRealmStats(games);
             const records = calcPlayerRecords(games, currentRealm.players);
             const typeEntries = [
               ...TYPE_ORDER.filter(t => (rs.typePoints[t] ?? 0) > 0),
               ...Object.keys(rs.typePoints).filter(t => !TYPE_ORDER.includes(t) && (rs.typePoints[t] ?? 0) > 0),
             ];
             return (
-              <div className="tile-card" style={{ marginBottom: '1.5rem', borderTop: '4px solid var(--warm-gold)' }}>
-                <div style={{ fontSize: '0.7rem', fontFamily: 'Cinzel, serif', letterSpacing: '0.12em', color: 'var(--stone-gray)', marginBottom: '0.5rem' }}>
-                  ACTIVE REALM
-                </div>
-                <div style={{ fontFamily: 'Cinzel, serif', fontSize: '1.3rem', fontWeight: 700, color: 'var(--earth-brown)', marginBottom: '0.35rem' }}>
-                  {currentRealm.name}
+              <div className="tile-card" style={{ marginBottom: '1.2rem', borderTop: '4px solid var(--warm-gold)' }}>
+                {/* Header row: realm name + trash */}
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
+                  <div>
+                    <div style={{ fontSize: '0.7rem', fontFamily: 'Cinzel, serif', letterSpacing: '0.12em', color: 'var(--stone-gray)', marginBottom: '0.25rem' }}>
+                      ACTIVE REALM
+                    </div>
+                    <div style={{ fontFamily: 'Cinzel, serif', fontSize: '1.3rem', fontWeight: 700, color: 'var(--earth-brown)' }}>
+                      {currentRealm.name}
+                    </div>
+                  </div>
+                  <button
+                    className="realm-trash-btn"
+                    onClick={() => openDelete(currentRealm)}
+                    title="Delete realm"
+                    style={{ marginTop: '0.1rem' }}
+                  >
+                    <TrashIcon />
+                  </button>
                 </div>
 
                 {games.length > 0 && (
                   <>
-                    {/* Per-player record */}
                     <div style={{ marginBottom: '1rem', fontFamily: 'Cinzel, serif', fontSize: '0.85rem' }}>
                       {[...currentRealm.players]
                         .sort((a, b) => (records[b.toLowerCase()]?.w || 0) - (records[a.toLowerCase()]?.w || 0))
@@ -282,9 +276,9 @@ export default function RealmPicker({ realms, currentRealm = null, games = [], o
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.3rem 1.2rem', marginBottom: typeEntries.length > 0 ? '0.9rem' : 0 }}>
                       {[
-                        ['Games',       games.length],
-                        ['Total Pts',   rs.totalPoints],
-                        ['Farm Wins',   rs.farmWins],
+                        ['Games',        games.length],
+                        ['Total Pts',    rs.totalPoints],
+                        ['Farm Wins',    rs.farmWins],
                         ['Clutch Games', rs.clutchGames],
                       ].map(([label, val]) => (
                         <div key={label} className="stat-row" style={{ margin: 0 }}>
@@ -314,24 +308,16 @@ export default function RealmPicker({ realms, currentRealm = null, games = [], o
               </div>
             );
           })()}
-          <div className="realm-btn-group">
-            <button
-              className="btn realm-btn"
-              onClick={() => setMode('join')}
-              disabled={realms.length === 0}
-              title={realms.length === 0 ? 'No realms yet — create one first' : undefined}
-            >
-              Load Realm
-            </button>
-            <button className="btn realm-btn" onClick={() => setMode('create')}>
-              Create New Realm
-            </button>
-          </div>
+
           {realms.length === 0 && (
-            <p style={{ marginTop: '1rem', fontSize: '0.88rem', fontStyle: 'italic', color: 'var(--stone-gray)' }}>
+            <p style={{ marginBottom: '1rem', fontSize: '0.88rem', fontStyle: 'italic', color: 'var(--stone-gray)' }}>
               No realms yet — create one to begin.
             </p>
           )}
+
+          <button className="btn" onClick={() => setMode('create')}>
+            Create New Realm
+          </button>
         </div>
       )}
     </div>

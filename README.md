@@ -247,7 +247,7 @@ Points are added via a numeric input or quick-add buttons (+1, +2, +3). Every mo
 
 ### Finishing a game
 
-Clicking **Finish Game** snapshots final scores and navigates to the **Final Scores** form. The player can:
+Clicking **Final Scoring** snapshots final scores and navigates to the **Final Scores** form. The player can:
 - Confirm the date
 - Mark a **Farm Win** (pig icon shown in logbook)
 - Record the game to the Supabase `games` table

@@ -122,7 +122,7 @@ export default function Board({ session, onFinish, onReset }) {
     const scoreBreakdown = board.scoreTotals || {};
     const maxFinal       = Math.max(...Object.values(finalScores), 0);
     const finalWinners   = players.filter(p => finalScores[p] === maxFinal);
-    // Farm win: a single winner who was NOT leading when Finish Game was first pressed
+    // Farm win: a single winner who was NOT leading when Final Scoring was first pressed
     const autoFarmWin    = finalWinners.length === 1 && !leadersAtFinish.includes(finalWinners[0]);
     resetBoard(players);
     onFinish(finalScores, scoreBreakdown, autoFarmWin);
@@ -302,7 +302,7 @@ export default function Board({ session, onFinish, onReset }) {
                 }
               }}
             >
-              {finishStep === 1 ? 'Fielders Counted?' : 'Finish Game'}
+              {finishStep === 1 ? 'Finish Game' : 'Final Scoring'}
             </button>
           </div>
         </div>

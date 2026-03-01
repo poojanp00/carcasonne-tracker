@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import PostGameForm  from './components/PostGameForm';
 import Logbook       from './components/Logbook';
 import Statistics    from './components/Statistics';
@@ -43,6 +43,14 @@ export default function App() {
 
   const { user, authLoading, signOut } = useAuth();
   const { games, expansions, realms, loading, addGame, deleteGame, toggleExpansion, addRealm, updateRealm, removeRealm } = useGameData(user, authLoading);
+
+  // Auto-load the realm with the most recent game on initial data load
+  useEffect(() => {
+    if (loading || authLoading || !user || session || games.length === 0 || realms.length === 0) return;
+    const latest = [...games].sort((a, b) => b.date.localeCompare(a.date))[0];
+    const realm  = realms.find(r => r.id === latest?.realmId);
+    if (realm) setSession({ realm });
+  }, [loading, authLoading, user]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   const goHome = useCallback(() => {
     setSession(null);
@@ -232,12 +240,30 @@ export default function App() {
                       <h2>Game Board</h2>
                       <div className="section-title-line" />
                     </div>
-                    <p style={{ fontFamily: 'Crimson Text, serif', fontStyle: 'italic', color: 'var(--stone-gray)', paddingTop: '2rem', textAlign: 'center' }}>Load a realm to begin.</p>
+                    {realms.length > 0 && (
+                      <div style={{ marginBottom: '1.3rem' }}>
+                        <div className="expansion-chips">
+                          {realms.map(r => (
+                            <button
+                              key={r.id}
+                              type="button"
+                              className="expansion-chip"
+                              onClick={() => handleRealmSelect(r)}
+                            >
+                              {r.name}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    <p style={{ fontFamily: 'Crimson Text, serif', fontStyle: 'italic', color: 'var(--stone-gray)', paddingTop: '1rem', textAlign: 'center' }}>
+                      Select a realm to begin playing.
+                    </p>
                   </div>
                 )
             )}
-            {tab === 'history' && <Logbook games={realmGames} onDelete={handleDelete} noRealm={!session} />}
-            {tab === 'statistics' && <Statistics games={realmGames} noRealm={!session} />}
+            {tab === 'history' && <Logbook games={games} realms={realms} currentRealm={session?.realm || null} onRealmChange={handleRealmSelect} onDelete={handleDelete} />}
+            {tab === 'statistics' && <Statistics games={games} realms={realms} currentRealm={session?.realm || null} onRealmChange={handleRealmSelect} />}
             {tab === 'collection' && <Collection expansions={expansions} onToggle={toggleExpansion} userId={user?.id} />}
           </div>
         </div>

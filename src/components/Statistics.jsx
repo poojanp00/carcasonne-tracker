@@ -21,7 +21,7 @@ function calcStats(games, name) {
   const low  = name.toLowerCase();
   const mine = games.filter(g => g.players.some(p => p.name.toLowerCase() === low));
 
-  let wins = 0, losses = 0, ties = 0, highScore = 0, highScoreDate = null, farmWins = 0, netPtDiff = 0;
+  let wins = 0, losses = 0, ties = 0, highScore = 0, highScoreDate = null, farmWins = 0, netPtDiff = 0, totalPoints = 0;
   let biggestBlowout = 0, biggestBlowoutDate = null, biggestBlowoutMyScore = 0, biggestBlowoutTheirScore = 0;
   let clutchWins = 0, clutchLosses = 0, clutchGames = 0;
 
@@ -47,13 +47,14 @@ function calcStats(games, name) {
     }
 
     if (my > highScore) { highScore = my; highScoreDate = g.date; }
-    netPtDiff += (my - maxOpp);
+    netPtDiff   += (my - maxOpp);
+    totalPoints += my;
 
     if (g.farmWin && my > maxOpp) farmWins++;
 
-    // Close game: margin < 5% of combined totals (use top two scores)
+    // Close game: margin < 10% of combined totals (use top two scores)
     const total_pts = my + maxOpp;
-    if (total_pts > 0 && Math.abs(my - maxOpp) / total_pts < 0.05) {
+    if (total_pts > 0 && Math.abs(my - maxOpp) / total_pts < 0.10) {
       clutchGames++;
       if (my > maxOpp)      clutchWins++;
       else if (my < maxOpp) clutchLosses++;
@@ -91,7 +92,7 @@ function calcStats(games, name) {
     wins, losses, ties, winRate, highScore, highScoreDate, total,
     winStreak, lossStreak, farmWins, farmDominance,
     biggestBlowout, biggestBlowoutDate, biggestBlowoutMyScore, biggestBlowoutTheirScore,
-    clutchFactor, clutchGames, clutchWins, netPtDiff,
+    clutchFactor, clutchGames, clutchWins, netPtDiff, totalPoints,
   };
 }
 
@@ -122,13 +123,13 @@ const PLAYER_COLOR_CLASSES = ['p1', 'p2', 'p3', 'p4', 'p5', 'p6'];
 
 const TYPE_LABELS = { road: 'Road', city: 'City', monastery: 'Monastery', field: 'Field' };
 
-function PlayerCard({ name, stats, breakdown, colorClass, isLeader }) {
+function PlayerCard({ name, stats, breakdown, colorClass, isLeader, typeLeaders }) {
   // Show types with any points, always in canonical order then extras
   const canonicalOrder = ['road', 'city', 'monastery', 'field'];
   const allTypes = [
     ...canonicalOrder.filter(t => (breakdown[t] ?? 0) > 0),
     ...Object.keys(breakdown).filter(t => !canonicalOrder.includes(t) && (breakdown[t] ?? 0) > 0),
-  ].sort((a, b) => (breakdown[b] || 0) - (breakdown[a] || 0));
+  ];
   return (
     <div className={`player-card ${colorClass}`}>
       {isLeader && <img src={crownImg} alt="Leader" title="Current leader" className="card-crown" />}
@@ -193,7 +194,7 @@ function PlayerCard({ name, stats, breakdown, colorClass, isLeader }) {
         </ValInfo>
       </div>
       <div className="stat-row">
-        <span className="stat-label">Clutch factor <StatInfo>Win rate in close games (margin &lt; 5% of total points).</StatInfo></span>
+        <span className="stat-label">Clutch factor <StatInfo>Win rate in close games (margin &lt; 10% of total points).</StatInfo></span>
         <ValInfo tip={stats.clutchFactor !== null ? `${stats.clutchWins} wins / ${stats.clutchGames} clutch games` : null}>
           <span className="stat-value" style={{
             color: stats.clutchFactor !== null && stats.clutchFactor >= 0.6
@@ -231,7 +232,10 @@ function PlayerCard({ name, stats, breakdown, colorClass, isLeader }) {
           {allTypes.map(type => (
             <div key={type} className="stat-row">
               <span className="stat-label">{TYPE_LABELS[type] ?? type.charAt(0).toUpperCase() + type.slice(1)}</span>
-              <span className="stat-value">{breakdown[type]}</span>
+              <span className="stat-value">
+                {typeLeaders?.[type] === name && <span style={{ color: 'var(--forest-green)', fontWeight: 700, marginRight: '0.25rem' }}>*</span>}
+                {breakdown[type]}
+              </span>
             </div>
           ))}
         </>
@@ -240,46 +244,75 @@ function PlayerCard({ name, stats, breakdown, colorClass, isLeader }) {
   );
 }
 
-export default function Stats({ games, noRealm = false }) {
-  const { sorted, leader } = useMemo(() => {
-    if (games.length === 0) return { sorted: [], leader: null };
+export default function Stats({ games, realms = [], currentRealm = null, onRealmChange }) {
+  const realmGames = currentRealm ? games.filter(g => g.realmId === currentRealm.id) : [];
+
+  const { sorted, leader, typeLeaders } = useMemo(() => {
+    if (realmGames.length === 0) return { sorted: [], leader: null };
 
     // Deduplicate case-insensitively, keeping first-seen capitalization
     const seenLower = new Map();
-    games.flatMap(g => g.players.map(p => p.name)).forEach(n => {
+    realmGames.flatMap(g => g.players.map(p => p.name)).forEach(n => {
       if (!seenLower.has(n.toLowerCase())) seenLower.set(n.toLowerCase(), n);
     });
     const names    = [...seenLower.values()];
-    const allStats = names.map(name => ({ name, ...calcStats(games, name), breakdown: calcBreakdown(games, name) }));
+    const allStats = names.map(name => ({ name, ...calcStats(realmGames, name), breakdown: calcBreakdown(realmGames, name) }));
 
-    // Primary: win rate (highest first); tiebreaker: total wins
-    const s = [...allStats].sort((a, b) => b.winRate - a.winRate || b.wins - a.wins);
-    return { sorted: s, leader: s[0]?.name };
-  }, [games]);
+    // Crown leader: best win rate (independent of display order)
+    const byWinRate = [...allStats].sort((a, b) => b.winRate - a.winRate || b.wins - a.wins);
 
-  if (games.length === 0) {
-    return (
-      <div>
-        <div className="section-title">
-          <h2>Statistics</h2>
-          <div className="section-title-line" />
-        </div>
-        <div className="empty-state">
-          <span className="empty-state-icon">🏰</span>
-          {noRealm ? 'Load a realm to view statistics.' : 'No games recorded yet. Log your first game to see statistics.'}
-        </div>
-      </div>
-    );
-  }
+    // Display order: most wins first; tiebreaker by win rate
+    const s = [...allStats].sort((a, b) => b.wins - a.wins || b.winRate - a.winRate);
+
+    // Per-type leaders: for each category, which player has the most points
+    const typeLeaders = {};
+    for (const ps of allStats) {
+      for (const [type, pts] of Object.entries(ps.breakdown)) {
+        if (pts > 0 && (typeLeaders[type] === undefined || pts > allStats.find(p => p.name === typeLeaders[type])?.breakdown[type])) {
+          typeLeaders[type] = ps.name;
+        }
+      }
+    }
+    return { sorted: s, leader: byWinRate[0]?.name, typeLeaders };
+  }, [realmGames]);
 
   return (
     <div>
       <div className="section-title">
         <h2>Statistics</h2>
         <div className="section-title-line" />
-        <span className="game-count">{games.length} {games.length === 1 ? 'game' : 'games'}</span>
+        {currentRealm && <span className="game-count">{realmGames.length} {realmGames.length === 1 ? 'game' : 'games'}</span>}
       </div>
 
+      {/* Realm filter chips */}
+      {realms.length > 0 && (
+        <div style={{ marginBottom: '1.3rem' }}>
+          <div className="expansion-chips">
+            {realms.map(r => (
+              <button
+                key={r.id}
+                type="button"
+                className={`expansion-chip ${currentRealm?.id === r.id ? 'selected' : ''}`}
+                onClick={() => onRealmChange(r)}
+              >
+                {r.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {!currentRealm ? (
+        <div className="empty-state">
+          <span className="empty-state-icon">🏰</span>
+          Select a realm above to view statistics.
+        </div>
+      ) : realmGames.length === 0 ? (
+        <div className="empty-state">
+          <span className="empty-state-icon">🏰</span>
+          No games recorded for this realm yet.
+        </div>
+      ) : (
       <div className="stats-grid">
         {sorted.map((ps, i) => (
           <PlayerCard
@@ -289,9 +322,11 @@ export default function Stats({ games, noRealm = false }) {
             breakdown={ps.breakdown}
             colorClass={PLAYER_COLOR_CLASSES[i % PLAYER_COLOR_CLASSES.length]}
             isLeader={ps.name === leader}
+            typeLeaders={typeLeaders}
           />
         ))}
       </div>
+      )}
     </div>
   );
 }
