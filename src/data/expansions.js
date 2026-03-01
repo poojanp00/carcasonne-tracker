@@ -1,10 +1,10 @@
 export const DEFAULT_EXPANSIONS = [
   // Full expansions (numbered in official release order)
-  { name: 'Inns & Cathedrals',           type: 'full', owned: true  },
-  { name: 'Traders & Builders',          type: 'full', owned: true  },
+  { name: 'Inns & Cathedrals',           type: 'full', owned: false },
+  { name: 'Traders & Builders',          type: 'full', owned: false },
   { name: 'The Princess & the Dragon',   type: 'full', owned: false },
   { name: 'The Tower',                   type: 'full', owned: false },
-  { name: 'Abbey & Mayor',               type: 'full', owned: true  },
+  { name: 'Abbey & Mayor',               type: 'full', owned: false },
   { name: 'Count, King & Robber',        type: 'full', owned: false },
   { name: 'The Catapult',                type: 'full', owned: false },
   { name: 'Bridges, Castles & Bazaars',  type: 'full', owned: false },

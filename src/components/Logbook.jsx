@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import pigImg from '../../images/icons/pig.png';
+import Lightbox from './Lightbox';
 
 function formatDate(dateStr) {
   return new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', {
@@ -7,9 +7,20 @@ function formatDate(dateStr) {
   });
 }
 
-export default function GameHistory({ games, onDelete }) {
-  const [activeFilters, setActiveFilters] = useState(new Set());
-  const [baseFilter,    setBaseFilter]    = useState(false);
+const TrashIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="3 6 5 6 21 6" />
+    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+    <path d="M10 11v6M14 11v6" />
+    <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+  </svg>
+);
+
+export default function GameHistory({ games, onDelete, noRealm = false }) {
+  const [activeFilters,   setActiveFilters]   = useState(new Set());
+  const [baseFilter,      setBaseFilter]      = useState(false);
+  const [selectedGame,    setSelectedGame]    = useState(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
 
   const usedExpansions = [...new Set(games.flatMap(g => g.expansions))].sort();
   const hasBaseGames   = games.some(g => g.expansions.length === 0);
@@ -36,12 +47,44 @@ export default function GameHistory({ games, onDelete }) {
       ? games
       : games.filter(g => [...activeFilters].every(exp => g.expansions.includes(exp)));
 
+  const handleConfirmDelete = () => {
+    onDelete(confirmDeleteId);
+    setConfirmDeleteId(null);
+    setSelectedGame(null);
+  };
+
   return (
     <div>
+      {/* Delete confirmation modal */}
+      {confirmDeleteId && (
+        <div className="realm-modal-overlay" onClick={() => setConfirmDeleteId(null)}>
+          <div className="realm-modal tile-card" onClick={e => e.stopPropagation()}>
+            <h3 style={{ color: 'var(--deep-red)', marginBottom: '0.5rem' }}>Remove this game?</h3>
+            <p style={{ fontSize: '0.95rem', marginBottom: '1.2rem', lineHeight: 1.5 }}>
+              This will permanently remove the game from the logbook. This cannot be undone.
+            </p>
+            <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'flex-end' }}>
+              <button className="btn btn-ghost btn-sm" onClick={() => setConfirmDeleteId(null)}>Cancel</button>
+              <button className="btn btn-danger btn-sm" onClick={handleConfirmDelete}>Delete</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Lightbox */}
+      {selectedGame && (
+        <Lightbox
+          game={selectedGame}
+          games={filtered}
+          onNavigate={setSelectedGame}
+          onClose={() => setSelectedGame(null)}
+        />
+      )}
+
       <div className="section-title">
         <h2>Logbook</h2>
         <div className="section-title-line" />
-        <span className="game-count">{filtered.length} {filtered.length === 1 ? 'game' : 'games'}</span>
+        {!noRealm && <span className="game-count">{filtered.length} {filtered.length === 1 ? 'game' : 'games'}</span>}
       </div>
 
       {(usedExpansions.length > 0 || hasBaseGames) && (
@@ -90,7 +133,7 @@ export default function GameHistory({ games, onDelete }) {
       {filtered.length === 0 ? (
         <div className="empty-state">
           <span className="empty-state-icon">📜</span>
-          {games.length === 0 ? 'No battles have been recorded yet.' : 'No games match this filter.'}
+          {noRealm ? 'Load a realm to view game history.' : games.length === 0 ? 'No games have been recorded yet.' : 'No games match this filter.'}
         </div>
       ) : (
         <div className="history-table-wrap">
@@ -98,10 +141,8 @@ export default function GameHistory({ games, onDelete }) {
             <thead>
               <tr>
                 <th>Date</th>
-                <th>Results</th>
                 <th>Winner</th>
                 <th>Margin</th>
-                <th>Expansions</th>
                 <th />
               </tr>
             </thead>
@@ -115,29 +156,9 @@ export default function GameHistory({ games, onDelete }) {
                 const margin     = isTie ? 0 : maxScore - (scores[1] ?? 0);
 
                 return (
-                  <tr key={game.id}>
-                    {/* Date */}
+                  <tr key={game.id} onClick={() => setSelectedGame(game)} style={{ cursor: 'pointer' }}>
                     <td className="cell-date">{formatDate(game.date)}</td>
 
-                    {/* Results */}
-                    <td>
-                      <div className="history-results">
-                        {game.players.map(p => (
-                          <span
-                            key={p.name}
-                            className="history-result-entry"
-                            style={{
-                              color:      p.score === maxScore ? 'var(--forest-green)' : 'var(--stone-gray)',
-                              fontWeight: p.score === maxScore ? 700 : 400,
-                            }}
-                          >
-                            {p.name}&nbsp;<span style={{ fontFamily: 'Cinzel, serif', fontSize: '0.88rem' }}>{p.score}</span>
-                          </span>
-                        ))}
-                      </div>
-                    </td>
-
-                    {/* Winner */}
                     <td style={{
                       fontWeight: 600,
                       color:      isTie ? 'var(--mustard)' : 'var(--forest-green)',
@@ -145,35 +166,17 @@ export default function GameHistory({ games, onDelete }) {
                       whiteSpace: 'nowrap',
                     }}>
                       {isTie ? 'Tie' : winner?.name}
-                      {game.farmWin && !isTie && (
-                        <img src={pigImg} alt="farm win" title="Won via farm" style={{ height: 11, width: 'auto', marginLeft: '0.35rem', verticalAlign: 'middle', opacity: 0.85 }} />
-                      )}
                     </td>
 
-                    {/* Margin */}
                     <td className="cell-margin">{isTie ? '—' : `+${margin}`}</td>
 
-                    {/* Expansions */}
-                    <td>
-                      {game.expansions.length === 0 ? (
-                        <span style={{ fontSize: '0.82rem', color: 'var(--stone-gray)', fontStyle: 'italic' }}>Base</span>
-                      ) : (
-                        <div className="expansion-chips" style={{ flexWrap: 'nowrap', gap: '0.25rem', minWidth: '100px' }}>
-                          {game.expansions.map(exp => (
-                            <span key={exp} className="expansion-chip display-only">{exp}</span>
-                          ))}
-                        </div>
-                      )}
-                    </td>
-
-                    {/* Delete */}
                     <td>
                       <button
-                        className="btn btn-danger btn-sm"
-                        onClick={() => onDelete(game.id)}
+                        className="realm-trash-btn"
+                        onClick={e => { e.stopPropagation(); setConfirmDeleteId(game.id); }}
                         title="Remove game"
                       >
-                        ✕
+                        <TrashIcon />
                       </button>
                     </td>
                   </tr>
@@ -183,7 +186,6 @@ export default function GameHistory({ games, onDelete }) {
           </table>
         </div>
       )}
-
     </div>
   );
 }

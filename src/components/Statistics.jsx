@@ -1,4 +1,7 @@
-// ─── Stats / Standings ────────────────────────────────────────────────────────
+import { useMemo } from 'react';
+import crownImg from '../../images/icons/crown.png';
+
+// ─── Statistics ────────────────────────────────────────────────────────
 
 function calcStats(games, name) {
   const low  = name.toLowerCase();
@@ -106,7 +109,7 @@ const PLAYER_COLOR_CLASSES = ['p1', 'p2', 'p3', 'p4', 'p5', 'p6'];
 function PlayerCard({ name, stats, colorClass, isLeader }) {
   return (
     <div className={`player-card ${colorClass}`}>
-      {isLeader && <span className="card-crown" title="Current leader">👑</span>}
+      {isLeader && <img src={crownImg} alt="Leader" title="Current leader" className="card-crown" />}
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
         <div className="player-card-name" style={{ margin: 0 }}>{name}</div>
@@ -119,7 +122,6 @@ function PlayerCard({ name, stats, colorClass, isLeader }) {
             {stats.netPtDiff > 0 ? `+${stats.netPtDiff}` : stats.netPtDiff} pts
           </span>
         )}
-        {isLeader && <div className="leader-banner" style={{ margin: 0 }}>Leading the realm</div>}
       </div>
 
       <div className="stat-row">
@@ -201,38 +203,42 @@ function PlayerCard({ name, stats, colorClass, isLeader }) {
   );
 }
 
-export default function Stats({ games }) {
+export default function Stats({ games, noRealm = false }) {
+  const { sorted, leader } = useMemo(() => {
+    if (games.length === 0) return { sorted: [], leader: null };
+
+    // Deduplicate case-insensitively, keeping first-seen capitalization
+    const seenLower = new Map();
+    games.flatMap(g => g.players.map(p => p.name)).forEach(n => {
+      if (!seenLower.has(n.toLowerCase())) seenLower.set(n.toLowerCase(), n);
+    });
+    const names    = [...seenLower.values()];
+    const allStats = names.map(name => ({ name, ...calcStats(games, name) }));
+
+    // Primary: win rate (highest first); tiebreaker: total wins
+    const s = [...allStats].sort((a, b) => b.winRate - a.winRate || b.wins - a.wins);
+    return { sorted: s, leader: s[0]?.name };
+  }, [games]);
+
   if (games.length === 0) {
     return (
       <div>
         <div className="section-title">
-          <h2>Standings</h2>
+          <h2>Statistics</h2>
           <div className="section-title-line" />
         </div>
         <div className="empty-state">
           <span className="empty-state-icon">🏰</span>
-          No battles recorded yet. Log your first game to see standings.
+          {noRealm ? 'Load a realm to view statistics.' : 'No games recorded yet. Log your first game to see statistics.'}
         </div>
       </div>
     );
   }
 
-  // Deduplicate case-insensitively, keeping first-seen capitalization
-  const seenLower = new Map();
-  games.flatMap(g => g.players.map(p => p.name)).forEach(n => {
-    if (!seenLower.has(n.toLowerCase())) seenLower.set(n.toLowerCase(), n);
-  });
-  const names    = [...seenLower.values()];
-  const allStats = names.map(name => ({ name, ...calcStats(games, name) }));
-
-  // Primary: win rate (highest first); tiebreaker: total wins
-  const sorted = [...allStats].sort((a, b) => b.winRate - a.winRate || b.wins - a.wins);
-  const leader = sorted[0]?.name;
-
   return (
     <div>
       <div className="section-title">
-        <h2>Standings</h2>
+        <h2>Statistics</h2>
         <div className="section-title-line" />
         <span className="game-count">{games.length} {games.length === 1 ? 'game' : 'games'}</span>
       </div>

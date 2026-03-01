@@ -81,7 +81,6 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
         </div>
 
         <div className="tile-card" style={{ marginBottom: '1.4rem' }}>
-          <div className="tile-card-header">Each player selects their character</div>
           <div className="meeple-picker-grid">
             {activePlayers.map(name => (
               <div key={name} className="meeple-picker-row">
@@ -134,12 +133,10 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
       </div>
 
       <div className="tile-card" style={{ marginBottom: '1.4rem' }}>
-        <div className="tile-card-header">Select expansions for this game</div>
         {ownedExpansions.length === 0 ? (
           <p className="section-intro">No expansions owned — base game only.</p>
         ) : (
           <>
-            <p className="section-intro">Only owned expansions are shown.</p>
             <div className="expansion-chips">
               {ownedExpansions.map(name => (
                 <button
@@ -158,10 +155,7 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
 
       <div style={{ display: 'flex', gap: '0.7rem', flexWrap: 'wrap', alignItems: 'center' }}>
         <button type="button" className="btn btn-ghost" onClick={() => setStep(2)}>← Back</button>
-        <button type="button" className="btn" onClick={handleStart}>Begin Battle</button>
-        <span style={{ fontStyle: 'italic', color: 'var(--stone-gray)', fontSize: '0.9rem' }}>
-          {selectedExp.length === 0 ? 'Base game' : selectedExp.join(' · ')}
-        </span>
+        <button type="button" className="btn" onClick={handleStart}>Begin</button>
       </div>
     </div>
   );
