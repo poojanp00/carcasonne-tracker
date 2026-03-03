@@ -46,7 +46,6 @@ const normalizeMeeples = (meeples) =>
     : meeples;
 
 export default function App() {
-  const hashParams = new URLSearchParams(window.location.hash.substring(1));
   const [session,        setSession]        = useState(null);
   const [tab,            setTab]            = useState('realms');
   const [gameKey,        setGameKey]        = useState(0);
