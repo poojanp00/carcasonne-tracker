@@ -85,47 +85,47 @@ export default function Auth({ onSuccess }) {
 
     onSuccess?.();
   };
-  const handleResetPassword = async () => {
-    setError(null);
+  // const handleResetPassword = async () => {
+  //   setError(null);
 
-    if (!email.trim()) {
-      setError('Enter your email first.');
-      return;
-    }
+  //   if (!email.trim()) {
+  //     setError('Enter your email first.');
+  //     return;
+  //   }
 
-    setLoading(true);
-    const { error } = await supabase.auth.resetPasswordForEmail(email);
-    setLoading(false);
+  //   setLoading(true);
+  //   const { error } = await supabase.auth.resetPasswordForEmail(email);
+  //   setLoading(false);
 
-    if (error) {
-      setError(error.message);
-      return;
-    }
+  //   if (error) {
+  //     setError(error.message);
+  //     return;
+  //   }
 
-    setNotice('Password reset email sent! Check your inbox.');
-    setForgotMode(false); // return to normal sign in
-  };
+  //   setNotice('Password reset email sentto you email!');
+  //   setForgotMode(false); // return to normal sign in
+  // };
 
-  const handleSendMagicLink = async () => {
-    setError(null);
+  // const handleSendMagicLink = async () => {
+  //   setError(null);
 
-    if (!email.trim()) {
-      setError('Enter your email first.');
-      return;
-    }
+  //   if (!email.trim()) {
+  //     setError('Enter your email first.');
+  //     return;
+  //   }
 
-    setLoading(true);
-    const { error } = await supabase.auth.signInWithOtp({ email });
-    setLoading(false);
+  //   setLoading(true);
+  //   const { error } = await supabase.auth.signInWithOtp({ email });
+  //   setLoading(false);
 
-    if (error) {
-      setError(error.message);
-      return;
-    }
+  //   if (error) {
+  //     setError(error.message);
+  //     return;
+  //   }
 
-    setNotice('Magic link sent! Check your email and click the link to sign in.');
-    setForgotMode(false); // return to normal sign in
-  };
+  //   setNotice('One-time link sent to your email!');
+  //   setForgotMode(false); // return to normal sign in
+  // };
 
   const linkStyle = {
     background: 'none', border: 'none', cursor: 'pointer',
@@ -205,38 +205,15 @@ export default function Auth({ onSuccess }) {
           {error  && <p style={{ color: '#DC2626', fontStyle: 'italic', fontSize: '0.88rem', margin: 0 }}>{error}</p>}
           {notice && <p style={{ color: 'var(--stone-gray)', fontStyle: 'italic', fontSize: '0.88rem', margin: 0 }}>{notice}</p>}
 
-          {mode === 'signin' && forgotMode ? (
-            <div style={{ display: 'flex', gap: '0.6rem', marginTop: '0.3rem' }}>
-              <button
-                type="button"
-                className="btn"
-                disabled={loading}
-                onClick={handleResetPassword}
-                style={{ flex: 1 }}
-              >
-                {loading ? 'Please wait...' : 'Reset password'}
-              </button>
-
-              <button
-                type="button"
-                className="btn btn-ghost"
-                disabled={loading}
-                onClick={handleSendMagicLink}
-                style={{ flex: 1 }}
-              >
-                {loading ? 'Please wait...' : 'One-time link'}
-              </button>
-            </div>
-          ) : (
-            <button
-              type="submit"
-              className="btn"
-              disabled={loading}
-              style={{ marginTop: '0.3rem' }}
-            >
-              {loading ? 'Please wait...' : mode === 'signin' ? 'Sign In' : 'Create Account'}
-            </button>
-          )}
+          {/* Password reset functionality commented out for now */}
+          <button
+            type="submit"
+            className="btn"
+            disabled={loading}
+            style={{ marginTop: '0.3rem' }}
+          >
+            {loading ? 'Please wait...' : mode === 'signin' ? 'Sign In' : 'Create Account'}
+          </button>
         </form>
 
         <div style={{ marginTop: '1.1rem', fontSize: '0.88rem', color: 'var(--stone-gray)', fontFamily: 'Crimson Text, serif', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -247,10 +224,10 @@ export default function Auth({ onSuccess }) {
               <>Already have an account?{' '}<button type="button" style={linkStyle} onClick={() => switchMode('signin')}>Sign in</button></>
             )}
           </div>
-          <div>
+          {/* <div>
             {mode === 'signin' && (
               <button type="button" style={linkStyle} onClick={() => { setForgotMode(true); setError(null); }} disabled={loading} > Forgot password? </button>)}
-          </div>
+          </div> */}
         </div>
       </div>
     </div>
