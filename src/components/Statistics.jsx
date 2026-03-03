@@ -3,6 +3,11 @@ import crownImg from '../../images/icons/crown.png';
 
 // ─── Statistics ────────────────────────────────────────────────────────
 
+// Game analysis constants
+const STATISTICS_CONFIG = {
+  CLUTCH_THRESHOLD: 0.10, // 10% - margin threshold for "clutch" (close) games
+};
+
 // Aggregate per-type score totals across all games for a player
 function calcBreakdown(games, name) {
   const low    = name.toLowerCase();
@@ -17,22 +22,58 @@ function calcBreakdown(games, name) {
   return totals;
 }
 
+/**
+ * COMPREHENSIVE CARCASSONNE GAME STATISTICS CALCULATOR
+ * 
+ * Analyzes a player's complete game history to extract meaningful performance metrics.
+ * All calculations are opponent-relative (comparing against other players in each game).
+ * 
+ * Key Metrics Calculated:
+ * 
+ * BASIC STATS:
+ * - Win/Loss/Tie record and percentages
+ * - High score achievements and dates
+ * - Point differentials and averages
+ * 
+ * ADVANCED ANALYSIS:
+ * - Clutch factor: Performance in close games (margin < 10% of combined scores)
+ * - Farm win percentage: How often victories come from field scoring dominance  
+ * - Biggest blowouts: Largest victory margins with game details
+ * - Current streaks: Consecutive wins/losses from most recent games
+ * 
+ * SCORING BREAKDOWNS:
+ * - Per-category point totals across all games
+ * - Expansion-specific scoring analysis
+ * 
+ * @param {Array} games - Complete game history array
+ * @param {string} name - Player name to analyze (case-insensitive)
+ * @returns {Object} Comprehensive stats object with all calculated metrics
+ */
 function calcStats(games, name) {
   const low  = name.toLowerCase();
+  // Filter to only games where this player participated
   const mine = games.filter(g => g.players.some(p => p.name.toLowerCase() === low));
 
+  // Initialize all tracking variables
   let wins = 0, losses = 0, ties = 0, highScore = 0, highScoreDate = null, farmWins = 0, netPtDiff = 0, totalPoints = 0;
   let biggestBlowout = 0, biggestBlowoutDate = null, biggestBlowoutMyScore = 0, biggestBlowoutTheirScore = 0;
   let clutchWins = 0, clutchLosses = 0, clutchGames = 0;
 
+  // Process each game to extract statistics
   for (const g of mine) {
+    // Find this player's performance and best opponent in this game
     const me        = g.players.find(p => p.name.toLowerCase() === low);
     const opponents = g.players.filter(p => p.name.toLowerCase() !== low);
     const my        = me.score;
     const maxOpp    = opponents.length > 0 ? Math.max(...opponents.map(p => p.score)) : 0;
 
+    // WIN/LOSS ANALYSIS
+    // In multiplayer games, a "win" means beating the highest opponent
     if (my > maxOpp) {
       wins++;
+      
+      // BLOWOUT TRACKING
+      // Track the largest victory margin for bragging rights
       const margin = my - maxOpp;
       if (margin > biggestBlowout) {
         biggestBlowout          = margin;
@@ -43,59 +84,101 @@ function calcStats(games, name) {
     } else if (my < maxOpp) {
       losses++;
     } else {
-      ties++;
+      ties++; // Exact score match with best opponent
     }
 
+    // HIGH SCORE TRACKING
+    // Personal best regardless of game outcome
     if (my > highScore) { highScore = my; highScoreDate = g.date; }
+    
+    // POINT DIFFERENTIAL ANALYSIS
+    // Cumulative margin tracking for average dominance calculation
     netPtDiff   += (my - maxOpp);
     totalPoints += my;
 
+    // FARM WIN ANALYSIS
+    // Track when victories come primarily from field scoring
+    // Game must be marked as farmWin AND player must have won
     if (g.farmWin && my > maxOpp) farmWins++;
 
-    // Close game: margin < 10% of combined totals (use top two scores)
+    // CLUTCH GAME ANALYSIS
+    // "Clutch" games are close contests where margin < 10% of combined score
+    // Tests performance under pressure in competitive games
     const total_pts = my + maxOpp;
-    if (total_pts > 0 && Math.abs(my - maxOpp) / total_pts < 0.10) {
+    if (total_pts > 0 && Math.abs(my - maxOpp) / total_pts < STATISTICS_CONFIG.CLUTCH_THRESHOLD) {
       clutchGames++;
       if (my > maxOpp)      clutchWins++;
       else if (my < maxOpp) clutchLosses++;
+      // Ties in clutch games don't count toward clutch win/loss record
     }
   }
 
+  // CALCULATE DERIVED STATISTICS
   const total       = mine.length;
   const winRate     = total > 0 ? Math.round((wins / total) * 100) : 0;
-  const farm = wins > 0 ? Math.round((farmWins / wins) * 100) : null;
+  const farm = wins > 0 ? Math.round((farmWins / wins) * 100) : null; // % of wins via farming
   const clutchFactor  = clutchGames > 0 ? Math.round((clutchWins / clutchGames) * 100) / 100 : null;
 
-  // Current streak (games stored newest-first)
+  /**
+   * CURRENT STREAK CALCULATION
+   * 
+   * Calculates consecutive wins or losses starting from most recent game.
+   * Games are stored newest-first, so we iterate from index 0.
+   * Streak breaks on first non-matching result (win breaks loss streak, etc.).
+   * Ties break both win and loss streaks.
+   */
   let winStreak = 0, lossStreak = 0;
   for (let i = 0; i < mine.length; i++) {
-    const g   = mine[i];
+    const g   = mine[i]; // Current game (newest first)
     const me2 = g.players.find(p => p.name.toLowerCase() === low);
     const opp = g.players.filter(p => p.name.toLowerCase() !== low);
     const my2 = me2.score;
     const mx  = opp.length > 0 ? Math.max(...opp.map(p => p.score)) : 0;
 
+    // Initialize streak on first game
     if (winStreak === 0 && lossStreak === 0) {
-      if (my2 > mx)       winStreak  = 1;
-      else if (my2 < mx)  lossStreak = 1;
-      else break;
-    } else if (winStreak > 0) {
+      if (my2 > mx)       winStreak  = 1;   // Start win streak
+      else if (my2 < mx)  lossStreak = 1;   // Start loss streak  
+      else break;                           // Tie - no streak
+    } 
+    // Continue existing win streak
+    else if (winStreak > 0) {
       if (my2 > mx) winStreak++;
-      else break;
-    } else {
+      else break; // Streak broken by loss or tie
+    } 
+    // Continue existing loss streak  
+    else {
       if (my2 < mx) lossStreak++;
-      else break;
+      else break; // Streak broken by win or tie
     }
   }
 
+  
+  // Return comprehensive statistics object
   return {
-    wins, losses, ties, winRate, highScore, highScoreDate, total,
-    winStreak, lossStreak, farmWins, farm,
-    biggestBlowout, biggestBlowoutDate, biggestBlowoutMyScore, biggestBlowoutTheirScore,
-    clutchFactor, clutchGames, clutchWins, netPtDiff, totalPoints,
+    // Basic game record
+    wins, losses, ties, winRate, total,
+    
+    // Scoring achievements  
+    highScore, highScoreDate, totalPoints, netPtDiff,
+    
+    // Streak tracking
+    winStreak, lossStreak,
+    
+    // Advanced metrics
+    farmWins, farm,                    // Farm-based victory analysis
+    clutchFactor, clutchGames, clutchWins, // Performance under pressure
+    biggestBlowout, biggestBlowoutDate,     // Most dominant victory
+    biggestBlowoutMyScore, biggestBlowoutTheirScore,
   };
 }
 
+/**
+ * TOOLTIP INFORMATION COMPONENT
+ * 
+ * Provides contextual help for statistics that may not be immediately clear.
+ * Shows info icon with hover tooltip containing detailed explanations.
+ */
 function StatInfo({ children }) {
   return (
     <span className="stat-info-wrap">
@@ -105,6 +188,12 @@ function StatInfo({ children }) {
   );
 }
 
+/**
+ * VALUE WITH CONTEXTUAL TOOLTIP
+ * 
+ * Displays a clickable value with additional context in a tooltip.
+ * Used for showing details like game dates, margin breakdowns, etc.
+ */
 function ValInfo({ tip, children }) {
   return (
     <span className="val-info-wrap">

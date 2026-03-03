@@ -1,42 +1,86 @@
+/**
+ * CARCASSONNE GAME BOARD COMPONENT
+ * 
+ * Manages the scoring track visualization and point tracking for active games.
+ * Features 50-point circular track with lap counting for scores above 50.
+ * 
+ * Key systems:
+ * - Dynamic meeple loading from file system
+ * - Position tracking with lap-based overflow
+ * - Visual meeple stacking when players share positions
+ * - Score breakdown by category (road, city, monastery, field, expansions)
+ * - Undo/redo history for move corrections
+ * - Real-time score logging and persistence
+ */
+
 import { useEffect, useRef, useState } from 'react';
 import BOARD_PATH from '../data/boardCoords';
 import { getBoard, saveBoard, resetBoard } from '../data/boardStorage';
 import boardImg from '../../images/score-board.jpg';
 
-// Dynamically load all meeple PNGs (root + fun/)
+/**
+ * MEEPLE IMAGE LOADING SYSTEM
+ * 
+ * Dynamically imports all meeple images using Vite's glob import feature.
+ * Supports both standard meeples (/meeples/*.png) and custom fun meeples (/meeples/fun/*.png).
+ * This allows adding new meeples without code changes - just add image files.
+ * Images are bundled at build time for optimal performance.
+ */
 const MEEPLE_MODULES = import.meta.glob('../../images/meeples/*.png',     { eager: true, import: 'default' });
 const FUN_MODULES    = import.meta.glob('../../images/meeples/fun/*.png', { eager: true, import: 'default' });
 const MEEPLE_IMGS = {
+  // Extract filename from path: '../../images/meeples/red.png' → 'red.png'
   ...Object.fromEntries(Object.entries(MEEPLE_MODULES).map(([path, img]) => [path.split('/').pop(), img])),
+  // Fun meeples get 'fun/' prefix: '../../images/meeples/fun/naruto.png' → 'fun/naruto.png'  
   ...Object.fromEntries(Object.entries(FUN_MODULES).map(([path, img]) => [`fun/${path.split('/').pop()}`, img])),
 };
-// Fallback to first available meeple
+// Safety fallback if specific meeple file is missing
 const FALLBACK_MEEPLE = Object.values(MEEPLE_IMGS)[0];
 
+/**
+ * MEEPLE COLOR EXTRACTION SYSTEM
+ * 
+ * Maps standard Carcassonne player colors to hex values for UI consistency.
+ * Extracts color from filename (e.g., '1red.png' → red → '#DC2626').
+ * Used for score buttons, player indicators, and theme coordination.
+ */
 const MEEPLE_COLOR_MAP = {
-  blue:   '#2563EB',
-  red:    '#DC2626',
-  yellow: '#B8860B',
-  green:  '#16A34A',
-  black:  '#111827',
-  pink:   '#EC4899',
+  blue:   '#2563EB', // Classic Carcassonne blue player
+  red:    '#DC2626', // Classic Carcassonne red player
+  yellow: '#B8860B', // Classic Carcassonne yellow player
+  green:  '#16A34A', // Classic Carcassonne green player
+  black:  '#111827', // Classic Carcassonne black player
+  pink:   '#EC4899', // Classic Carcassonne pink player
 };
-const FALLBACK_COLOR = '#8B5E3C';
+const FALLBACK_COLOR = '#8B5E3C'; // Earth brown for unrecognized colors
 
+/**
+ * Extract player color from meeple filename for UI theming.
+ * Examples: '1red.png' → '#DC2626', 'fun/naruto.png' → FALLBACK_COLOR
+ */
 function getMeepleColor(filename) {
   if (!filename) return FALLBACK_COLOR;
   const match = filename.match(/blue|red|yellow|green|black|pink/i);
   return match ? (MEEPLE_COLOR_MAP[match[0].toLowerCase()] ?? FALLBACK_COLOR) : FALLBACK_COLOR;
 }
 
-// Offsets to spread stacked meeples apart
+/**
+ * MEEPLE VISUAL STACKING SYSTEM
+ * 
+ * When multiple players occupy the same board position, meeples are visually
+ * offset to prevent complete overlap. Offsets are applied in order of player list.
+ * 
+ * Position 0: No offset (primary position)
+ * Positions 1-5: Small pixel offsets in different directions
+ * Creates readable stacking pattern for up to 6 players on same space
+ */
 const STACK_OFFSETS = [
-  { x: 0,  y:  0 },
-  { x: 3,  y: -3 },
-  { x: -3, y: -3 },
-  { x: 3,  y:  3 },
-  { x: -3, y:  3 },
-  { x: 0,  y: -5 },
+  { x: 0,  y:  0 }, // Player 1: exact position
+  { x: 3,  y: -3 }, // Player 2: slightly up-right
+  { x: -3, y: -3 }, // Player 3: slightly up-left  
+  { x: 3,  y:  3 }, // Player 4: slightly down-right
+  { x: -3, y:  3 }, // Player 5: slightly down-left
+  { x: 0,  y: -5 }, // Player 6: more upward
 ];
 
 export default function Board({ session, onFinish, onReset }) {
@@ -68,14 +112,31 @@ export default function Board({ session, onFinish, onReset }) {
     setLog(prev => [...prev, { msg, player, time, id: Date.now() + Math.random() }].slice(-100));
   }
 
+  /**
+   * GAME HISTORY SYSTEM
+   * 
+   * Maintains a stack of board states for undo functionality.
+   * Critical for correcting scoring mistakes during gameplay.
+   * Limited to last 100 moves to prevent memory bloat in long games.
+   */
   function pushHistory() {
+    // Deep clone current board state before making changes
     setHistory(h => [...h, JSON.parse(JSON.stringify(board))].slice(-100));
   }
 
+  /**
+   * UNDO SYSTEM
+   * 
+   * Reverts to previous board state and logs the changes.
+   * Special handling for finish game step to prevent data loss.
+   * Calculates point differences to show what was undone.
+   */
   function undoLastMove() {
-    if (finishStep === 1) { setFinishStep(0); return; }
-    if (history.length === 0) return;
+    if (finishStep === 1) { setFinishStep(0); return; } // Exit finish mode
+    if (history.length === 0) return; // No moves to undo
+    
     const last = history[history.length - 1];
+    // Log what's being undone for each player who changed
     for (const p of players) {
       const cur  = (board.laps[p] || 0) * track + (board.positions[p] || 0);
       const prev = (last.laps[p]  || 0) * track + (last.positions[p]  || 0);
@@ -85,17 +146,43 @@ export default function Board({ session, onFinish, onReset }) {
     setHistory(h => h.slice(0, -1));
   }
 
+  /**
+   * CARCASSONNE SCORING SYSTEM
+   * 
+   * Manages the 50-point circular track with lap-based overflow.
+   * 
+   * Track mechanics:
+   * - 50 positions (0-49) representing score values
+   * - When score exceeds 49, increment lap counter and wrap position
+   * - Total score = (laps × 50) + position
+   * - Negative scores handled gracefully (stay at 0)
+   * 
+   * Score categories:
+   * - Base: road, city, monastery, field  
+   * - Expansions: inn, cathedral, pig, wine, grain, cloth, barn, wagon
+   * 
+   * @param {string} player - Player name to award points to
+   * @param {number} delta - Points to add (can be negative)
+   * @param {string} type - Scoring category for breakdown tracking
+   */
   function addPoints(player, delta, type = 'road') {
     delta = Number(delta) || 0;
-    if (delta === 0) return;
-    pushHistory();
+    if (delta === 0) return; // Ignore zero-point changes
+    
+    pushHistory(); // Save state for undo
+    
+    // Current position calculation
     const curPos  = board.positions[player] || 0;
     const curLaps = board.laps[player] || 0;
+    
+    // New position with track wrapping
     const sum     = curPos + delta;
-    const lapInc  = Math.floor(sum / track);
-    const newPos  = ((sum % track) + track) % track;
-    const newLaps = curLaps + (lapInc > 0 ? lapInc : 0);
-    const newTotal = newLaps * track + newPos;
+    const lapInc  = Math.floor(sum / track); // How many complete laps to add
+    const newPos  = ((sum % track) + track) % track; // Modulo with negative handling
+    const newLaps = curLaps + (lapInc > 0 ? lapInc : 0); // Prevent negative laps
+    const newTotal = newLaps * track + newPos; // Final score for logging
+    
+    // Update score breakdown by category
     const prevBreakdown = board.scoreTotals?.[player] || { road: 0, city: 0, monastery: 0, field: 0 };
     setBoard(b => ({
       ...b,
@@ -106,7 +193,12 @@ export default function Board({ session, onFinish, onReset }) {
         [player]: { ...prevBreakdown, [type]: (prevBreakdown[type] || 0) + delta },
       },
     }));
-    const label = type === 'pig' ? 'Field (Pig)' : type === 'inn' ? 'Road (Inn)' : type === 'cathedral' ? 'City (Cathedral)' : type.charAt(0).toUpperCase() + type.slice(1);
+    
+    // Generate human-readable category names for logging
+    const label = type === 'pig' ? 'Field (Pig)' : 
+                  type === 'inn' ? 'Road (Inn)' : 
+                  type === 'cathedral' ? 'City (Cathedral)' : 
+                  type.charAt(0).toUpperCase() + type.slice(1);
     appendLog(`${player} scored +${delta} ${label} → ${newTotal} pts`, player);
   }
 

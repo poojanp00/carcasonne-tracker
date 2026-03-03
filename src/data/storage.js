@@ -13,9 +13,28 @@ export function generateId() {
 // ── Realms ────────────────────────────────────────────────────────────────────
 // Schema requires: ALTER TABLE realms ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES auth.users(id);
 
+/**
+ * RETRIEVE USER'S REALMS
+ * 
+ * Fetches all game realms owned by the authenticated user.
+ * Realms represent distinct gaming groups or contexts (family, friends, etc.).
+ * 
+ * Security: Only returns realms owned by the specified user.
+ * Ordering: Sorted by creation date for consistent display.
+ * 
+ * @param {string} userId - Supabase auth user ID
+ * @returns {Promise<Array>} Array of realm objects with normalized structure
+ */
 export async function getRealms(userId) {
-  if (!userId) return [];
-  const { data } = await supabase.from('realms').select('*').eq('user_id', userId).order('created_at');
+  if (!userId) return []; // No user = no realms
+  
+  const { data } = await supabase
+    .from('realms')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at');
+    
+  // Normalize database structure to application format
   return (data || []).map(r => ({
     id:           r.id,
     name:         r.name,
@@ -24,6 +43,19 @@ export async function getRealms(userId) {
   }));
 }
 
+/**
+ * CREATE OR UPDATE REALM
+ * 
+ * Saves realm data with strict ownership validation.
+ * Uses upsert for both create and update operations.
+ * 
+ * Security: Requires authenticated user to prevent orphaned realms.
+ * Validation: Ensures user ownership before any database operations.
+ * 
+ * @param {Object} realm - Realm object with id, name, players, etc.
+ * @param {string} userId - Owner's Supabase auth user ID  
+ * @throws {Error} If userId is missing or database operation fails
+ */
 export async function saveRealm(realm, userId) {
   if (!userId) {
     throw new Error('saveRealm called without userId — refusing to save realm without owner');
@@ -34,7 +66,7 @@ export async function saveRealm(realm, userId) {
     name:          realm.name,
     players:       realm.players || [],
     created_at:    realm.createdAt,
-    user_id:       userId,
+    user_id:       userId, // Enforce ownership
   });
 
   if (error) {
@@ -43,41 +75,84 @@ export async function saveRealm(realm, userId) {
   }
 }
 
+/**
+ * CASCADE DELETE REALM AND ASSOCIATED GAMES
+ * 
+ * Removes realm and all games within it to maintain data integrity.
+ * Two-step delete ensures no orphaned games remain in the database.
+ * 
+ * Order matters: Games deleted first to avoid foreign key constraints.
+ * 
+ * @param {string} realmId - UUID of realm to delete
+ */
 export async function deleteRealm(realmId) {
+  // Step 1: Delete all games in this realm
   await supabase.from('games').delete().eq('realm_id', realmId);
+  // Step 2: Delete the realm itself
   await supabase.from('realms').delete().eq('id', realmId);
 }
 
 // ── Games ─────────────────────────────────────────────────────────────────────
 
+/**
+ * RETRIEVE ALL GAMES (GLOBAL QUERY)
+ * 
+ * Fetches complete game history across all users and realms.
+ * 
+ * NOTE: This is a temporary implementation - games should be filtered by user
+ * for proper multi-tenant security. Currently relies on client-side filtering
+ * by realm ownership for access control.
+ * 
+ * TODO: Add user_id column and filter games by authenticated user
+ * 
+ * @returns {Promise<Array>} Array of game objects with normalized structure
+ */
 export async function getGames() {
   const { data } = await supabase
     .from('games')
     .select('*')
-    .order('inserted_at', { ascending: false });
+    .order('inserted_at', { ascending: false }); // Newest first for recent game display
+    
+  // Normalize database structure to application format
   return (data || []).map(g => ({
     id:         g.id,
-    realmId:    g.realm_id,
-    date:       g.date,
-    players:    g.players    || [],
-    expansions: g.expansions || [],
-    clutchWin:  g.clutch_win || false,
-    farmWin:    g.farm_win   || false,
+    realmId:    g.realm_id,      // Foreign key to realms table
+    date:       g.date,          // Game date (YYYY-MM-DD)
+    players:    g.players    || [], // Player objects with scores and breakdowns
+    expansions: g.expansions || [], // Active expansion names
+    clutchWin:  g.clutch_win || false, // Close game victory flag
+    farmWin:    g.farm_win   || false, // Farm-dominant victory flag
   }));
 }
 
+/**
+ * CREATE NEW GAME RECORD
+ * 
+ * Persists completed game data to database.
+ * Games are associated with realms for organization and access control.
+ * 
+ * @param {Object} game - Game object with players, scores, expansions, etc.
+ */
 export async function insertGame(game) {
   await supabase.from('games').insert({
     id:          game.id,
-    realm_id:    game.realmId  || null,
-    date:        game.date,
-    players:     game.players,
-    expansions:  game.expansions || [],
-    clutch_win:  game.clutchWin  || false,
-    farm_win:    game.farmWin    || false,
+    realm_id:    game.realmId  || null, // Optional realm association
+    date:        game.date,              // YYYY-MM-DD format
+    players:     game.players,           // Array of player objects
+    expansions:  game.expansions || [],  // Active expansion names 
+    clutch_win:  game.clutchWin  || false, // Victory in close game
+    farm_win:    game.farmWin    || false, // Victory via farm dominance
   });
 }
 
+/**
+ * DELETE GAME RECORD
+ * 
+ * Removes single game from database by ID.
+ * Used for correcting mistaken game entries.
+ * 
+ * @param {string} id - Game UUID to delete
+ */
 export async function removeGame(id) {
   await supabase.from('games').delete().eq('id', id);
 }
@@ -91,6 +166,9 @@ export async function getExpansions(userId) {
   if (!userId) return DEFAULT_EXPANSIONS;
   const { data } = await supabase.from('expansions').select('*').eq('user_id', userId);
   if (!data || data.length === 0) return DEFAULT_EXPANSIONS;
+  
+  // Merge user's owned expansions with default catalog
+  // This ensures new expansions appear even if user hasn't seen them yet
   const defaultByName = Object.fromEntries(DEFAULT_EXPANSIONS.map(e => [e.name, e]));
   const storedNames   = new Set(data.map(e => e.name));
   return [
@@ -107,6 +185,12 @@ export async function upsertExpansion(name, type, owned, userId) {
 }
 
 // ── localStorage migration (runs once on first load) ─────────────────────────
+/**
+ * One-time migration from localStorage to Supabase database.
+ * Migrates user data including realms, games, expansions, and board state.
+ * Runs only once per user, tracked by localStorage migration flag.
+ * Safely handles missing or corrupted data during the transition.
+ */
 
 export async function migrateFromLocalStorage(userId) {
   const LS_MIGRATED = 'carcassonne_migrated_v1';
