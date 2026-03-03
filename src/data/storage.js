@@ -141,6 +141,7 @@ export async function insertGame(game) {
     date:        game.date,              // YYYY-MM-DD format
     players:     game.players,           // Array of player objects
     expansions:  game.expansions || [],  // Active expansion names 
+    winners:     game.winners    || [],  // Precomputed winners from frontend
     clutch_win:  game.clutchWin  || false, // Victory in close game
     farm_win:    game.farmWin    || false, // Victory via farm dominance
   });
@@ -227,12 +228,18 @@ export async function migrateFromLocalStorage(userId) {
       const games = JSON.parse(rawGames);
       for (const g of games) {
         if (!Array.isArray(g.players)) continue;
+        
+        // Calculate winners for migrated games (they won't have winners field)
+        const maxScore = Math.max(...g.players.map(p => p.score || 0));
+        const winners = g.players.filter(p => (p.score || 0) === maxScore).map(p => p.name);
+        
         await supabase.from('games').upsert({
           id:         g.id,
           realm_id:   g.realmId || null,
           date:       g.date,
           players:    g.players,
           expansions: g.expansions || [],
+          winners:    winners,              // Calculate winners during migration
           farm_win:   g.farmWin || false,
         });
       }
