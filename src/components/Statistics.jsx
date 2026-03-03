@@ -153,6 +153,7 @@ function calcStats(games, name) {
     }
   }
 
+  
   // Return comprehensive statistics object
   return {
     // Basic game record
