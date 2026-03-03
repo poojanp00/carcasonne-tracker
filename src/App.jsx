@@ -50,18 +50,26 @@ export default function App() {
   const urlParams = new URLSearchParams(window.location.search);
   const hasRecoveryParams = urlParams.get('type') === 'recovery' || urlParams.has('token');
   
+  // Also check hash parameters in case Supabase uses those
+  const hashParams = new URLSearchParams(window.location.hash.substring(1));
+  const hasHashRecovery = hashParams.get('type') === 'recovery' || hashParams.has('token') || hashParams.has('access_token');
+  
   // Store recovery mode in sessionStorage to persist across Supabase redirects
-  if (hasRecoveryParams) {
+  if (hasRecoveryParams || hasHashRecovery) {
     sessionStorage.setItem('isRecoveryMode', 'true');
+    console.log('Recovery mode detected and stored');
   }
   
   // Recovery mode persists until explicitly cleared
   const isRecoveryMode = sessionStorage.getItem('isRecoveryMode') === 'true';
   
   // Debug logging
-  console.log('URL params:', Object.fromEntries(urlParams.entries()));
-  console.log('Has recovery params:', hasRecoveryParams);
-  console.log('Is recovery mode (from storage):', isRecoveryMode);
+  console.log('🔍 Full URL:', window.location.href);
+  console.log('🔍 Search params:', Object.fromEntries(urlParams.entries()));
+  console.log('🔍 Hash params:', Object.fromEntries(hashParams.entries()));
+  console.log('🔍 Has recovery params (search):', hasRecoveryParams);
+  console.log('🔍 Has recovery params (hash):', hasHashRecovery);
+  console.log('🔍 Is recovery mode (from storage):', isRecoveryMode);
 
   const [session,        setSession]        = useState(null);
   const [tab,            setTab]            = useState('realms');

@@ -46,15 +46,19 @@ export default function Auth({ onSuccess }) {
   const [recoveryMode, setRecoveryMode] = useState(() => {
     // Check sessionStorage first (set by App.jsx), then fallback to URL detection
     const fromStorage = sessionStorage.getItem('isRecoveryMode') === 'true';
+    console.log('🔍 Auth component - Recovery from storage:', fromStorage);
+    
     if (fromStorage) return true;
     
-    // Fallback: check URL parameters directly
+    // Fallback: check URL parameters directly  
     const urlParams = new URLSearchParams(window.location.search);
-    const isRecovery = urlParams.get('type') === 'recovery' || urlParams.has('token');
+    const hashParams = new URLSearchParams(window.location.hash.substring(1));
+    const isRecovery = urlParams.get('type') === 'recovery' || urlParams.has('token') || 
+                      hashParams.get('type') === 'recovery' || hashParams.has('token') || hashParams.has('access_token');
     
-    console.log('Auth component - URL params:', Object.fromEntries(urlParams.entries()));
-    console.log('Auth component - Recovery mode detected:', isRecovery);
-    console.log('Auth component - Recovery from storage:', fromStorage);
+    console.log('🔍 Auth component - URL params:', Object.fromEntries(urlParams.entries()));
+    console.log('🔍 Auth component - Hash params:', Object.fromEntries(hashParams.entries()));
+    console.log('🔍 Auth component - Recovery mode detected:', isRecovery);
     
     return isRecovery;
   });
