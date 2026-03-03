@@ -121,6 +121,7 @@ export async function getGames() {
     players:    g.players    || [], // Player objects with scores and breakdowns
     expansions: g.expansions || [], // Active expansion names
     winners:    g.winners    || [], // Precomputed winners from database
+    maxScore:   g.max_score  || 0,  // Maximum score in the game
     clutchWin:  g.clutch_win || false, // Close game victory flag
     farmWin:    g.farm_win   || false, // Farm-dominant victory flag
   }));
@@ -142,6 +143,7 @@ export async function insertGame(game) {
     players:     game.players,           // Array of player objects
     expansions:  game.expansions || [],  // Active expansion names 
     winners:     game.winners    || [],  // Precomputed winners from frontend
+    max_score:   game.maxScore  || 0,    // Maximum score in the game
     clutch_win:  game.clutchWin  || false, // Victory in close game
     farm_win:    game.farmWin    || false, // Victory via farm dominance
   });
