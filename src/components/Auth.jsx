@@ -71,14 +71,19 @@ export default function Auth({ onSuccess }) {
             errorMsg.includes('email already') ||
             errorMsg.includes('duplicate')) {
           setError('An account with this email already exists.');
-          switchMode('signin');
         } else {
           setError(err.message);
         }
         return;
       }
       if (data.user && !data.session) {
-        setNotice('Check your email to confirm your account, then sign in.');
+        // Check if this is actually an existing user vs. a new user needing email confirmation
+        // If user already exists, Supabase sometimes returns user without session instead of error
+        if (data.user.email_confirmed_at || data.user.confirmed_at) {
+          setError('An account with this email already exists.');
+        } else {
+          setNotice('Check your email to confirm your account, then sign in.');
+        }
         return;
       }
     } else {
