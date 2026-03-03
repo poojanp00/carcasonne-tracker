@@ -233,13 +233,13 @@ export default function App() {
         </div>
       )}
 
-      {/* ── Auth (signed out) ── */}
-      {!loading && !authLoading && !user && (
+      {/* ── Auth (signed out or password recovery) ── */}
+      {!loading && !authLoading && (!user || new URLSearchParams(window.location.search).get('type') === 'recovery') && (
         <Auth onSuccess={() => {}} />
       )}
 
-      {/* ── Main (signed in) ── */}
-      {!loading && !authLoading && user && (
+      {/* ── Main (signed in and not recovery) ── */}
+      {!loading && !authLoading && user && new URLSearchParams(window.location.search).get('type') !== 'recovery' && (
         <>
           <nav className="tab-nav" role="tablist">
             {TABS.map(({ id, label }) => (
