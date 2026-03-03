@@ -1,3 +1,23 @@
+/**
+ * CARCASSONNE GAME BOARD PATH GENERATION
+ * 
+ * Generates a 50-point snake-like scoring track path using linear interpolation
+ * between manually-defined anchor points. All coordinates are percentage-based
+ * (0-100) for responsive scaling across different screen sizes.
+ * 
+ * The path follows these segments:
+ * - Start (0): Bottom right corner (88, 88)
+ * - Positions 1-7: Move left along bottom edge  
+ * - Positions 8-13: Move up along left edge
+ * - Positions 15-24: Move right across top edge
+ * - Positions 25-26: Move down along right edge
+ * - Positions 30-40: Spiral inward toward center
+ * - Positions 45-49: Final approach to finish line
+ * 
+ * Linear interpolation fills gaps between anchor points to create
+ * smooth movement for player meeples during gameplay.
+ */
+
 // BOARD_PATH: generates 50 percentage-based coordinates for a snake-like path
 // We define anchor points and linearly interpolate between them so the board
 // scales responsively while following the segments described in the prompt.
