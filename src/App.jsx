@@ -303,7 +303,7 @@ export default function App() {
                     color: 'var(--stone-gray)', padding: '0.1rem 0.3rem',
                   }}
                 >
-                  {isGuest ? 'Exit Guest Mode' : 'Sign Out'}
+                  {isGuest ? 'Sign In' : 'Sign Out'}
                 </button>
               )}
             </div>
