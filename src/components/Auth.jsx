@@ -106,26 +106,26 @@ export default function Auth({ onSuccess }) {
   //   setForgotMode(false); // return to normal sign in
   // };
 
-  // const handleSendMagicLink = async () => {
-  //   setError(null);
+  const handleSendMagicLink = async () => {
+    setError(null);
 
-  //   if (!email.trim()) {
-  //     setError('Enter your email first.');
-  //     return;
-  //   }
+    if (!email.trim()) {
+      setError('Enter your email first.');
+      return;
+    }
 
-  //   setLoading(true);
-  //   const { error } = await supabase.auth.signInWithOtp({ email });
-  //   setLoading(false);
+    setLoading(true);
+    const { error } = await supabase.auth.signInWithOtp({ email });
+    setLoading(false);
 
-  //   if (error) {
-  //     setError(error.message);
-  //     return;
-  //   }
+    if (error) {
+      setError(error.message);
+      return;
+    }
 
-  //   setNotice('One-time link sent to your email!');
-  //   setForgotMode(false); // return to normal sign in
-  // };
+    setNotice('One-time link sent to your email!');
+    setForgotMode(false); // return to normal sign in
+  };
 
   const linkStyle = {
     background: 'none', border: 'none', cursor: 'pointer',
@@ -205,15 +205,26 @@ export default function Auth({ onSuccess }) {
           {error  && <p style={{ color: '#DC2626', fontStyle: 'italic', fontSize: '0.88rem', margin: 0 }}>{error}</p>}
           {notice && <p style={{ color: 'var(--stone-gray)', fontStyle: 'italic', fontSize: '0.88rem', margin: 0 }}>{notice}</p>}
 
-          {/* Password reset functionality commented out for now */}
-          <button
-            type="submit"
-            className="btn"
-            disabled={loading}
-            style={{ marginTop: '0.3rem' }}
-          >
-            {loading ? 'Please wait...' : mode === 'signin' ? 'Sign In' : 'Create Account'}
-          </button>
+          {mode === 'signin' && forgotMode ? (
+            <button
+              type="button"
+              className="btn"
+              disabled={loading}
+              onClick={handleSendMagicLink}
+              style={{ marginTop: '0.3rem' }}
+            >
+              {loading ? 'Please wait...' : 'Send magic link'}
+            </button>
+          ) : (
+            <button
+              type="submit"
+              className="btn"
+              disabled={loading}
+              style={{ marginTop: '0.3rem' }}
+            >
+              {loading ? 'Please wait...' : mode === 'signin' ? 'Sign In' : 'Create Account'}
+            </button>
+          )}
         </form>
 
         <div style={{ marginTop: '1.1rem', fontSize: '0.88rem', color: 'var(--stone-gray)', fontFamily: 'Crimson Text, serif', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -224,10 +235,10 @@ export default function Auth({ onSuccess }) {
               <>Already have an account?{' '}<button type="button" style={linkStyle} onClick={() => switchMode('signin')}>Sign in</button></>
             )}
           </div>
-          {/* <div>
+          <div>
             {mode === 'signin' && (
               <button type="button" style={linkStyle} onClick={() => { setForgotMode(true); setError(null); }} disabled={loading} > Forgot password? </button>)}
-          </div> */}
+          </div>
         </div>
       </div>
     </div>
