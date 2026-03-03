@@ -44,9 +44,14 @@ export default function Auth({ onSuccess }) {
   
   // Password recovery states
   const [recoveryMode, setRecoveryMode] = useState(() => {
-    // Initialize recovery mode based on URL immediately
+    // Initialize recovery mode based on URL immediately - check for recovery parameters
     const urlParams = new URLSearchParams(window.location.search);
-    return urlParams.get('type') === 'recovery';
+    const isRecovery = urlParams.get('type') === 'recovery' || urlParams.has('token');
+    
+    console.log('Auth component - URL params:', Object.fromEntries(urlParams.entries()));
+    console.log('Auth component - Recovery mode detected:', isRecovery);
+    
+    return isRecovery;
   });
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
@@ -68,9 +73,17 @@ export default function Auth({ onSuccess }) {
         setRecoveryMode(true);
         setError(null);
         setNotice('Enter your new password below.');
-      } else if (event === 'SIGNED_IN' && !recoveryMode) {
-        // Only call onSuccess if we're not in recovery mode
-        onSuccess?.();
+      } else if (event === 'SIGNED_IN') {
+        // Check URL again in case recovery mode state is stale
+        const urlParams = new URLSearchParams(window.location.search);
+        const isStillRecovery = urlParams.get('type') === 'recovery' || urlParams.has('token');
+        
+        if (!recoveryMode && !isStillRecovery) {
+          // Only call onSuccess if we're definitely not in recovery mode
+          onSuccess?.();
+        } else {
+          console.log('Blocked onSuccess due to recovery mode');
+        }
       }
     });
 

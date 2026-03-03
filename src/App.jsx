@@ -52,6 +52,15 @@ export default function App() {
   const [toast,          setToast]          = useState(null);
   const [realmPickerKey, setRealmPickerKey] = useState(0);
 
+  // Check if we're in password recovery mode
+  const urlParams = new URLSearchParams(window.location.search);
+  const isRecoveryMode = urlParams.get('type') === 'recovery' || 
+                        urlParams.has('token');  // Supabase recovery includes token parameter
+
+  // Debug logging
+  console.log('URL params:', Object.fromEntries(urlParams.entries()));
+  console.log('Is recovery mode:', isRecoveryMode);
+
   const { user, authLoading, signOut } = useAuth();
   const { games, expansions, realms, loading, addGame, deleteGame, toggleExpansion, addRealm, updateRealm, removeRealm } = useGameData(user, authLoading);
 
@@ -234,12 +243,12 @@ export default function App() {
       )}
 
       {/* ── Auth (signed out or password recovery) ── */}
-      {!loading && !authLoading && (!user || new URLSearchParams(window.location.search).get('type') === 'recovery') && (
+      {!loading && !authLoading && (!user || isRecoveryMode) && (
         <Auth onSuccess={() => {}} />
       )}
 
       {/* ── Main (signed in and not recovery) ── */}
-      {!loading && !authLoading && user && new URLSearchParams(window.location.search).get('type') !== 'recovery' && (
+      {!loading && !authLoading && user && !isRecoveryMode && (
         <>
           <nav className="tab-nav" role="tablist">
             {TABS.map(({ id, label }) => (
