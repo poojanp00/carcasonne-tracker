@@ -201,31 +201,20 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
                     <button
                       key={key}
                       type="button"
-                      className={`meeple-option ${meeples[name] === key ? 'selected' : ''}`}
+                      className={`meeple-option ${meeples[name] === key || (key === 'mystery.png' && meeples[name]?.startsWith('fun/')) ? 'selected' : ''}`}
                       onClick={() => handleMeepleSelect(name, key)}
-                      title={label}
+                      title={key === 'mystery.png' && meeples[name]?.startsWith('fun/') ? 'Click for different random meeple' : label}
                     >
-                      <img src={img} alt={label} />
+                      {key === 'mystery.png' && meeples[name]?.startsWith('fun/') ? (
+                        <img 
+                          src={FUN_MEEPLES.find(fm => fm.key === meeples[name])?.img} 
+                          alt="Fun meeple" 
+                        />
+                      ) : (
+                        <img src={img} alt={label} />
+                      )}
                     </button>
                   ))}
-                  
-                  {/* Mystery option - shows selected fun meeple or question mark */}
-                  <button
-                    key="mystery"
-                    type="button"
-                    className={`meeple-option mystery-option ${meeples[name]?.startsWith('fun/') ? 'selected' : ''}`}
-                    onClick={() => handleMeepleSelect(name, 'mystery.png')}
-                    title={meeples[name]?.startsWith('fun/') ? 'Click for different random meeple' : 'Random fun meeple'}
-                  >
-                    {meeples[name]?.startsWith('fun/') ? (
-                      <img 
-                        src={FUN_MEEPLES.find(fm => fm.key === meeples[name])?.img} 
-                        alt="Fun meeple" 
-                      />
-                    ) : (
-                      <div className="mystery-icon">?</div>
-                    )}
-                  </button>
                 </div>
               </div>
             ))}
