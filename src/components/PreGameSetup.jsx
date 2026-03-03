@@ -209,15 +209,22 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
                     </button>
                   ))}
                   
-                  {/* Mystery option - randomly selects from fun meeples */}
+                  {/* Mystery option - shows selected fun meeple or question mark */}
                   <button
                     key="mystery"
                     type="button"
-                    className="meeple-option mystery-option"
+                    className={`meeple-option mystery-option ${meeples[name]?.startsWith('fun/') ? 'selected' : ''}`}
                     onClick={() => handleMeepleSelect(name, 'mystery.png')}
-                    title="Random fun meeple"
+                    title={meeples[name]?.startsWith('fun/') ? 'Click for different random meeple' : 'Random fun meeple'}
                   >
-                    <div className="mystery-icon">?</div>
+                    {meeples[name]?.startsWith('fun/') ? (
+                      <img 
+                        src={FUN_MEEPLES.find(fm => fm.key === meeples[name])?.img} 
+                        alt="Fun meeple" 
+                      />
+                    ) : (
+                      <div className="mystery-icon">?</div>
+                    )}
                   </button>
                 </div>
               </div>
