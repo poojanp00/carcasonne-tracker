@@ -151,8 +151,6 @@ function calcStats(games, name) {
       if (my2 < mx) lossStreak++;
       else break; // Streak broken by win or tie
     }
-  } // Streak broken by win or tie
-    }
   }
 
   // Return comprehensive statistics object
