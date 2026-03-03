@@ -18,10 +18,7 @@ function calcRealmStats(games) {
     const sorted = [...scores].sort((a, b) => b - a);
     totalPoints += scores.reduce((s, v) => s + v, 0);
     if (g.farmWin) farmWins++;
-    if (sorted.length >= 2) {
-      const combined = sorted[0] + sorted[1];
-      if (combined > 0 && (sorted[0] - sorted[1]) / combined < 0.05) clutchGames++;
-    }
+    if (g.clutchWin)clutchGames++;
     for (const p of g.players) {
       for (const [type, pts] of Object.entries(p.breakdown || {})) {
         typePoints[type] = (typePoints[type] || 0) + pts;
