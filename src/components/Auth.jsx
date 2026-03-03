@@ -42,14 +42,19 @@ export default function Auth({ onSuccess }) {
   const [loading, setLoading] = useState(false);
   const [forgotMode, setForgotMode] = useState(false);
   
-  // Password recovery states
+  // Password recovery states - use sessionStorage to persist across redirects
   const [recoveryMode, setRecoveryMode] = useState(() => {
-    // Initialize recovery mode based on URL immediately - check for recovery parameters
+    // Check sessionStorage first (set by App.jsx), then fallback to URL detection
+    const fromStorage = sessionStorage.getItem('isRecoveryMode') === 'true';
+    if (fromStorage) return true;
+    
+    // Fallback: check URL parameters directly
     const urlParams = new URLSearchParams(window.location.search);
     const isRecovery = urlParams.get('type') === 'recovery' || urlParams.has('token');
     
     console.log('Auth component - URL params:', Object.fromEntries(urlParams.entries()));
     console.log('Auth component - Recovery mode detected:', isRecovery);
+    console.log('Auth component - Recovery from storage:', fromStorage);
     
     return isRecovery;
   });
@@ -71,14 +76,14 @@ export default function Auth({ onSuccess }) {
       
       if (event === 'PASSWORD_RECOVERY') {
         setRecoveryMode(true);
+        sessionStorage.setItem('isRecoveryMode', 'true');
         setError(null);
         setNotice('Enter your new password below.');
       } else if (event === 'SIGNED_IN') {
-        // Check URL again in case recovery mode state is stale
-        const urlParams = new URLSearchParams(window.location.search);
-        const isStillRecovery = urlParams.get('type') === 'recovery' || urlParams.has('token');
+        // Check if we're still in recovery mode
+        const isStillRecovery = recoveryMode || sessionStorage.getItem('isRecoveryMode') === 'true';
         
-        if (!recoveryMode && !isStillRecovery) {
+        if (!isStillRecovery) {
           // Only call onSuccess if we're definitely not in recovery mode
           onSuccess?.();
         } else {
@@ -126,8 +131,9 @@ export default function Auth({ onSuccess }) {
     }
 
     setNotice('Password updated successfully! You are now signed in.');
-    // Clear recovery mode and redirect 
+    // Clear recovery mode and sessionStorage
     setRecoveryMode(false);
+    sessionStorage.removeItem('isRecoveryMode');
     // Clear URL parameters
     window.history.replaceState({}, document.title, window.location.pathname);
     onSuccess?.();
