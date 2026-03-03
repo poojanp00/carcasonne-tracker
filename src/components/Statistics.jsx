@@ -337,7 +337,7 @@ function PlayerCard({ name, stats, breakdown, colorClass, isLeader, typeLeaders 
   );
 }
 
-export default function Stats({ games, realms = [], currentRealm = null, onRealmChange }) {
+export default function Stats({ games, realms = [], currentRealm = null, onRealmChange, isGuest = false }) {
   const realmGames = currentRealm ? games.filter(g => g.realmId === currentRealm.id) : [];
 
   const BASE_BREAKDOWN = { road: 0, city: 0, monastery: 0, field: 0 };
@@ -387,7 +387,15 @@ export default function Stats({ games, realms = [], currentRealm = null, onRealm
         {currentRealm && <span className="game-count">{realmGames.length} {realmGames.length === 1 ? 'game' : 'games'}</span>}
       </div>
 
-      {/* Realm filter chips */}
+      {/* Guest mode - show blank state */}
+      {isGuest ? (
+        <div className="empty-state">
+          <span className="empty-state-icon">🏰</span>
+          Sign in to view statistics and track your game history.
+        </div>
+      ) : (
+        <>
+          {/* Realm filter chips */}
       {realms.length > 0 && (
         <div style={{ marginBottom: '1.3rem' }}>
           <div className="expansion-chips">
@@ -424,6 +432,8 @@ export default function Stats({ games, realms = [], currentRealm = null, onRealm
             />
           ))}
         </div>
+      )}
+        </>
       )}
     </div>
   );
