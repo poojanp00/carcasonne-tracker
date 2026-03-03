@@ -111,8 +111,8 @@ function ExpansionGroup({ label, expansions, onToggle, canEdit }) {
   );
 }
 
-export default function Collection({ expansions, onToggle, userId }) {
-  const canEdit = true;
+export default function Collection({ expansions, onToggle, userId, isGuest = false }) {
+  const canEdit = !isGuest;
   const owned = expansions.filter((e) => e.owned);
   const full  = expansions.filter((e) => e.type === 'full');
   const mini  = expansions.filter((e) => e.type === 'mini');

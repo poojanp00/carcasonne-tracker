@@ -4,6 +4,7 @@ import { supabase } from '../data/supabase';
 export function useAuth() {
   const [user,        setUser]        = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [isGuest,     setIsGuest]     = useState(false);
 
   useEffect(() => {
     // Check if we're in recovery mode before setting user
@@ -32,6 +33,15 @@ export function useAuth() {
 
   const signOut = () => supabase.auth.signOut();
   
+  const enableGuestMode = () => {
+    setIsGuest(true);
+    setAuthLoading(false);
+  };
+  
+  const signOutGuest = () => {
+    setIsGuest(false);
+  };
+  
   const completeRecovery = async () => {
     // Clear recovery mode and refresh user session
     sessionStorage.removeItem('isRecoveryMode');
@@ -39,5 +49,5 @@ export function useAuth() {
     setUser(session?.user ?? null);
   };
 
-  return { user, authLoading, signOut, completeRecovery };
+  return { user, authLoading, signOut, completeRecovery, isGuest, enableGuestMode, signOutGuest };
 }
