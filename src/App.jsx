@@ -76,11 +76,14 @@ export default function App() {
   const { user, authLoading, signOut, completeRecovery, isGuest, enableGuestMode, signOutGuest } = useAuth();
   const { games, expansions, realms, loading, addGame, deleteGame, toggleExpansion, addRealm, updateRealm, removeRealm } = useGameData(isGuest ? null : user, authLoading || (isGuest && false));
 
+  // Guest mode state
+  const [guestRealms, setGuestRealms] = useState([]);
+
   // Unified data - guest mode provides default data, user mode uses database
   const appData = {
     games: isGuest ? [] : games,
     expansions: isGuest ? DEFAULT_EXPANSIONS.map(exp => ({ ...exp, owned: true })) : expansions,
-    realms: isGuest ? [] : realms,
+    realms: isGuest ? guestRealms : realms,
     loading: isGuest ? false : loading
   };
 
@@ -89,12 +92,46 @@ export default function App() {
     addGame: isGuest ? () => Promise.resolve('guest-game-id') : addGame,
     deleteGame: isGuest ? () => {} : deleteGame,
     toggleExpansion: isGuest ? () => {} : toggleExpansion,
-    addRealm: isGuest ? (data) => Promise.resolve({ id: 'guest-realm', name: data.name || 'Guest Realm', players: data.players || [] }) : addRealm,
+    addRealm: isGuest ? (data) => {
+      const guestRealm = { 
+        id: `guest-realm-${Date.now()}`, 
+        name: data.name || 'Guest Realm', 
+        players: data.players || [],
+        created_at: new Date().toISOString()
+      };
+      setGuestRealms(prev => [...prev, guestRealm]);
+      return Promise.resolve(guestRealm);
+    } : addRealm,
     updateRealm: isGuest ? () => {} : updateRealm,
-    removeRealm: isGuest ? () => {} : removeRealm
+    removeRealm: isGuest ? (realmId) => {
+      setGuestRealms(prev => prev.filter(r => r.id !== realmId));
+    } : removeRealm
   };
 
+  // Clear guest data when exiting guest mode
+  useEffect(() => {
+    if (!isGuest) {
+      setGuestRealms([]);
+      if (session && session.realm?.id?.includes('guest-realm')) {
+        setSession(null);
+      }
+    }
+  }, [isGuest, session]);
+
   // Auto-load the realm with the most recent game on initial data load
+  // Business rule: When a user first logs in, automatically select the realm
+  // where their most recent game was played to provide continuity
+  useEffect(() => {
+    // Skip if still loading data, no user, already have session, or no data available
+    if (appData.loading || authLoading || (!user && !isGuest) || session || appData.games.length === 0 || appData.realms.length === 0) return;
+    
+    // Find the most recent game by sorting games by date (newest first)
+    const latest = [...appData.games].sort((a, b) => b.date.localeCompare(a.date))[0];
+    
+    // Find the realm that contains this latest game
+    const realm  = appData.realms.find(r => r.id === latest?.realmId);
+    if (realm) setSession({ realm });
+  }, [appData.loading, authLoading, user, isGuest]);  // eslint-disable-line react-hooks/exhaustive-deps
   // Business rule: When a user first logs in, automatically select the realm
   // where their most recent game was played to provide continuity
   useEffect(() => {
