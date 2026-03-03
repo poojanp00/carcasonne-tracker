@@ -2,17 +2,11 @@ import { supabase } from './supabase';
 import { DEFAULT_EXPANSIONS } from './expansions';
 
 export function generateRealmId() {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  return Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
-}
-
-export async function hashPassword(password) {
-  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(password));
-  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+  return crypto.randomUUID().toUpperCase();
 }
 
 export function generateId() {
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+  return crypto.randomUUID();
 }
 
 

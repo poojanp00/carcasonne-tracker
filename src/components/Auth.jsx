@@ -134,7 +134,7 @@ export default function Auth({ onSuccess }) {
   };
 
   return (
-    <div className="app-wrapper" style={{ paddingTop: '2.5rem' }}>
+    <div className="app-wrapper" style={{ paddingTop: '2.5rem', paddingBottom: '4rem' }}>
       <div className="section-title">
         <h2>{mode === 'signin' ? 'Sign In' : 'Create Account'}</h2>
         <div className="section-title-line" />
