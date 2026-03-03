@@ -79,7 +79,6 @@ export default function Auth({ onSuccess }) {
       }
       if (data.user && !data.session) {
         setNotice('Check your email to confirm your account, then sign in.');
-        switchMode('signin');
         return;
       }
     } else {
