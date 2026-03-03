@@ -315,10 +315,6 @@ export default function RealmPicker({ realms, currentRealm = null, games = [], o
               No realms yet — create one to begin.
             </p>
           )}
-
-          <button className="btn" onClick={() => setMode('create')}>
-            Create New Realm
-          </button>
         </div>
       )}
     </div>
