@@ -71,7 +71,7 @@ export default function GameLogForm({ session, ownedExpansions, onSubmit, onCanc
       </div>
 
       {/* Player scores */}
-      <div className="tile-card" style={{ marginBottom: '1.4rem', maxWidth: '360px' }}>
+      <div className="tile-card" style={{ marginBottom: '1.4rem' }}>
         {/* Date row */}
         <div style={{ marginBottom: '1rem' }}>
           <input
@@ -122,7 +122,7 @@ export default function GameLogForm({ session, ownedExpansions, onSubmit, onCanc
       </div>
 
       {/* Expansions */}
-      <div style={{ maxWidth: '360px', marginBottom: '1.6rem', background: 'var(--aged-paper)', border: 'var(--border-tile)', borderRadius: 'var(--radius-tile)', padding: '0.6rem 1rem' }}>
+      <div style={{ marginBottom: '1.6rem', background: 'var(--aged-paper)', border: 'var(--border-tile)', borderRadius: 'var(--radius-tile)', padding: '0.6rem 1rem' }}>
         <span style={{ fontStyle: 'italic', color: 'var(--stone-gray)', fontSize: '0.92rem' }}>
           {prefillExp.length === 0 ? 'Base game' : prefillExp.join(' · ')}
         </span>
