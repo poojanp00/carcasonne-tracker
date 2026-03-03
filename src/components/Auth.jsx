@@ -46,8 +46,6 @@ export default function Auth({ onSuccess }) {
   const [recoveryMode, setRecoveryMode] = useState(() => {
     // Check sessionStorage first (set by App.jsx), then fallback to URL detection
     const fromStorage = sessionStorage.getItem('isRecoveryMode') === 'true';
-    console.log('🔍 Auth component - Recovery from storage:', fromStorage);
-    
     if (fromStorage) return true;
     
     // Fallback: check URL parameters directly  
@@ -55,10 +53,6 @@ export default function Auth({ onSuccess }) {
     const hashParams = new URLSearchParams(window.location.hash.substring(1));
     const isRecovery = urlParams.get('type') === 'recovery' || urlParams.has('token') || 
                       hashParams.get('type') === 'recovery' || hashParams.has('token') || hashParams.has('access_token');
-    
-    console.log('🔍 Auth component - URL params:', Object.fromEntries(urlParams.entries()));
-    console.log('🔍 Auth component - Hash params:', Object.fromEntries(hashParams.entries()));
-    console.log('🔍 Auth component - Recovery mode detected:', isRecovery);
     
     return isRecovery;
   });
@@ -76,8 +70,6 @@ export default function Auth({ onSuccess }) {
 
     // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log('Auth event:', event, 'Recovery mode:', recoveryMode); // Debug log
-      
       if (event === 'PASSWORD_RECOVERY') {
         setRecoveryMode(true);
         sessionStorage.setItem('isRecoveryMode', 'true');
@@ -90,8 +82,6 @@ export default function Auth({ onSuccess }) {
         if (!isStillRecovery) {
           // Only call onSuccess if we're definitely not in recovery mode
           onSuccess?.();
-        } else {
-          console.log('Blocked onSuccess due to recovery mode');
         }
       }
     });
