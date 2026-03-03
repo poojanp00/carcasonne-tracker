@@ -28,7 +28,11 @@ export default function Lightbox({ game, games = [], onNavigate, onClose }) {
   }, [onClose, onNavigate, idx, games]);
 
   const topPlayers = game.winners || [];  // Use precomputed winners from database
-  const winnerText = topPlayers.length > 1 ? `${topPlayers.join(' & ')} win` : `${topPlayers[0]} wins`;
+  const winnerText = topPlayers.length === 0 
+    ? 'No winner' 
+    : topPlayers.length > 1 
+    ? `${topPlayers.join(' & ')} win` 
+    : `${topPlayers[0]} wins`;
 
   const sorted = [...game.players].sort((a, b) => b.score - a.score);
   const TYPE_ORDER = ['road', 'city', 'monastery', 'field'];
