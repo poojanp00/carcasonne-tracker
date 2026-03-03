@@ -357,7 +357,7 @@ export default function Auth({ onSuccess }) {
                   disabled={magicLinkLoading || resetPasswordLoading}
                   onClick={handleSendMagicLink}
                 >
-                  {magicLinkLoading ? 'Please wait...' : 'Send one-time link'}
+                  {magicLinkLoading ? 'Please wait...' : 'One-time link'}
                 </button>
                 <button
                   type="button"
@@ -365,7 +365,7 @@ export default function Auth({ onSuccess }) {
                   disabled={magicLinkLoading || resetPasswordLoading}
                   onClick={handleResetPassword}
                 >
-                  {resetPasswordLoading ? 'Please wait...' : 'Send password reset'}
+                  {resetPasswordLoading ? 'Please wait...' : 'Reset Password'}
                 </button>
               </div>
             ) : (
