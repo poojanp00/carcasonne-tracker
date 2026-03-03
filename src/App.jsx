@@ -443,7 +443,6 @@ export default function App() {
                         </div>
                       )}
                       <div className="empty-state">
-                        <span className="empty-state-icon">🏰</span>
                         Select a realm to begin playing.
                       </div>
                     </div>
