@@ -40,6 +40,8 @@ export default function Auth({ onSuccess }) {
   const [error,   setError]   = useState(null);
   const [notice,  setNotice]  = useState(null);
   const [loading, setLoading] = useState(false);
+  const [magicLinkLoading, setMagicLinkLoading] = useState(false);
+  const [resetPasswordLoading, setResetPasswordLoading] = useState(false);
   const [forgotMode, setForgotMode] = useState(false);
   
   // Password recovery states - use sessionStorage to persist across redirects
@@ -181,9 +183,9 @@ export default function Auth({ onSuccess }) {
       return;
     }
 
-    setLoading(true);
+    setResetPasswordLoading(true);
     const { error } = await supabase.auth.resetPasswordForEmail(email);
-    setLoading(false);
+    setResetPasswordLoading(false);
 
     if (error) {
       setError(error.message);
@@ -202,9 +204,9 @@ export default function Auth({ onSuccess }) {
       return;
     }
 
-    setLoading(true);
+    setMagicLinkLoading(true);
     const { error } = await supabase.auth.signInWithOtp({ email });
-    setLoading(false);
+    setMagicLinkLoading(false);
 
     if (error) {
       setError(error.message);
@@ -348,22 +350,22 @@ export default function Auth({ onSuccess }) {
             {notice && <p style={{ color: 'var(--stone-gray)', fontStyle: 'italic', fontSize: '0.88rem', margin: 0 }}>{notice}</p>}
 
             {mode === 'signin' && forgotMode ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', marginTop: '0.3rem' }}>
+              <div style={{ display: 'flex', gap: '0.6rem', marginTop: '0.3rem' }}>
                 <button
                   type="button"
                   className="btn"
-                  disabled={loading}
+                  disabled={magicLinkLoading || resetPasswordLoading}
                   onClick={handleSendMagicLink}
                 >
-                  {loading ? 'Please wait...' : 'Send one-time link'}
+                  {magicLinkLoading ? 'Please wait...' : 'Send one-time link'}
                 </button>
                 <button
                   type="button"
                   className="btn"
-                  disabled={loading}
+                  disabled={magicLinkLoading || resetPasswordLoading}
                   onClick={handleResetPassword}
                 >
-                  {loading ? 'Please wait...' : 'Send password reset'}
+                  {resetPasswordLoading ? 'Please wait...' : 'Send password reset'}
                 </button>
               </div>
             ) : (
@@ -390,7 +392,7 @@ export default function Auth({ onSuccess }) {
             </div>
             <div>
               {mode === 'signin' && (
-                <button type="button" style={linkStyle} onClick={() => { setForgotMode(true); setError(null); }} disabled={loading} > Forgot password? </button>)}
+                <button type="button" style={linkStyle} onClick={() => { setForgotMode(true); setError(null); }} disabled={loading || magicLinkLoading || resetPasswordLoading} > Forgot password? </button>)}
             </div>
           </div>
         )}
