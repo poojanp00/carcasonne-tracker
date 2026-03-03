@@ -343,33 +343,47 @@ export default function App() {
                         onRealmChange={handleRealmSelect}
                         onRealmCreate={handleRealmCreate}
                       />
-                : (
-                  <div>
-                    <div className="section-title">
-                      <h2>Game Board</h2>
-                      <div className="section-title-line" />
-                    </div>
-                    {realms.length > 0 && (
-                      <div style={{ marginBottom: '1.3rem' }}>
-                        <div className="expansion-chips">
-                          {realms.map(r => (
-                            <button
-                              key={r.id}
-                              type="button"
-                              className="expansion-chip"
-                              onClick={() => handleRealmSelect(r)}
-                            >
-                              {r.name}
-                            </button>
-                          ))}
-                        </div>
+                : realms.length === 0
+                  ? <PreGameSetup
+                      key="no-realms"
+                      realm={null}
+                      ownedExpansions={ownedExpansions}
+                      onStart={handleGameStart}
+                      defaultMeeples={null}
+                      defaultExpansions={null}
+                      realms={realms}
+                      currentRealm={null}
+                      onRealmChange={handleRealmSelect}
+                      onRealmCreate={handleRealmCreate}
+                      startAtRealmCreation={true}
+                    />
+                  : (
+                    <div>
+                      <div className="section-title">
+                        <h2>Game Board</h2>
+                        <div className="section-title-line" />
                       </div>
-                    )}
-                    <p style={{ fontFamily: 'Crimson Text, serif', fontStyle: 'italic', color: 'var(--stone-gray)', paddingTop: '1rem', textAlign: 'center' }}>
-                      Select a realm to begin playing.
-                    </p>
-                  </div>
-                )
+                      {realms.length > 0 && (
+                        <div style={{ marginBottom: '1.3rem' }}>
+                          <div className="expansion-chips">
+                            {realms.map(r => (
+                              <button
+                                key={r.id}
+                                type="button"
+                                className="expansion-chip"
+                                onClick={() => handleRealmSelect(r)}
+                              >
+                                {r.name}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      <p style={{ fontFamily: 'Crimson Text, serif', fontStyle: 'italic', color: 'var(--stone-gray)', paddingTop: '1rem', textAlign: 'center' }}>
+                        Select a realm to begin playing.
+                      </p>
+                    </div>
+                  )
             )}
             {tab === 'history' && <Logbook games={games} realms={realms} currentRealm={session?.realm || null} onRealmChange={handleRealmSelect} onDelete={handleDelete} />}
             {tab === 'statistics' && <Statistics games={games} realms={realms} currentRealm={session?.realm || null} onRealmChange={handleRealmSelect} />}
