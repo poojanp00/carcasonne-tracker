@@ -109,18 +109,40 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
    * 1. Use previous game meeples if available (continuity)
    * 2. Fall back to sequential assignment from available meeples
    * 3. Ultimate fallback to first meeple or 'poojan.png'
+   * 
+   * Special handling: If a defaultMeeple is 'mystery.png', immediately resolve
+   * it to a random fun meeple to avoid having mystery.png as the actual meeple.
    */
-  const [meeples, setMeeples] = useState(() =>
-    Object.fromEntries(
-      activePlayers.map((p, i) => [
-        p, 
-        defaultMeeples?.[p] ||           // Previous game preference
-        MEEPLES[i]?.key ||               // Sequential assignment
-        MEEPLES[0]?.key ||               // First available meeple
-        'poojan.png'                     // Hardcoded fallback
-      ])
-    )
-  );
+  const [meeples, setMeeples] = useState(() => {
+    const initialMeeples = {};
+    
+    activePlayers.forEach((p, i) => {
+      let selectedMeeple = defaultMeeples?.[p] ||           // Previous game preference
+                          MEEPLES[i]?.key ||               // Sequential assignment
+                          MEEPLES[0]?.key ||               // First available meeple
+                          'poojan.png';                    // Hardcoded fallback
+      
+      // If the default meeple is mystery.png, resolve it immediately to a fun meeple
+      if (selectedMeeple === 'mystery.png') {
+        const availableFunMeeples = FUN_MEEPLES.filter(fm => 
+          !Object.values(initialMeeples).includes(fm.key)
+        );
+        
+        if (availableFunMeeples.length > 0) {
+          const randomFunMeeple = availableFunMeeples[Math.floor(Math.random() * availableFunMeeples.length)];
+          selectedMeeple = randomFunMeeple.key;
+        } else {
+          // Fallback to any random fun meeple if all are taken
+          const randomFunMeeple = FUN_MEEPLES[Math.floor(Math.random() * FUN_MEEPLES.length)];
+          selectedMeeple = randomFunMeeple.key;
+        }
+      }
+      
+      initialMeeples[p] = selectedMeeple;
+    });
+    
+    return initialMeeples;
+  });
 
   /**
    * EXPANSION SELECTION STATE
