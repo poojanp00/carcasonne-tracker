@@ -85,6 +85,26 @@ export default function Auth({ onSuccess }) {
 
     onSuccess?.();
   };
+  // const handleResetPassword = async () => {
+  //   setError(null);
+
+  //   if (!email.trim()) {
+  //     setError('Enter your email first.');
+  //     return;
+  //   }
+
+  //   setLoading(true);
+  //   const { error } = await supabase.auth.resetPasswordForEmail(email);
+  //   setLoading(false);
+
+  //   if (error) {
+  //     setError(error.message);
+  //     return;
+  //   }
+
+  //   setNotice('Password reset email sentto you email!');
+  //   setForgotMode(false); // return to normal sign in
+  // };
 
   const handleSendMagicLink = async () => {
     setError(null);

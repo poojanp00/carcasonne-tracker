@@ -12,11 +12,6 @@ import { useAuth }     from './hooks/useAuth';
 import { resetBoard }  from './data/boardStorage';
 import crownImg from '../images/icons/crown.png';
 
-// App-wide configuration constants
-const APP_CONFIG = {
-  TOAST_DURATION: 3100, // milliseconds before toast message disappears
-};
-
 const TABS = [
   { id: 'realms',     label: 'Realms'     },
   { id: 'statistics', label: 'Statistics' },
@@ -34,12 +29,6 @@ function Toast({ message }) {
   );
 }
 
-/**
- * Normalize meeple selections for consistency in session state.
- * Converts 'fun/' prefix meeples (custom/special meeples) to 'mystery.png'
- * to maintain a consistent interface while preserving the original selection.
- * This helps prevent UI issues when switching between different meeple sets.
- */
 const normalizeMeeples = (meeples) =>
   meeples
     ? Object.fromEntries(Object.entries(meeples).map(([p, k]) => [p, k.startsWith('fun/') ? 'mystery.png' : k]))
@@ -56,16 +45,9 @@ export default function App() {
   const { games, expansions, realms, loading, addGame, deleteGame, toggleExpansion, addRealm, updateRealm, removeRealm } = useGameData(user, authLoading);
 
   // Auto-load the realm with the most recent game on initial data load
-  // Business rule: When a user first logs in, automatically select the realm
-  // where their most recent game was played to provide continuity
   useEffect(() => {
-    // Skip if still loading data, no user, already have session, or no data available
     if (loading || authLoading || !user || session || games.length === 0 || realms.length === 0) return;
-    
-    // Find the most recent game by sorting games by date (newest first)
     const latest = [...games].sort((a, b) => b.date.localeCompare(a.date))[0];
-    
-    // Find the realm that contains this latest game
     const realm  = realms.find(r => r.id === latest?.realmId);
     if (realm) setSession({ realm });
   }, [loading, authLoading, user]);  // eslint-disable-line react-hooks/exhaustive-deps
@@ -78,7 +60,7 @@ export default function App() {
 
   const showToast = useCallback((msg) => {
     setToast(msg);
-    setTimeout(() => setToast(null), APP_CONFIG.TOAST_DURATION);
+    setTimeout(() => setToast(null), 3100);
   }, []);
 
   const handleRealmSelect = useCallback((realm) => {
@@ -98,25 +80,6 @@ export default function App() {
   }, [addRealm]);
 
   // Maps expansion names to the score types they add beyond the base four
-  /**
-   * Carcassonne Expansion Scoring Categories
-   * Maps expansion names to the additional scoring types they introduce.
-   * These determine what score input buttons appear during gameplay.
-   * 
-   * Base game: road, city, monastery, field
-   * 
-   * Inns & Cathedrals:
-   * - inn: Road tiles with inns double points but score 0 if incomplete
-   * - cathedral: City tiles with cathedrals +3 points per pennant, 0 if incomplete
-   * 
-   * Traders & Builders:
-   * - wine, grain, cloth: Trade goods collected from completed cities
-   * - pig: Placed on farms to increase field scoring by +1 per city
-   * 
-   * Abbey & Mayor:
-   * - barn: Placed on farms for immediate scoring, locks the farm
-   * - wagon: Can move between completed features for additional scoring
-   */
   const EXPANSION_TYPES = {
     'Inns & Cathedrals':          ['inn', 'cathedral'],
     'Bridges, Castles & Bazaars': ['inn', 'cathedral'],
@@ -180,20 +143,16 @@ export default function App() {
     setTab(id);
   }, []);
 
-  // Carcassonne expansion priority: Always show River and Abbot first since they're
-  // commonly used foundational expansions that integrate well with other expansions.
-  // River provides starting tile placement variety, Abbot offers monastery alternatives.
   const PINNED_EXPANSIONS = ['The River', 'The Abbot'];
   const ownedExpansions = expansions
-    .filter(e => e.owned) // Only include expansions the user owns
+    .filter(e => e.owned)
     .sort((a, b) => {
-      // Custom sort: pinned expansions first (in defined order), then others
       const ai = PINNED_EXPANSIONS.indexOf(a.name);
       const bi = PINNED_EXPANSIONS.indexOf(b.name);
-      if (ai !== -1 && bi !== -1) return ai - bi; // Both pinned: use pinned order
-      if (ai !== -1) return -1;                   // Only 'a' pinned: 'a' comes first  
-      if (bi !== -1) return 1;                    // Only 'b' pinned: 'b' comes first
-      return 0;                                   // Neither pinned: maintain original order
+      if (ai !== -1 && bi !== -1) return ai - bi;
+      if (ai !== -1) return -1;
+      if (bi !== -1) return 1;
+      return 0;
     })
     .map(e => e.name);
   const realmGames = session?.realm?.id
