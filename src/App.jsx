@@ -303,7 +303,7 @@ export default function App() {
                       onCancel={() => setSession(prev => ({ ...prev, finalScores: null }))}
                     />
                   : session.players
-                    ? <Board key={gameKey} session={session} onFinish={handleFinishGame} onReset={handleBoardReset} />
+                    ? <Board key={gameKey} session={session} onFinish={handleFinishGame} onReset={handleBoardReset} onCreateRealm={() => setSession(null)} />
                     : <PreGameSetup
                         key={session.realm.id}
                         realm={session.realm}
