@@ -16,7 +16,7 @@ const TrashIcon = () => (
   </svg>
 );
 
-export default function GameHistory({ games, realms = [], currentRealm = null, onRealmChange, onDelete, isGuest = false }) {
+export default function GameHistory({ games, realms = [], currentRealm = null, onRealmChange, onDelete }) {
   const [selectedGame,    setSelectedGame]    = useState(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
 
@@ -64,15 +64,7 @@ export default function GameHistory({ games, realms = [], currentRealm = null, o
         {currentRealm && <span className="game-count">{realmGames.length} {realmGames.length === 1 ? 'game' : 'games'}</span>}
       </div>
 
-      {/* Guest mode - show blank state */}
-      {isGuest ? (
-        <div className="empty-state">
-          <span className="empty-state-icon">📜</span>
-          Sign in to access your game logbook and save your progress.
-        </div>
-      ) : (
-        <>
-          {/* Realm filter chips */}
+      {/* Realm filter chips */}
       {realms.length > 0 && (
         <div style={{ marginBottom: '1.3rem' }}>
           <div className="expansion-chips">
@@ -148,8 +140,6 @@ export default function GameHistory({ games, realms = [], currentRealm = null, o
             </tbody>
           </table>
         </div>
-      )}
-        </>
       )}
     </div>
   );

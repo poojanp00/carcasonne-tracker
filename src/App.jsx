@@ -10,7 +10,6 @@ import Auth          from './components/Auth';
 import { useGameData } from './hooks/useGameData';
 import { useAuth }     from './hooks/useAuth';
 import { resetBoard }  from './data/boardStorage';
-import { DEFAULT_EXPANSIONS } from './data/expansions';
 import crownImg from '../images/icons/crown.png';
 
 // App-wide configuration constants
@@ -73,49 +72,23 @@ export default function App() {
     }
   }, []); // Only run once on mount
 
-  const { user, authLoading, signOut, completeRecovery, isGuest, enableGuestMode, signOutGuest } = useAuth();
-  const { games, expansions, realms, loading, addGame, deleteGame, toggleExpansion, addRealm, updateRealm, removeRealm } = useGameData(isGuest ? null : user, authLoading || (isGuest && false));
-
-  // Guest mode data - provide all expansions as owned and empty games/realms
-  const [guestExpansions, setGuestExpansions] = useState([]);
-  
-  // Initialize guest expansions (all owned)
-  useEffect(() => {
-    if (isGuest) {
-      setGuestExpansions(DEFAULT_EXPANSIONS.map(exp => ({ ...exp, owned: true })));
-    }
-  }, [isGuest]);
-
-  // Override data and functions for guest mode
-  const currentGames = isGuest ? [] : games;
-  const currentExpansions = isGuest ? guestExpansions : expansions;
-  const currentRealms = isGuest ? [] : realms;
-  const currentLoading = isGuest ? false : loading;
-  
-  // Guest mode functions (no-ops or redirect to sign in)
-  const guestFunctions = {
-    addGame: () => Promise.resolve('guest-game-id'),
-    deleteGame: () => {},
-    toggleExpansion: () => {}, // No-op for guest mode
-    addRealm: () => Promise.resolve({ id: 'guest-realm', name: 'Guest Realm' }),
-    updateRealm: () => {},
-    removeRealm: () => {},
-  };
+  const { user, authLoading, signOut, completeRecovery } = useAuth();
+  const { games, expansions, realms, loading, addGame, deleteGame, toggleExpansion, addRealm, updateRealm, removeRealm } = useGameData(user, authLoading);
 
   // Auto-load the realm with the most recent game on initial data load
   // Business rule: When a user first logs in, automatically select the realm
   // where their most recent game was played to provide continuity
   useEffect(() => {
     // Skip if still loading data, no user, already have session, or no data available
-    if (currentLoading || authLoading || (!user && !isGuest) || session || currentGames.length === 0 || currentRealms.length === 0) return;
+    if (loading || authLoading || !user || session || games.length === 0 || realms.length === 0) return;
     
     // Find the most recent game by sorting games by date (newest first)
-    const latest = [...currentGames].sort((a, b) => b.date.localeCompare(a.date))[0];
+    const latest = [...games].sort((a, b) => b.date.localeCompare(a.date))[0];
     
     // Find the realm that contains this latest game
-    const realm  = currentRealms.find(r => r.id === latest?.realmId);
+    const realm  = realms.find(r => r.id === latest?.realmId);
     if (realm) setSession({ realm });
-  }, [currentLoading, authLoading, user, isGuest]);  // eslint-disable-line react-hooks/exhaustive-deps
+  }, [loading, authLoading, user]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   const goHome = useCallback(() => {
     setSession(null);
@@ -135,7 +108,7 @@ export default function App() {
 
   const handleRealmCreate = useCallback(async (data) => {
     try {
-      const realm = await (isGuest ? guestFunctions.addRealm : addRealm)(data);
+      const realm = await addRealm(data);
       // Update session to continue with meeple selection in the same PreGameSetup component
       setSession({ realm, showRealmCreation: false });
       setRealmPickerKey(k => k + 1);
@@ -143,7 +116,7 @@ export default function App() {
       console.error('create realm failed', err);
       showToast(`Failed to create realm: ${err?.message || 'Unknown error'}`);
     }
-  }, [addRealm, showToast, isGuest, guestFunctions.addRealm]);
+  }, [addRealm, showToast]);
 
   // Maps expansion names to the score types they add beyond the base four
   /**
@@ -194,13 +167,6 @@ export default function App() {
   }, []);
 
   const handleRecordGame = useCallback((gameData) => {
-    if (isGuest) {
-      // For guests, redirect to sign-in instead of recording
-      setSession(null);
-      setTab('realms');
-      signOutGuest();
-      return;
-    }
     addGame({ ...gameData, realmId: session.realm.id });
     showToast('Game recorded in the logbook.');
     setSession(prev => ({
@@ -209,26 +175,26 @@ export default function App() {
       lastExpansions: prev.expansions,
     }));
     setTab('history');
-  }, [addGame, session, showToast, isGuest, signOutGuest]);
+  }, [addGame, session, showToast]);
 
   const handleDelete = useCallback((id) => {
-    (isGuest ? guestFunctions.deleteGame : deleteGame)(id);
+    deleteGame(id);
     showToast('Game removed.');
-  }, [deleteGame, showToast, isGuest, guestFunctions.deleteGame]);
+  }, [deleteGame, showToast]);
 
   const handleRealmDelete = useCallback(async (realmId) => {
-    await (isGuest ? guestFunctions.removeRealm : removeRealm)(realmId);
+    await removeRealm(realmId);
     if (session?.realm?.id === realmId) setSession(null);
-    const remaining = currentRealms.filter(r => r.id !== realmId);
+    const remaining = realms.filter(r => r.id !== realmId);
     if (remaining.length === 0) { setRealmPickerKey(k => k + 1); setTab('realms'); }
     showToast('Realm deleted.');
-  }, [removeRealm, session, currentRealms, showToast, isGuest, guestFunctions.removeRealm]);
+  }, [removeRealm, session, realms, showToast]);
 
   const handleUpdateRealm = useCallback((patch) => {
     if (!session?.realm?.id) return;
-    (isGuest ? guestFunctions.updateRealm : updateRealm)(session.realm.id, patch);
+    updateRealm(session.realm.id, patch);
     setSession(prev => ({ ...prev, realm: { ...prev.realm, ...patch } }));
-  }, [session, updateRealm, isGuest, guestFunctions.updateRealm]);
+  }, [session, updateRealm]);
 
   const handleTabChange = useCallback((id) => {
     if (id === 'realms') setRealmPickerKey(k => k + 1);
@@ -239,7 +205,7 @@ export default function App() {
   // commonly used foundational expansions that integrate well with other expansions.
   // River provides starting tile placement variety, Abbot offers monastery alternatives.
   const PINNED_EXPANSIONS = ['The River', 'The Abbot'];
-  const ownedExpansions = currentExpansions
+  const ownedExpansions = expansions
     .filter(e => e.owned) // Only include expansions the user owns
     .sort((a, b) => {
       // Custom sort: pinned expansions first (in defined order), then others
@@ -252,7 +218,7 @@ export default function App() {
     })
     .map(e => e.name);
   const realmGames = session?.realm?.id
-    ? currentGames.filter(g => g.realmId === session.realm.id)
+    ? games.filter(g => g.realmId === session.realm.id)
     : [];
 
   return (
@@ -261,17 +227,10 @@ export default function App() {
         <div className="app-wrapper">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-start' }}>
-              {(user || isGuest) && (
+              {user && (
                 <button
                   type="button"
-                  onClick={() => { 
-                    if (user) {
-                      signOut(); 
-                    } else {
-                      signOutGuest();
-                    }
-                    goHome(); 
-                  }}
+                  onClick={() => { signOut(); goHome(); }}
                   style={{
                     background: 'none', border: 'none', cursor: 'pointer',
                     fontFamily: 'Cinzel, serif', fontSize: '0.62rem', letterSpacing: '0.06em',
@@ -289,26 +248,23 @@ export default function App() {
       </header>
 
       {/* ── Loading ── */}
-      {(currentLoading || authLoading) && (
+      {(loading || authLoading) && (
         <div className="app-wrapper" style={{ textAlign: 'center', paddingTop: '4rem', fontFamily: 'Cinzel, serif', color: 'var(--stone-gray)', letterSpacing: '0.1em' }}>
           Loading...
         </div>
       )}
 
       {/* ── Auth (signed out or password recovery) ── */}
-      {!currentLoading && !authLoading && (!user && !isGuest || isRecoveryMode) && (
-        <Auth 
-          onSuccess={() => {
-            // Clear recovery mode and update user state
-            completeRecovery();
-            setIsRecoveryMode(false);
-          }} 
-          onGuestMode={enableGuestMode}
-        />
+      {!loading && !authLoading && (!user || isRecoveryMode) && (
+        <Auth onSuccess={() => {
+          // Clear recovery mode and update user state
+          completeRecovery();
+          setIsRecoveryMode(false);
+        }} />
       )}
 
-      {/* ── Main (signed in or guest mode and not recovery) ── */}
-      {!currentLoading && !authLoading && (user || isGuest) && !isRecoveryMode && (
+      {/* ── Main (signed in and not recovery) ── */}
+      {!loading && !authLoading && user && !isRecoveryMode && (
         <>
           <nav className="tab-nav" role="tablist">
             {TABS.map(({ id, label }) => (
@@ -330,7 +286,7 @@ export default function App() {
               false ? (
                 <RealmPicker
                   key={realmPickerKey}
-                  realms={currentRealms}
+                  realms={realms}
                   currentRealm={null}
                   games={[]}
                   onSelect={() => {}}
@@ -341,7 +297,7 @@ export default function App() {
               ) : (
                 <RealmPicker
                   key={realmPickerKey}
-                  realms={currentRealms}
+                  realms={realms}
                   currentRealm={session?.realm || null}
                   games={realmGames}
                   onSelect={handleRealmSelect}
@@ -358,7 +314,6 @@ export default function App() {
                       ownedExpansions={ownedExpansions}
                       onSubmit={handleRecordGame}
                       onCancel={() => setSession(prev => ({ ...prev, finalScores: null }))}
-                      isGuest={isGuest}
                     />
                   : session.players
                     ? <Board key={gameKey} session={session} onFinish={handleFinishGame} onReset={handleBoardReset} />
@@ -383,12 +338,12 @@ export default function App() {
                         onStart={handleGameStart}
                         defaultMeeples={session.lastMeeples}
                         defaultExpansions={session.lastExpansions}
-                        realms={currentRealms}
+                        realms={realms}
                         currentRealm={session?.realm || null}
                         onRealmChange={handleRealmSelect}
                         onRealmCreate={handleRealmCreate}
                       />
-                : currentRealms.length === 0
+                : realms.length === 0
                   ? <PreGameSetup
                       key="no-realms"
                       realm={null}
@@ -396,7 +351,7 @@ export default function App() {
                       onStart={handleGameStart}
                       defaultMeeples={null}
                       defaultExpansions={null}
-                      realms={currentRealms}
+                      realms={realms}
                       currentRealm={null}
                       onRealmChange={handleRealmSelect}
                       onRealmCreate={handleRealmCreate}
@@ -408,10 +363,10 @@ export default function App() {
                         <h2>Game Board</h2>
                         <div className="section-title-line" />
                       </div>
-                      {currentRealms.length > 0 && (
+                      {realms.length > 0 && (
                         <div style={{ marginBottom: '1.3rem' }}>
                           <div className="expansion-chips">
-                            {currentRealms.map(r => (
+                            {realms.map(r => (
                               <button
                                 key={r.id}
                                 type="button"
@@ -430,9 +385,9 @@ export default function App() {
                     </div>
                   )
             )}
-            {tab === 'history' && <Logbook games={currentGames} realms={currentRealms} currentRealm={session?.realm || null} onRealmChange={handleRealmSelect} onDelete={handleDelete} isGuest={isGuest} />}
-            {tab === 'statistics' && <Statistics games={currentGames} realms={currentRealms} currentRealm={session?.realm || null} onRealmChange={handleRealmSelect} isGuest={isGuest} />}
-            {tab === 'collection' && <Collection expansions={currentExpansions} onToggle={isGuest ? guestFunctions.toggleExpansion : toggleExpansion} userId={user?.id} isGuest={isGuest} />}
+            {tab === 'history' && <Logbook games={games} realms={realms} currentRealm={session?.realm || null} onRealmChange={handleRealmSelect} onDelete={handleDelete} />}
+            {tab === 'statistics' && <Statistics games={games} realms={realms} currentRealm={session?.realm || null} onRealmChange={handleRealmSelect} />}
+            {tab === 'collection' && <Collection expansions={expansions} onToggle={toggleExpansion} userId={user?.id} />}
           </div>
           </div>
         </>
