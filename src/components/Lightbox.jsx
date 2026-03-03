@@ -80,7 +80,7 @@ export default function Lightbox({ game, games = [], onNavigate, onClose }) {
                 ...TYPE_ORDER.filter(t => (bd[t] ?? 0) > 0),
                 ...Object.keys(bd).filter(t => !TYPE_ORDER.includes(t) && (bd[t] ?? 0) > 0),
               ].sort((a, b) => (bd[b] || 0) - (bd[a] || 0));
-              const isWinner = p.score === maxScore;
+              const isWinner = topPlayers.includes(p.name);
               return (
                 <div
                   key={p.name}
