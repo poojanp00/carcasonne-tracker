@@ -69,7 +69,7 @@ export default function App() {
   const [toast,          setToast]          = useState(null);
   const [realmPickerKey, setRealmPickerKey] = useState(0);
 
-  const { user, authLoading, signOut } = useAuth();
+  const { user, authLoading, signOut, completeRecovery } = useAuth();
   const { games, expansions, realms, loading, addGame, deleteGame, toggleExpansion, addRealm, updateRealm, removeRealm } = useGameData(user, authLoading);
 
   // Auto-load the realm with the most recent game on initial data load
@@ -253,8 +253,8 @@ export default function App() {
       {/* ── Auth (signed out or password recovery) ── */}
       {!loading && !authLoading && (!user || isRecoveryMode) && (
         <Auth onSuccess={() => {
-          // Clear recovery mode only after successful auth outside recovery flow
-          sessionStorage.removeItem('isRecoveryMode');
+          // Clear recovery mode and update user state
+          completeRecovery();
         }} />
       )}
 
