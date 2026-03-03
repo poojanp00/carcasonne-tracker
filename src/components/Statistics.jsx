@@ -61,15 +61,16 @@ function calcStats(games, name) {
 
   // Process each game to extract statistics
   for (const g of mine) {
-    // Find this player's performance and best opponent in this game
-    const me        = g.players.find(p => p.name.toLowerCase() === low);
+    // Find this player's performance in this game
+    const me = g.players.find(p => p.name.toLowerCase() === low);
+    const my = me.score;
+    const isWinner = g.winners?.includes(me.name) || false;
     const opponents = g.players.filter(p => p.name.toLowerCase() !== low);
-    const my        = me.score;
-    const maxOpp    = opponents.length > 0 ? Math.max(...opponents.map(p => p.score)) : 0;
+    const maxOpp = opponents.length > 0 ? Math.max(...opponents.map(p => p.score)) : 0;
 
     // WIN/LOSS ANALYSIS
-    // In multiplayer games, a "win" means beating the highest opponent
-    if (my > maxOpp) {
+    // Use precomputed winners from database instead of calculating
+    if (isWinner) {
       wins++;
       
       // BLOWOUT TRACKING
@@ -81,10 +82,8 @@ function calcStats(games, name) {
         biggestBlowoutMyScore   = my;
         biggestBlowoutTheirScore = maxOpp;
       }
-    } else if (my < maxOpp) {
-      losses++;
     } else {
-      wins++; // Exact score match with best opponent - now counts as win
+      losses++;
     }
 
     // HIGH SCORE TRACKING
@@ -99,7 +98,7 @@ function calcStats(games, name) {
     // FARM WIN ANALYSIS
     // Track when victories come primarily from field scoring
     // Game must be marked as farmWin AND player must have won
-    if (g.farmWin && my > maxOpp) farmWins++;
+    if (g.farmWin && isWinner) farmWins++;
 
     // CLUTCH GAME ANALYSIS
     // "Clutch" games are close contests where margin < 10% of combined score
@@ -107,8 +106,8 @@ function calcStats(games, name) {
     const total_pts = my + maxOpp;
     if (total_pts > 0 && Math.abs(my - maxOpp) / total_pts < STATISTICS_CONFIG.CLUTCH_THRESHOLD) {
       clutchGames++;
-      if (my >= maxOpp)     clutchWins++;  // >= because equal scores count as wins
-      else                  clutchLosses++;
+      if (isWinner)     clutchWins++;
+      else              clutchLosses++;
     }
   }
 
@@ -136,18 +135,21 @@ function calcStats(games, name) {
 
     // Initialize streak on first game
     if (winStreak === 0 && lossStreak === 0) {
-      if (my2 >= mx)      winStreak  = 1;   // Start win streak (>= because equal counts as win)
-      else                lossStreak = 1;   // Start loss streak  
+      const isWinner2 = g.winners?.includes(me2.name) || false;
+      if (isWinner2)  winStreak  = 1;   // Start win streak
+      else            lossStreak = 1;   // Start loss streak  
     } 
     // Continue existing win streak
     else if (winStreak > 0) {
-      if (my2 >= mx) winStreak++;           // Continue win streak (>= because equal counts as win)
+      const isWinner2 = g.winners?.includes(me2.name) || false;
+      if (isWinner2) winStreak++;
       else break;                           // Streak broken by loss
     } 
     // Continue existing loss streak  
     else {
-      if (my2 < mx) lossStreak++;
-      else break;                           // Streak broken by win (>= maxOpp counts as win)
+      const isWinner2 = g.winners?.includes(me2.name) || false;
+      if (!isWinner2) lossStreak++;
+      else break;                           // Streak broken by win
     }
   }
 

@@ -107,9 +107,8 @@ export default function GameHistory({ games, realms = [], currentRealm = null, o
               {realmGames.map(game => {
                 const scores     = game.players.map(p => p.score).sort((a, b) => b - a);
                 const maxScore   = scores[0] ?? 0;
-                const topPlayers = game.players.filter(p => p.score === maxScore);
-                const isTie      = false; // No ties - equal scores count as multiple winners
-                const winner     = topPlayers.length === 1 ? topPlayers[0] : null;
+                const topPlayers = game.winners || [];  // Use precomputed winners from database
+                const winner     = topPlayers.length === 1 ? game.players.find(p => topPlayers.includes(p.name)) : null;
                 const margin     = topPlayers.length === 1 ? maxScore - (scores[1] ?? 0) : 0;
                 return (
                   <tr key={game.id} onClick={() => setSelectedGame(game)} style={{ cursor: 'pointer' }}>
@@ -121,7 +120,7 @@ export default function GameHistory({ games, realms = [], currentRealm = null, o
                       fontStyle:  'normal',
                       whiteSpace: 'nowrap',
                     }}>
-                      {topPlayers.length > 1 ? topPlayers.map(p => p.name).join(' & ') : winner?.name}
+                      {topPlayers.length > 1 ? topPlayers.join(' & ') : winner?.name}
                     </td>
 
                     <td className="cell-margin">{topPlayers.length === 1 ? `+${margin}` : '—'}</td>

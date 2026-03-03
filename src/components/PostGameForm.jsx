@@ -49,6 +49,8 @@ export default function GameLogForm({ session, ownedExpansions, onSubmit, onCanc
     e.preventDefault();
     onSubmit({
       date,
+      winners: [...winners],
+      maxScore: maxScore,
       players: players.map(name => ({
         name,
         score:     parseInt(finalScores[name], 10) || 0,
