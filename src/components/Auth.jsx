@@ -32,7 +32,6 @@ const EyeBtn = ({ show, onToggle }) => (
 
 export default function Auth({ onSuccess }) {
   const [mode,    setMode]    = useState('signin');  // 'signin' | 'signup'
-  const [name,    setName]    = useState('');
   const [email,   setEmail]   = useState('');
   const [pw,      setPw]      = useState('');
   const [confirm, setConfirm] = useState('');
@@ -41,9 +40,10 @@ export default function Auth({ onSuccess }) {
   const [error,   setError]   = useState(null);
   const [notice,  setNotice]  = useState(null);
   const [loading, setLoading] = useState(false);
+  const [forgotMode, setForgotMode] = useState(false);
 
   const switchMode = (m) => {
-    setMode(m);
+    setMode(m);setForgotMode(false);
     setError(null); setNotice(null);
     setPw(''); setConfirm('');
     setShowPw(false); setShowCf(false);
@@ -61,10 +61,7 @@ export default function Auth({ onSuccess }) {
     setLoading(true);
 
     if (mode === 'signup') {
-      const { data, error: err } = await supabase.auth.signUp({
-        email, password: pw,
-        options: { data: { full_name: name.trim() } },
-      });
+      const { data, error: err } = await supabase.auth.signUp({ email, password: pw });
       setLoading(false);
       if (err) {
         if (err.message.toLowerCase().includes('already registered')) {
@@ -88,6 +85,45 @@ export default function Auth({ onSuccess }) {
 
     onSuccess?.();
   };
+  const handleResetPassword = async () => {
+    setError(null);
+
+    if (!email.trim()) {
+      setError('Enter your email first.');
+      return;
+    }
+
+    setLoading(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(email);
+    setLoading(false);
+
+    if (error) {
+      setError(error.message);
+      return;
+    }
+
+    setForgotMode(false); // return to normal sign in
+  };
+
+  const handleSendMagicLink = async () => {
+    setError(null);
+
+    if (!email.trim()) {
+      setError('Enter your email first.');
+      return;
+    }
+
+    setLoading(true);
+    const { error } = await supabase.auth.signInWithOtp({ email });
+    setLoading(false);
+
+    if (error) {
+      setError(error.message);
+      return;
+    }
+
+    setForgotMode(false); // return to normal sign in
+  };
 
   const linkStyle = {
     background: 'none', border: 'none', cursor: 'pointer',
@@ -105,22 +141,7 @@ export default function Auth({ onSuccess }) {
       <div className="tile-card" style={{ maxWidth: '360px', margin: '0 auto' }}>
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
 
-          {/* Name (signup only) */}
-          {mode === 'signup' && (
-            <div>
-              <label className="form-label" htmlFor="auth-name">Name</label>
-              <input
-                id="auth-name"
-                className="form-input"
-                type="text"
-                value={name}
-                onChange={e => setName(e.target.value)}
-                required
-                autoComplete="name"
-                autoFocus
-              />
-            </div>
-          )}
+          {/* Name was intentionally removed: we no longer collect full name on signup */}
 
           {/* Email */}
           <div>
@@ -156,6 +177,8 @@ export default function Auth({ onSuccess }) {
             </div>
           </div>
 
+          {/* Forgot password link moved to footer row */}
+
           {/* Confirm (signup only) */}
           {mode === 'signup' && (
             <div>
@@ -180,21 +203,52 @@ export default function Auth({ onSuccess }) {
           {error  && <p style={{ color: '#DC2626', fontStyle: 'italic', fontSize: '0.88rem', margin: 0 }}>{error}</p>}
           {notice && <p style={{ color: 'var(--stone-gray)', fontStyle: 'italic', fontSize: '0.88rem', margin: 0 }}>{notice}</p>}
 
-          <button type="submit" className="btn" disabled={loading} style={{ marginTop: '0.3rem' }}>
-            {loading ? 'Please wait...' : mode === 'signin' ? 'Sign In' : 'Create Account'}
-          </button>
+          {mode === 'signin' && forgotMode ? (
+            <div style={{ display: 'flex', gap: '0.6rem', marginTop: '0.3rem' }}>
+              <button
+                type="button"
+                className="btn"
+                disabled={loading}
+                onClick={handleResetPassword}
+                style={{ flex: 1 }}
+              >
+                {loading ? 'Please wait...' : 'Reset password'}
+              </button>
+
+              <button
+                type="button"
+                className="btn btn-ghost"
+                disabled={loading}
+                onClick={handleSendMagicLink}
+                style={{ flex: 1 }}
+              >
+                {loading ? 'Please wait...' : 'One-time link'}
+              </button>
+            </div>
+          ) : (
+            <button
+              type="submit"
+              className="btn"
+              disabled={loading}
+              style={{ marginTop: '0.3rem' }}
+            >
+              {loading ? 'Please wait...' : mode === 'signin' ? 'Sign In' : 'Create Account'}
+            </button>
+          )}
         </form>
 
-        <div style={{ marginTop: '1.1rem', textAlign: 'center', fontSize: '0.88rem', color: 'var(--stone-gray)', fontFamily: 'Crimson Text, serif' }}>
-          {mode === 'signin' ? (
-            <>No account?{' '}
-              <button type="button" style={linkStyle} onClick={() => switchMode('signup')}>Create one</button>
-            </>
-          ) : (
-            <>Already have an account?{' '}
-              <button type="button" style={linkStyle} onClick={() => switchMode('signin')}>Sign in</button>
-            </>
-          )}
+        <div style={{ marginTop: '1.1rem', fontSize: '0.88rem', color: 'var(--stone-gray)', fontFamily: 'Crimson Text, serif', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            {mode === 'signin' ? (
+              <>No account?{' '}<button type="button" style={linkStyle} onClick={() => switchMode('signup')}>Create one</button></>
+            ) : (
+              <>Already have an account?{' '}<button type="button" style={linkStyle} onClick={() => switchMode('signin')}>Sign in</button></>
+            )}
+          </div>
+          <div>
+            {mode === 'signin' && (
+              <button type="button" style={linkStyle} onClick={() => { setForgotMode(true); setError(null); }} disabled={loading} > Forgot password? </button>)}
+          </div>
         </div>
       </div>
     </div>

@@ -64,6 +64,7 @@ export default function RealmPicker({ realms, currentRealm = null, games = [], o
   const [nameError,        setNameError]        = useState('');
   const [pendingAction,    setPendingAction]    = useState(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const MAX_REALMS = 12;
 
   const syncCount = (n) => {
     const clamped = Math.max(2, Math.min(6, n));
@@ -77,6 +78,10 @@ export default function RealmPicker({ realms, currentRealm = null, games = [], o
 
   const handleCreate = (e) => {
     e.preventDefault();
+    if (realms.length >= MAX_REALMS) {
+      setNameError(`Realm limit reached. Delete an existing realm to create a new one.`);
+      return;
+    }
     const names = playerNames.map(n => n.trim()).filter(Boolean);
     if (!realmName.trim() || names.length === 0) return;
     const lower = names.map(n => n.toLowerCase());
@@ -89,7 +94,7 @@ export default function RealmPicker({ realms, currentRealm = null, games = [], o
       return;
     }
     setNameError('');
-    onCreate({ name: realmName.trim(), players: names, passwordHash: null });
+  onCreate({ name: realmName.trim(), players: names });
     setRealmName('');
     setPlayerNames(['', '']);
     setPlayerCount(2);
