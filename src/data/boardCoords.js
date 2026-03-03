@@ -1,5 +1,5 @@
 /**
- * CARCASSONNE GAME BOARD PATH GENERATION
+ * CARCASSONNE score board PATH GENERATION
  * 
  * Generates a 50-point snake-like scoring track path using linear interpolation
  * between manually-defined anchor points. All coordinates are percentage-based

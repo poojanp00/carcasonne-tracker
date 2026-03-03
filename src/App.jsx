@@ -22,7 +22,7 @@ const TABS = [
   { id: 'realms',     label: 'Realms'     },
   { id: 'statistics', label: 'Statistics' },
   { id: 'history',    label: 'Logbook'    },
-  { id: 'board',      label: 'Game Board' },
+  { id: 'board',      label: 'score board' },
   { id: 'collection', label: 'Collection' },
 ];
 
@@ -423,7 +423,7 @@ export default function App() {
                   : (
                     <div>
                       <div className="section-title">
-                        <h2>Game Board</h2>
+                        <h2>score board</h2>
                         <div className="section-title-line" />
                       </div>
                       {appData.realms.length > 0 && (

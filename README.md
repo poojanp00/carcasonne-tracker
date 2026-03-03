@@ -213,7 +213,7 @@ flowchart TD
 
 The app has two top-level views:
 - **Sign-in page** — shown when the user is not authenticated
-- **Tabbed layout** — shown when authenticated; 5 tabs always visible: **Realms · Statistics · Logbook · Game Board · Collection**
+- **Tabbed layout** — shown when authenticated; 5 tabs always visible: **Realms · Statistics · Logbook · score board · Collection**
 
 Auth state is derived purely from the Supabase user object — there is no separate `phase` state.
 
@@ -227,11 +227,11 @@ The Realms tab is the landing page after sign-in. It shows:
 Realm behaviour:
 - Deleting the active realm clears it from the session
 - Deleting the last realm resets to the landing; deleting a non-last realm stays in the realm list
-- Statistics, Logbook, and Game Board all show an empty state when no realm is loaded
+- Statistics, Logbook, and score board all show an empty state when no realm is loaded
 
 ### Pre-game setup
 
-1. With a realm loaded, navigate to the **Game Board** tab.
+1. With a realm loaded, navigate to the **score board** tab.
 2. Players choose their meeple characters. Defaults seed from the previous game's selections.
 3. Active expansions are confirmed on the next step; only owned expansions are shown.
 

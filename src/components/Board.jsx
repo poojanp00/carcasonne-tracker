@@ -1,5 +1,5 @@
 /**
- * CARCASSONNE GAME BOARD COMPONENT
+ * CARCASSONNE score board COMPONENT
  * 
  * Manages the scoring track visualization and point tracking for active games.
  * Features 50-point circular track with lap counting for scores above 50.
@@ -309,7 +309,7 @@ export default function Board({ session, onFinish, onReset }) {
       )}
 
       <div className="section-title">
-        <h2>Game Board</h2>
+        <h2>score board</h2>
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '0.7rem' }}>
           <div style={{ flex: 1, height: '1px', background: 'linear-gradient(90deg, var(--warm-gold), transparent)' }} />
           <span style={{

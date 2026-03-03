@@ -1,7 +1,7 @@
 /**
  * CARCASSONNE BOARD STATE PERSISTENCE
  * 
- * Manages the active game board state with real-time synchronization to Supabase.
+ * Manages the active score board state with real-time synchronization to Supabase.
  * Uses singleton pattern (ID=1) since only one game can be active at a time per user.
  * 
  * Schema:
