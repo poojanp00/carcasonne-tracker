@@ -53,7 +53,6 @@ const MAX_GAME_PLAYERS = 6;
 export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeples, defaultExpansions, realms = [], currentRealm = null, onRealmChange, onRealmCreate, startAtRealmCreation = false }) {
   // Start at step 1 if requested, no realms exist, or no current realm - otherwise step 2 
   const initialStep = startAtRealmCreation || realms.length === 0 || !realm ? 1 : 2;
-  console.log('DEBUG: PreGameSetup init - startAtRealmCreation:', startAtRealmCreation, 'realms.length:', realms.length, 'realm:', !!realm, 'initialStep:', initialStep);
   const [step, setStep] = useState(initialStep);
 
   // Realm creation state (step 1)
@@ -226,7 +225,6 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
 
   // ── Step 1: Create Realm ──
   if (step === 1) {
-    console.log('DEBUG: Rendering Step 1 - Create Realm');
     return (
       <div className="pregame-screen">
         <div className="section-title">
@@ -304,7 +302,6 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
 
   // ── Step 2: Meeples ──
   if (step === 2) {
-    console.log('DEBUG: Rendering Step 2 - Meeples, activePlayers:', activePlayers.length, activePlayers);
     return (
       <div className="pregame-screen">
         <div className="section-title">
@@ -377,7 +374,6 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
   }
 
   // ── Step 3: Expansions + Start ──
-  console.log('DEBUG: Rendering Step 3 - Expansions');
   return (
     <div className="pregame-screen">
       <div className="section-title">

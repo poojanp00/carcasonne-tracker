@@ -307,7 +307,6 @@ export default function App() {
               )
             )}
             {tab === 'board' && (
-              console.log('DEBUG: Board tab - session:', !!session, 'realms length:', realms.length, 'loading:', loading) || 
               session
                 ? session.finalScores
                   ? <PostGameForm
@@ -345,8 +344,7 @@ export default function App() {
                         onRealmCreate={handleRealmCreate}
                       />
                 : realms.length === 0
-                  ? (console.log('DEBUG: Rendering PreGameSetup for no realms') || 
-                     <PreGameSetup
+                  ? <PreGameSetup
                       key="no-realms"
                       realm={null}
                       ownedExpansions={ownedExpansions}
@@ -358,8 +356,8 @@ export default function App() {
                       onRealmChange={handleRealmSelect}
                       onRealmCreate={handleRealmCreate}
                       startAtRealmCreation={true}
-                    />)
-                  : (console.log('DEBUG: Rendering fallback UI with realms:', realms.length) ||
+                    />
+                  : (
                     <div>
                       <div className="section-title">
                         <h2>Game Board</h2>
