@@ -16,7 +16,7 @@ const FUN_MEEPLES = Object.entries(FUN_MODULES)
 
 const MAX_GAME_PLAYERS = 6;
 
-export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeples, defaultExpansions, realms = [], currentRealm = null, onRealmChange }) {
+export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeples, defaultExpansions, realms = [], currentRealm = null, onRealmChange, onBack }) {
   const [step, setStep] = useState(2);
 
   const activePlayers = (realm.players || []).slice(0, MAX_GAME_PLAYERS);
@@ -91,6 +91,15 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
         {realmChips}
 
         <div className="tile-card" style={{ marginBottom: '1.4rem' }}>
+          <div style={{ marginBottom: '1rem', textAlign: 'center' }}>
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              onClick={onBack}
+            >
+              ← Back to Realm Selection
+            </button>
+          </div>
           <div className="meeple-picker-grid">
             {activePlayers.map(name => (
               <div key={name} className="meeple-picker-row">

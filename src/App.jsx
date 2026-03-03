@@ -6,6 +6,7 @@ import Collection    from './components/Collection';
 import Board         from './components/Board';
 import RealmPicker   from './components/RealmPicker';
 import PreGameSetup  from './components/PreGameSetup';
+import GameSetup     from './components/GameSetup';
 import Auth          from './components/Auth';
 import { useGameData } from './hooks/useGameData';
 import { useAuth }     from './hooks/useAuth';
@@ -40,6 +41,8 @@ export default function App() {
   const [gameKey,        setGameKey]        = useState(0);
   const [toast,          setToast]          = useState(null);
   const [realmPickerKey, setRealmPickerKey] = useState(0);
+  const [gameSetupMode,  setGameSetupMode]  = useState('initial'); // 'initial' | 'meeples'
+  const [gameSetupMode,  setGameSetupMode]  = useState('initial'); // 'initial' | 'meeples'
 
   const { user, authLoading, signOut } = useAuth();
   const { games, expansions, realms, loading, addGame, deleteGame, toggleExpansion, addRealm, updateRealm, removeRealm } = useGameData(user, authLoading);
@@ -71,13 +74,19 @@ export default function App() {
   const handleRealmCreate = useCallback(async (data) => {
     try {
       const realm = await addRealm(data);
-      setSession({ realm });
+      setSession({
+        realm,
+        lastMeeples: null,
+        lastExpansions: null,
+      });
+      setGameSetupMode('meeples');
       setRealmPickerKey(k => k + 1);
+      showToast(`Realm "${realm.name}" created.`);
     } catch (err) {
       console.error('create realm failed', err);
       showToast(`Failed to create realm: ${err?.message || 'Unknown error'}`);
     }
-  }, [addRealm]);
+  }, [addRealm, showToast]);
 
   // Maps expansion names to the score types they add beyond the base four
   const EXPANSION_TYPES = {
@@ -96,6 +105,7 @@ export default function App() {
   }, []);
 
   const handleBoardReset = useCallback(() => {
+    setGameSetupMode('initial');
     setSession(prev => ({
       realm: prev.realm,
       lastMeeples:    normalizeMeeples(prev.meeples),
@@ -111,6 +121,7 @@ export default function App() {
   const handleRecordGame = useCallback((gameData) => {
     addGame({ ...gameData, realmId: session.realm.id });
     showToast('Game recorded in the logbook.');
+    setGameSetupMode('initial');
     setSession(prev => ({
       realm: prev.realm,
       lastMeeples:    normalizeMeeples(prev.meeples),
@@ -138,8 +149,18 @@ export default function App() {
     setSession(prev => ({ ...prev, realm: { ...prev.realm, ...patch } }));
   }, [session, updateRealm]);
 
+  const handleBackToGameSetup = useCallback(() => {
+    setGameSetupMode('initial');
+    setSession(prev => ({
+      realm: prev.realm,
+      lastMeeples: prev.lastMeeples,
+      lastExpansions: prev.lastExpansions,
+    }));
+  }, []);
+
   const handleTabChange = useCallback((id) => {
     if (id === 'realms') setRealmPickerKey(k => k + 1);
+    if (id === 'board') setGameSetupMode('initial');
     setTab(id);
   }, []);
 
@@ -239,44 +260,29 @@ export default function App() {
                     />
                   : session.players
                     ? <Board key={gameKey} session={session} onFinish={handleFinishGame} onReset={handleBoardReset} />
-                    : <PreGameSetup
-                        key={session.realm.id}
-                        realm={session.realm}
-                        ownedExpansions={ownedExpansions}
-                        onStart={handleGameStart}
-                        defaultMeeples={session.lastMeeples}
-                        defaultExpansions={session.lastExpansions}
-                        realms={realms}
-                        currentRealm={session?.realm || null}
-                        onRealmChange={handleRealmSelect}
-                      />
-                : (
-                  <div>
-                    <div className="section-title">
-                      <h2>Game Board</h2>
-                      <div className="section-title-line" />
-                    </div>
-                    {realms.length > 0 && (
-                      <div style={{ marginBottom: '1.3rem' }}>
-                        <div className="expansion-chips">
-                          {realms.map(r => (
-                            <button
-                              key={r.id}
-                              type="button"
-                              className="expansion-chip"
-                              onClick={() => handleRealmSelect(r)}
-                            >
-                              {r.name}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    <p style={{ fontFamily: 'Crimson Text, serif', fontStyle: 'italic', color: 'var(--stone-gray)', paddingTop: '1rem', textAlign: 'center' }}>
-                      Select a realm to begin playing.
-                    </p>
-                  </div>
-                )
+                    : gameSetupMode === 'meeples'
+                      ? <PreGameSetup
+                          key={session.realm.id}
+                          realm={session.realm}
+                          ownedExpansions={ownedExpansions}
+                          onStart={handleGameStart}
+                          defaultMeeples={session.lastMeeples}
+                          defaultExpansions={session.lastExpansions}
+                          realms={realms}
+                          currentRealm={session?.realm || null}
+                          onRealmChange={handleRealmSelect}
+                          onBack={handleBackToGameSetup}
+                        />
+                      : <GameSetup
+                          realms={realms}
+                          onRealmSelect={handleRealmSelect}
+                          onRealmCreate={handleRealmCreate}
+                        />
+                : <GameSetup
+                    realms={realms}
+                    onRealmSelect={handleRealmSelect}
+                    onRealmCreate={handleRealmCreate}
+                  />
             )}
             {tab === 'history' && <Logbook games={games} realms={realms} currentRealm={session?.realm || null} onRealmChange={handleRealmSelect} onDelete={handleDelete} />}
             {tab === 'statistics' && <Statistics games={games} realms={realms} currentRealm={session?.realm || null} onRealmChange={handleRealmSelect} />}
