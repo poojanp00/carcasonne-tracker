@@ -64,16 +64,7 @@ export default function Auth({ onSuccess }) {
       const { data, error: err } = await supabase.auth.signUp({ email, password: pw });
       setLoading(false);
       if (err) {
-        const errorMsg = err.message.toLowerCase();
-        if (errorMsg.includes('already registered') || 
-            errorMsg.includes('already exists') || 
-            errorMsg.includes('user already') ||
-            errorMsg.includes('email already') ||
-            errorMsg.includes('duplicate')) {
-          setError('An account with this email already exists.');
-        } else {
-          setError(err.message);
-        }
+        setError(err.message);
         return;
       }
       if (data.user && !data.session) {
@@ -111,6 +102,7 @@ export default function Auth({ onSuccess }) {
       return;
     }
 
+    setNotice('Password reset email sent! Check your inbox.');
     setForgotMode(false); // return to normal sign in
   };
 
@@ -131,6 +123,7 @@ export default function Auth({ onSuccess }) {
       return;
     }
 
+    setNotice('Magic link sent! Check your email and click the link to sign in.');
     setForgotMode(false); // return to normal sign in
   };
 
