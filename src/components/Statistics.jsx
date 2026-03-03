@@ -390,8 +390,7 @@ export default function Stats({ games, realms = [], currentRealm = null, onRealm
       {/* Guest mode - show blank state */}
       {isGuest ? (
         <div className="empty-state">
-          <span className="empty-state-icon">🏰</span>
-          Sign in to view statistics and track your game history.
+          Sign in to view statistics and track game history.
         </div>
       ) : (
         <>
@@ -415,8 +414,7 @@ export default function Stats({ games, realms = [], currentRealm = null, onRealm
 
       {!currentRealm ? (
         <div className="empty-state">
-          <span className="empty-state-icon">🏰</span>
-          Select a realm above to view statistics.
+          Select a realm to view statistics.
         </div>
       ) : (
         <div className="stats-grid" style={{ gridTemplateColumns: sorted.length === 4 ? 'repeat(2, 1fr)' : sorted.length >= 3 ? 'repeat(3, 1fr)' : 'repeat(2, 1fr)' }}>

@@ -67,8 +67,7 @@ export default function GameHistory({ games, realms = [], currentRealm = null, o
       {/* Guest mode - show blank state */}
       {isGuest ? (
         <div className="empty-state">
-          <span className="empty-state-icon">📜</span>
-          Sign in to access your game logbook and save your progress.
+          Sign in to access logbook and save your progress.
         </div>
       ) : (
         <>
@@ -92,12 +91,10 @@ export default function GameHistory({ games, realms = [], currentRealm = null, o
 
       {!currentRealm ? (
         <div className="empty-state">
-          <span className="empty-state-icon">📜</span>
-          Select a realm above to view its game history.
+          Select a realm to view its game history.
         </div>
       ) : realmGames.length === 0 ? (
         <div className="empty-state">
-          <span className="empty-state-icon">📜</span>
           No games recorded for this realm yet.
         </div>
       ) : (
