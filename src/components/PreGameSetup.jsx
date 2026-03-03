@@ -51,8 +51,8 @@ const FUN_MEEPLES = Object.entries(FUN_MODULES)
 const MAX_GAME_PLAYERS = 6;
 
 export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeples, defaultExpansions, realms = [], currentRealm = null, onRealmChange, onRealmCreate, startAtRealmCreation = false }) {
-  // Start at step 1 (realm creation) if requested, otherwise step 2 (meeple selection) when realm exists
-  const [step, setStep] = useState(startAtRealmCreation ? 1 : 2);
+  // Start at step 1 if requested, no realms exist, or no current realm - otherwise step 2 
+  const [step, setStep] = useState(startAtRealmCreation || realms.length === 0 || !realm ? 1 : 2);
 
   // Realm creation state (step 1)
   const [realmName, setRealmName] = useState('');
@@ -92,8 +92,12 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
       return;
     }
     setNameError('');
-    await onRealmCreate({ name: realmName.trim(), players: names });
-    setStep(2); // Move to meeple selection
+    if (onRealmCreate) {
+      await onRealmCreate({ name: realmName.trim(), players: names });
+      // Don't automatically navigate to step 2 - let the parent component handle the flow
+    } else {
+      setStep(2); // Move to meeple selection only if handling internally
+    }
   };
 
   /**
@@ -306,8 +310,15 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
 
         {realmChips}
 
-        <div className="tile-card" style={{ marginBottom: '1.4rem' }}>
-          <div className="meeple-picker-grid">
+        {activePlayers.length === 0 ? (
+          <div className="tile-card" style={{ marginBottom: '1.4rem', textAlign: 'center' }}>
+            <p style={{ fontFamily: 'Crimson Text, serif', fontStyle: 'italic', color: 'var(--stone-gray)', margin: 0 }}>
+              Create a realm first to configure players and meeples.
+            </p>
+          </div>
+        ) : (
+          <div className="tile-card" style={{ marginBottom: '1.4rem' }}>
+            <div className="meeple-picker-grid">
             {activePlayers.map(name => (
               <div key={name} className="meeple-picker-row">
                 <div className="meeple-picker-name">{name}</div>
@@ -336,21 +347,26 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
             ))}
           </div>
         </div>
+        )}
 
-        <div style={{ display: 'flex', gap: '0.7rem', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', gap: '0.7rem', flexWrap: 'wrap', alignItems: 'center', justifyContent: activePlayers.length === 0 ? 'center' : 'space-between' }}>
           <button
             type="button"
-            className="btn btn-ghost"
+            className={activePlayers.length === 0 ? "btn" : "btn btn-ghost"}
             onClick={() => setStep(1)}
           >
             Create New Realm
           </button>
-          {meepleError && (
-            <span style={{ fontStyle: 'italic', color: 'var(--red, #DC2626)', fontSize: '0.88rem' }}>
-              {meepleError}
-            </span>
+          {activePlayers.length > 0 && (
+            <>
+              {meepleError && (
+                <span style={{ fontStyle: 'italic', color: 'var(--red, #DC2626)', fontSize: '0.88rem' }}>
+                  {meepleError}
+                </span>
+              )}
+              <button type="button" className="btn" onClick={handleNextStep}>Next: Expansions →</button>
+            </>
           )}
-          <button type="button" className="btn" onClick={handleNextStep}>Next: Expansions →</button>
         </div>
       </div>
     );
