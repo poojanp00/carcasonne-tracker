@@ -109,13 +109,14 @@ export default function App() {
   const handleRealmCreate = useCallback(async (data) => {
     try {
       const realm = await addRealm(data);
-      setSession({ realm });
+      // Update session to continue with meeple selection in the same PreGameSetup component
+      setSession({ realm, showRealmCreation: false });
       setRealmPickerKey(k => k + 1);
     } catch (err) {
       console.error('create realm failed', err);
       showToast(`Failed to create realm: ${err?.message || 'Unknown error'}`);
     }
-  }, [addRealm]);
+  }, [addRealm, showToast]);
 
   // Maps expansion names to the score types they add beyond the base four
   /**
@@ -282,16 +283,28 @@ export default function App() {
           <div className="app-wrapper">
           <div className="section-panel">
             {tab === 'realms' && (
-              <RealmPicker
-                key={realmPickerKey}
-                realms={realms}
-                currentRealm={session?.realm || null}
-                games={realmGames}
-                onSelect={handleRealmSelect}
-                onCreate={handleRealmCreate}
-                onDelete={handleRealmDelete}
-                isAuthed={true}
-              />
+              false ? (
+                <RealmPicker
+                  key={realmPickerKey}
+                  realms={realms}
+                  currentRealm={null}
+                  games={[]}
+                  onSelect={() => {}}
+                  onCreate={handleRealmCreate}
+                  onDelete={handleRealmDelete}
+                  initialMode="create"
+                />
+              ) : (
+                <RealmPicker
+                  key={realmPickerKey}
+                  realms={realms}
+                  currentRealm={session?.realm || null}
+                  games={realmGames}
+                  onSelect={handleRealmSelect}
+
+                  onDelete={handleRealmDelete}
+                />
+              )
             )}
             {tab === 'board' && (
               session
@@ -303,8 +316,22 @@ export default function App() {
                       onCancel={() => setSession(prev => ({ ...prev, finalScores: null }))}
                     />
                   : session.players
-                    ? <Board key={gameKey} session={session} onFinish={handleFinishGame} onReset={handleBoardReset} onCreateRealm={() => setSession(null)} />
-                    : <PreGameSetup
+                    ? <Board key={gameKey} session={session} onFinish={handleFinishGame} onReset={handleBoardReset} onCreateRealm={() => setSession({ showRealmCreation: true })} />
+                    : session?.showRealmCreation
+                      ? <PreGameSetup
+                          key="realm-creation"
+                          realm={null}
+                          ownedExpansions={ownedExpansions}
+                          onStart={handleGameStart}
+                          defaultMeeples={null}
+                          defaultExpansions={null}
+                          realms={realms}
+                          currentRealm={null}
+                          onRealmChange={handleRealmSelect}
+                          onRealmCreate={handleRealmCreate}
+                          startAtRealmCreation={true}
+                        />
+                      : <PreGameSetup
                         key={session.realm.id}
                         realm={session.realm}
                         ownedExpansions={ownedExpansions}
@@ -314,6 +341,7 @@ export default function App() {
                         realms={realms}
                         currentRealm={session?.realm || null}
                         onRealmChange={handleRealmSelect}
+                        onRealmCreate={handleRealmCreate}
                       />
                 : (
                   <div>

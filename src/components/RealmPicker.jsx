@@ -139,78 +139,6 @@ export default function RealmPicker({ realms, currentRealm = null, games = [], o
         </div>
       )}
 
-      {/* Create mode */}
-      {mode === 'create' && (
-        <div className="realm-screen">
-          <form onSubmit={handleCreate}>
-            <div className="tile-card" style={{ marginBottom: '1rem' }}>
-              <div className="form-group" style={{ maxWidth: '360px' }}>
-                <label className="form-label">Realm Name</label>
-                <input
-                  className="form-input"
-                  value={realmName}
-                  onChange={e => setRealmName(e.target.value)}
-                  placeholder="e.g. Mont Shastaire"
-                  required
-                />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Number of Players</label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                  <button
-                    type="button"
-                    className="btn btn-ghost btn-sm"
-                    onClick={() => syncCount(playerCount - 1)}
-                    disabled={playerCount <= 2}
-                    style={{ width: '2.2rem', justifyContent: 'center' }}
-                  >−</button>
-                  <span style={{ fontFamily: 'Cinzel, serif', fontSize: '1.2rem', fontWeight: 600, minWidth: '1.5rem', textAlign: 'center', color: 'var(--earth-brown)' }}>
-                    {playerCount}
-                  </span>
-                  <button
-                    type="button"
-                    className="btn btn-ghost btn-sm"
-                    onClick={() => syncCount(playerCount + 1)}
-                    disabled={playerCount >= 6}
-                    style={{ width: '2.2rem', justifyContent: 'center' }}
-                  >+</button>
-                </div>
-              </div>
-              <div className="form-group" style={{ marginBottom: 0, maxWidth: '360px' }}>
-                <label className="form-label">Player Names</label>
-                <div className="realm-player-inputs">
-                  {playerNames.map((name, i) => (
-                    <input
-                      key={i}
-                      className="form-input"
-                      value={name}
-                      onChange={e => {
-                        const u = [...playerNames];
-                        u[i] = e.target.value;
-                        setPlayerNames(u);
-                        setNameError('');
-                      }}
-                      placeholder={`Player ${i + 1}`}
-                    />
-                  ))}
-                </div>
-              </div>
-            </div>
-            {nameError && (
-              <p style={{ fontSize: '0.88rem', color: 'var(--deep-red)', fontStyle: 'italic', marginBottom: '0.5rem' }}>
-                {nameError}
-              </p>
-            )}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <button type="button" className="btn btn-ghost" onClick={() => setMode(null)}>← Back</button>
-              <button type="submit" className="btn">Create Realm</button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {/* Landing */}
-      {!mode && (
         <div style={{ paddingTop: '0.5rem' }}>
 
           {/* Realm chips */}
@@ -316,7 +244,6 @@ export default function RealmPicker({ realms, currentRealm = null, games = [], o
             </p>
           )}
         </div>
-      )}
     </div>
   );
 }
