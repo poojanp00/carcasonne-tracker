@@ -108,23 +108,23 @@ export default function GameHistory({ games, realms = [], currentRealm = null, o
                 const scores     = game.players.map(p => p.score).sort((a, b) => b - a);
                 const maxScore   = scores[0] ?? 0;
                 const topPlayers = game.players.filter(p => p.score === maxScore);
-                const isTie      = topPlayers.length > 1;
-                const winner     = isTie ? null : topPlayers[0];
-                const margin     = isTie ? 0 : maxScore - (scores[1] ?? 0);
+                const isTie      = false; // No ties - equal scores count as multiple winners
+                const winner     = topPlayers.length === 1 ? topPlayers[0] : null;
+                const margin     = topPlayers.length === 1 ? maxScore - (scores[1] ?? 0) : 0;
                 return (
                   <tr key={game.id} onClick={() => setSelectedGame(game)} style={{ cursor: 'pointer' }}>
                     <td className="cell-date">{formatDate(game.date)}</td>
 
                     <td style={{
                       fontWeight: 600,
-                      color:      isTie ? 'var(--mustard)' : 'var(--forest-green)',
-                      fontStyle:  isTie ? 'italic' : 'normal',
+                      color:      'var(--forest-green)',
+                      fontStyle:  'normal',
                       whiteSpace: 'nowrap',
                     }}>
-                      {isTie ? 'Tie' : winner?.name}
+                      {topPlayers.length > 1 ? topPlayers.map(p => p.name).join(' & ') : winner?.name}
                     </td>
 
-                    <td className="cell-margin">{isTie ? '—' : `+${margin}`}</td>
+                    <td className="cell-margin">{topPlayers.length === 1 ? `+${margin}` : '—'}</td>
 
                     <td>
                       <button

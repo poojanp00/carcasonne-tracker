@@ -252,7 +252,7 @@ export default function Board({ session, onFinish, onReset }) {
     ? 'No scores yet'
     : leaders.length === 1
     ? `${leaders[0]} leads`
-    : `${leaders.join(' & ')} tied`;
+    : `${leaders.join(' & ')} lead`;
   const leadColor = leaders.length === 1 ? getMeepleColor(meepleMap[leaders[0]]) : 'var(--stone-gray)';
 
   // Group players by position for collision offsets

@@ -29,14 +29,14 @@ export default function Lightbox({ game, games = [], onNavigate, onClose }) {
 
   const maxScore   = Math.max(...game.players.map(p => p.score));
   const topPlayers = game.players.filter(p => p.score === maxScore);
-  const isTie      = topPlayers.length > 1;
-  const winnerText = isTie ? 'Tie' : `${topPlayers[0].name} wins`;
+  const isTie      = false; // No ties - equal scores count as wins for all tied players
+  const winnerText = topPlayers.length > 1 ? `${topPlayers.map(p => p.name).join(' & ')} win` : `${topPlayers[0].name} wins`;
 
   const sorted = [...game.players].sort((a, b) => b.score - a.score);
   const TYPE_ORDER = ['road', 'city', 'monastery', 'field'];
-  const margin = !isTie && sorted.length > 1 ? sorted[0].score - sorted[1].score : null;
+  const margin = topPlayers.length === 1 && sorted.length > 1 ? sorted[0].score - sorted[1].score : null;
   const s1 = sorted[0]?.score ?? 0, s2 = sorted[1]?.score ?? 0;
-  const isClutch = !isTie && (s1 + s2) > 0 && (s1 - s2) / (s1 + s2) < 0.10;
+  const isClutch = topPlayers.length === 1 && (s1 + s2) > 0 && (s1 - s2) / (s1 + s2) < 0.10;
 
   const slideClass = animDir === 'down' ? 'lb-slide-down' : animDir === 'up' ? 'lb-slide-up' : '';
 
@@ -56,7 +56,7 @@ export default function Lightbox({ game, games = [], onNavigate, onClose }) {
                 <span className="val-info-tooltip" style={{ right: 'auto', left: '50%', top: 'auto', bottom: 'calc(100% + 6px)', transform: 'translateX(-50%)', whiteSpace: 'nowrap' }}>Clutch win</span>
               </span>
             )}
-            {game.farmWin && !isTie && (
+            {game.farmWin && topPlayers.length === 1 && (
               <span className="val-info-wrap">
                 <img src={pigImg} alt="farm win" style={{ height: 14, width: 'auto', opacity: 0.85 }} />
                 <span className="val-info-tooltip" style={{ right: 'auto', left: '50%', top: 'auto', bottom: 'calc(100% + 6px)', transform: 'translateX(-50%)', whiteSpace: 'nowrap' }}>Farm win</span>

@@ -796,7 +796,6 @@ h3 { font-size: 1.15rem; font-weight: 600; }
 
 .cell-winner { font-weight: 700; color: var(--forest-green); }
 .cell-loser  { color: var(--stone-gray); }
-.cell-tie    { color: var(--mustard); font-style: italic; }
 
 .cell-score {
   font-family: 'Cinzel', serif;

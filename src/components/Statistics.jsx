@@ -31,7 +31,7 @@ function calcBreakdown(games, name) {
  * Key Metrics Calculated:
  * 
  * BASIC STATS:
- * - Win/Loss/Tie record and percentages
+ * - Win/Loss record and percentages
  * - High score achievements and dates
  * - Point differentials and averages
  * 
@@ -55,7 +55,7 @@ function calcStats(games, name) {
   const mine = games.filter(g => g.players.some(p => p.name.toLowerCase() === low));
 
   // Initialize all tracking variables
-  let wins = 0, losses = 0, ties = 0, highScore = 0, highScoreDate = null, farmWins = 0, netPtDiff = 0, totalPoints = 0;
+  let wins = 0, losses = 0, highScore = 0, highScoreDate = null, farmWins = 0, netPtDiff = 0, totalPoints = 0;
   let biggestBlowout = 0, biggestBlowoutDate = null, biggestBlowoutMyScore = 0, biggestBlowoutTheirScore = 0;
   let clutchWins = 0, clutchLosses = 0, clutchGames = 0;
 
@@ -84,7 +84,7 @@ function calcStats(games, name) {
     } else if (my < maxOpp) {
       losses++;
     } else {
-      ties++; // Exact score match with best opponent
+      wins++; // Exact score match with best opponent - now counts as win
     }
 
     // HIGH SCORE TRACKING
@@ -107,9 +107,8 @@ function calcStats(games, name) {
     const total_pts = my + maxOpp;
     if (total_pts > 0 && Math.abs(my - maxOpp) / total_pts < STATISTICS_CONFIG.CLUTCH_THRESHOLD) {
       clutchGames++;
-      if (my > maxOpp)      clutchWins++;
-      else if (my < maxOpp) clutchLosses++;
-      // Ties in clutch games don't count toward clutch win/loss record
+      if (my >= maxOpp)     clutchWins++;  // >= because equal scores count as wins
+      else                  clutchLosses++;
     }
   }
 
@@ -125,7 +124,7 @@ function calcStats(games, name) {
    * Calculates consecutive wins or losses starting from most recent game.
    * Games are stored newest-first, so we iterate from index 0.
    * Streak breaks on first non-matching result (win breaks loss streak, etc.).
-   * Ties break both win and loss streaks.
+   * Equal scores now count as wins and continue win streaks.
    */
   let winStreak = 0, lossStreak = 0;
   for (let i = 0; i < mine.length; i++) {
@@ -137,19 +136,18 @@ function calcStats(games, name) {
 
     // Initialize streak on first game
     if (winStreak === 0 && lossStreak === 0) {
-      if (my2 > mx)       winStreak  = 1;   // Start win streak
-      else if (my2 < mx)  lossStreak = 1;   // Start loss streak  
-      else break;                           // Tie - no streak
+      if (my2 >= mx)      winStreak  = 1;   // Start win streak (>= because equal counts as win)
+      else                lossStreak = 1;   // Start loss streak  
     } 
     // Continue existing win streak
     else if (winStreak > 0) {
-      if (my2 > mx) winStreak++;
-      else break; // Streak broken by loss or tie
+      if (my2 >= mx) winStreak++;           // Continue win streak (>= because equal counts as win)
+      else break;                           // Streak broken by loss
     } 
     // Continue existing loss streak  
     else {
       if (my2 < mx) lossStreak++;
-      else break; // Streak broken by win or tie
+      else break;                           // Streak broken by win (>= maxOpp counts as win)
     }
   }
 
@@ -157,7 +155,7 @@ function calcStats(games, name) {
   // Return comprehensive statistics object
   return {
     // Basic game record
-    wins, losses, ties, winRate, total,
+    wins, losses, winRate, total,
     
     // Scoring achievements  
     highScore, highScoreDate, totalPoints, netPtDiff,
@@ -251,10 +249,7 @@ function PlayerCard({ name, stats, breakdown, colorClass, isLeader, typeLeaders 
         <span className="stat-label">Defeats <StatInfo>Total games lost.</StatInfo></span>
         <span className="stat-value" style={{ color: 'var(--deep-red)' }}>{stats.losses}</span>
       </div>
-      <div className="stat-row">
-        <span className="stat-label">Stalemates <StatInfo>Total games ending in a tie.</StatInfo></span>
-        <span className="stat-value">{stats.ties}</span>
-      </div>
+
       <div className="stat-row">
         <span className="stat-label">Games played <StatInfo>Total games recorded.</StatInfo></span>
         <span className="stat-value">{stats.total}</span>
