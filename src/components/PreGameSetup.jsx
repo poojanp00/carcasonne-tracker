@@ -50,7 +50,7 @@ const FUN_MEEPLES = Object.entries(FUN_MODULES)
 // Carcassonne game supports maximum 6 players with base game + expansions
 const MAX_GAME_PLAYERS = 6;
 
-export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeples, defaultExpansions, realms = [], currentRealm = null, onRealmChange, onRealmCreate, startAtRealmCreation = false }) {
+export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeples, defaultExpansions, realms = [], currentRealm = null, onRealmChange, onRealmCreate, startAtRealmCreation = false, isGuest = false }) {
   // Start at step 1 if requested, no realms exist, or no current realm - otherwise step 2 
   const initialStep = startAtRealmCreation || realms.length === 0 || !realm ? 1 : 2;
   const [step, setStep] = useState(initialStep);
@@ -81,20 +81,34 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
       setNameError(`Realm limit reached. Delete an existing realm to create a new one.`);
       return;
     }
-    const names = playerNames.map(n => n.trim()).filter(Boolean);
-    if (!realmName.trim() || names.length === 0) return;
+    
+    // For guests and users: use defaults for empty player names
+    const names = playerNames.map((name, i) => {
+      const trimmed = name.trim();
+      return trimmed || `Player ${i + 1}`;
+    });
+    
+    // For guests: auto-name realm "Mont Shastaire"
+    // For users: require realm name
+    const finalRealmName = isGuest ? 'Mont Shastaire' : realmName.trim();
+    
+    if (!isGuest && !finalRealmName) return;
+    if (names.length === 0) return;
+    
     const lower = names.map(n => n.toLowerCase());
     if (new Set(lower).size !== lower.length) {
       setNameError('Player names must be unique.');
       return;
     }
-    if (realms.some(r => r.name.toLowerCase() === realmName.trim().toLowerCase())) {
+    
+    if (realms.some(r => r.name.toLowerCase() === finalRealmName.toLowerCase())) {
       setNameError('A realm with this name already exists.');
       return;
     }
+    
     setNameError('');
     if (onRealmCreate) {
-      await onRealmCreate({ name: realmName.trim(), players: names });
+      await onRealmCreate({ name: finalRealmName, players: names });
       // Don't automatically navigate to step 2 - let the parent component handle the flow
     } else {
       setStep(2); // Move to meeple selection only if handling internally
@@ -256,17 +270,19 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
 
         <form onSubmit={handleCreateRealm}>
           <div className="tile-card" style={{ marginBottom: '0.9rem' }}>
-            <div className="form-group" style={{ maxWidth: '360px' }}>
-              <label className="form-label">Realm Name</label>
-              <input
-                className="form-input"
-                value={realmName}
-                onChange={e => setRealmName(e.target.value)}
-                placeholder="e.g. Mont Shastaire"
-                required
-                autoFocus
-              />
-            </div>
+            {!isGuest && (
+              <div className="form-group" style={{ maxWidth: '360px' }}>
+                <label className="form-label">Realm Name</label>
+                <input
+                  className="form-input"
+                  value={realmName}
+                  onChange={e => setRealmName(e.target.value)}
+                  placeholder="e.g. Mont Shastaire"
+                  required
+                  autoFocus
+                />
+              </div>
+            )}
             <div className="form-group">
               <label className="form-label">Number of Players</label>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>

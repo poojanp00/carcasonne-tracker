@@ -327,7 +327,10 @@ export default function App() {
             completeRecovery();
             setIsRecoveryMode(false);
           }} 
-          onGuestMode={enableGuestMode}
+          onGuestMode={() => {
+            enableGuestMode();
+            setTab('board');
+          }}
         />
       )}
 
@@ -359,6 +362,7 @@ export default function App() {
                 onSelect={handleRealmSelect}
                 onCreate={handleRealmCreate}
                 onDelete={handleRealmDelete}
+                isGuest={isGuest}
               />
             )}
             {tab === 'board' && (
@@ -386,6 +390,7 @@ export default function App() {
                           onRealmChange={handleRealmSelect}
                           onRealmCreate={handleRealmCreate}
                           startAtRealmCreation={true}
+                          isGuest={isGuest}
                         />
                       : <PreGameSetup
                         key={session.realm.id}
@@ -398,6 +403,7 @@ export default function App() {
                         currentRealm={session?.realm || null}
                         onRealmChange={handleRealmSelect}
                         onRealmCreate={handleRealmCreate}
+                        isGuest={isGuest}
                       />
                 : appData.realms.length === 0
                   ? <PreGameSetup
@@ -412,6 +418,7 @@ export default function App() {
                       onRealmChange={handleRealmSelect}
                       onRealmCreate={handleRealmCreate}
                       startAtRealmCreation={true}
+                      isGuest={isGuest}
                     />
                   : (
                     <div>
