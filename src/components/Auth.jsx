@@ -213,7 +213,7 @@ export default function Auth({ onSuccess }) {
               onClick={handleSendMagicLink}
               style={{ marginTop: '0.3rem' }}
             >
-              {loading ? 'Please wait...' : 'Send magic link'}
+              {loading ? 'Please wait...' : 'Send one-time link'}
             </button>
           ) : (
             <button

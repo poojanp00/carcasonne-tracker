@@ -1444,3 +1444,41 @@ input[type="file"] { display: none; }
 @media (max-width: 380px) {
   .collection-grid { grid-template-columns: 1fr; }
 }
+
+/* ── Footer ── */
+.site-footer {
+  margin-top: auto;
+  padding: 0.8rem 1.5rem;
+  border-top: 2px solid var(--warm-gold);
+  background: linear-gradient(180deg, transparent 0%, rgba(201,163,74,0.08) 100%);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 1rem;
+  min-height: 50px;
+}
+
+.site-footer::before {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 50px;
+  background-image:
+    repeating-linear-gradient(
+      45deg,
+      transparent,
+      transparent 18px,
+      rgba(201,163,74,0.03) 18px,
+      rgba(201,163,74,0.03) 19px
+    );
+  pointer-events: none;
+}
+
+@media (max-width: 480px) {
+  .site-footer {
+    padding: 0.6rem 0.9rem;
+    min-height: 40px;
+  }
+}

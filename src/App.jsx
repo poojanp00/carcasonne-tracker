@@ -287,6 +287,11 @@ export default function App() {
       )}
 
       {toast && <Toast message={toast} />}
+      
+      {/* Footer */}
+      <footer className="site-footer">
+        {/* Space for future footer content */}
+      </footer>
     </div>
   );
 }
