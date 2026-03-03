@@ -120,6 +120,7 @@ export async function getGames() {
     date:       g.date,          // Game date (YYYY-MM-DD)
     players:    g.players    || [], // Player objects with scores and breakdowns
     expansions: g.expansions || [], // Active expansion names
+    winners:    g.winners    || [], // Precomputed winners from database
     clutchWin:  g.clutch_win || false, // Close game victory flag
     farmWin:    g.farm_win   || false, // Farm-dominant victory flag
   }));
