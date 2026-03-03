@@ -46,36 +46,32 @@ const normalizeMeeples = (meeples) =>
     : meeples;
 
 export default function App() {
-  // CRITICAL: Check and persist recovery mode IMMEDIATELY before Supabase processes the URL
-  const urlParams = new URLSearchParams(window.location.search);
-  const hasRecoveryParams = urlParams.get('type') === 'recovery' || urlParams.has('token');
-  
-  // Also check hash parameters in case Supabase uses those
   const hashParams = new URLSearchParams(window.location.hash.substring(1));
-  const hasHashRecovery = hashParams.get('type') === 'recovery' || hashParams.has('token') || hashParams.has('access_token');
-  
-  // Store recovery mode in sessionStorage to persist across Supabase redirects
-  if (hasRecoveryParams || hasHashRecovery) {
-    sessionStorage.setItem('isRecoveryMode', 'true');
-    console.log('Recovery mode detected and stored');
-  }
-  
-  // Recovery mode persists until explicitly cleared
-  const isRecoveryMode = sessionStorage.getItem('isRecoveryMode') === 'true';
-  
-  // Debug logging
-  console.log('🔍 Full URL:', window.location.href);
-  console.log('🔍 Search params:', Object.fromEntries(urlParams.entries()));
-  console.log('🔍 Hash params:', Object.fromEntries(hashParams.entries()));
-  console.log('🔍 Has recovery params (search):', hasRecoveryParams);
-  console.log('🔍 Has recovery params (hash):', hasHashRecovery);
-  console.log('🔍 Is recovery mode (from storage):', isRecoveryMode);
-
   const [session,        setSession]        = useState(null);
   const [tab,            setTab]            = useState('realms');
   const [gameKey,        setGameKey]        = useState(0);
   const [toast,          setToast]          = useState(null);
   const [realmPickerKey, setRealmPickerKey] = useState(0);
+
+  // Check for recovery mode once on mount
+  const [isRecoveryMode, setIsRecoveryMode] = useState(() => {
+    return sessionStorage.getItem('isRecoveryMode') === 'true';
+  });
+
+  // One-time URL check for recovery parameters on mount only
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const hashParams = new URLSearchParams(window.location.hash.substring(1));
+    
+    const hasRecoveryParams = urlParams.get('type') === 'recovery' || urlParams.has('token');
+    const hasHashRecovery = hashParams.get('type') === 'recovery' || hashParams.has('token') || hashParams.has('access_token');
+    
+    if (hasRecoveryParams || hasHashRecovery) {
+      sessionStorage.setItem('isRecoveryMode', 'true');
+      setIsRecoveryMode(true);
+      console.log('Recovery mode detected and stored');
+    }
+  }, []); // Only run once on mount
 
   const { user, authLoading, signOut, completeRecovery } = useAuth();
   const { games, expansions, realms, loading, addGame, deleteGame, toggleExpansion, addRealm, updateRealm, removeRealm } = useGameData(user, authLoading);
@@ -263,6 +259,7 @@ export default function App() {
         <Auth onSuccess={() => {
           // Clear recovery mode and update user state
           completeRecovery();
+          setIsRecoveryMode(false);
         }} />
       )}
 

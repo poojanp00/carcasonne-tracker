@@ -20,8 +20,6 @@ export function useAuth() {
 
     // Keep in sync with sign in / sign out / token refresh
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log('useAuth - Auth event:', event, 'Recovery mode:', isRecoveryMode);
-      
       // Don't set user during recovery mode
       const currentRecoveryMode = sessionStorage.getItem('isRecoveryMode') === 'true';
       if (!currentRecoveryMode) {
