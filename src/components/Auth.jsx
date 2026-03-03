@@ -173,6 +173,27 @@ export default function Auth({ onSuccess }) {
     }
   };
 
+  const handleResetPassword = async () => {
+    setError(null);
+
+    if (!email.trim()) {
+      setError('Enter your email first.');
+      return;
+    }
+
+    setLoading(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(email);
+    setLoading(false);
+
+    if (error) {
+      setError(error.message);
+      return;
+    }
+
+    setNotice('Password reset link sent to your email!');
+    setForgotMode(false); // return to normal sign in
+  };
+
   const handleSendMagicLink = async () => {
     setError(null);
 
@@ -327,15 +348,24 @@ export default function Auth({ onSuccess }) {
             {notice && <p style={{ color: 'var(--stone-gray)', fontStyle: 'italic', fontSize: '0.88rem', margin: 0 }}>{notice}</p>}
 
             {mode === 'signin' && forgotMode ? (
-              <button
-                type="button"
-                className="btn"
-                disabled={loading}
-                onClick={handleSendMagicLink}
-                style={{ marginTop: '0.3rem' }}
-              >
-                {loading ? 'Please wait...' : 'Send one-time link'}
-              </button>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', marginTop: '0.3rem' }}>
+                <button
+                  type="button"
+                  className="btn"
+                  disabled={loading}
+                  onClick={handleSendMagicLink}
+                >
+                  {loading ? 'Please wait...' : 'Send one-time link'}
+                </button>
+                <button
+                  type="button"
+                  className="btn"
+                  disabled={loading}
+                  onClick={handleResetPassword}
+                >
+                  {loading ? 'Please wait...' : 'Send password reset'}
+                </button>
+              </div>
             ) : (
               <button
                 type="submit"
