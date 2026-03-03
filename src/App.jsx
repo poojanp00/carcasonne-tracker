@@ -69,9 +69,14 @@ export default function App() {
   }, []);
 
   const handleRealmCreate = useCallback(async (data) => {
-    const realm = await addRealm(data);
-    setSession({ realm });
-    setRealmPickerKey(k => k + 1);
+    try {
+      const realm = await addRealm(data);
+      setSession({ realm });
+      setRealmPickerKey(k => k + 1);
+    } catch (err) {
+      console.error('create realm failed', err);
+      showToast(`Failed to create realm: ${err?.message || 'Unknown error'}`);
+    }
   }, [addRealm]);
 
   // Maps expansion names to the score types they add beyond the base four

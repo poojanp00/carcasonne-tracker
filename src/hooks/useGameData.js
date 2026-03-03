@@ -4,10 +4,11 @@ import {
   getExpansions, upsertExpansion,
   getRealms, saveRealm, deleteRealm,
   generateId, generateRealmId,
-  migrateFromLocalStorage, seedDefaultRealm,
+  migrateFromLocalStorage,
 } from '../data/storage';
 
 export function useGameData(user, authLoading) {
+  const MAX_REALMS = 12;
   const [games,      setGames]      = useState([]);
   const [expansions, setExpansions] = useState([]);
   const [realms,     setRealms]     = useState([]);
@@ -18,8 +19,7 @@ export function useGameData(user, authLoading) {
 
     async function init() {
       setLoading(true);
-      if (user) await migrateFromLocalStorage(user.id);
-      if (user) await seedDefaultRealm(user.id);
+  if (user) await migrateFromLocalStorage(user.id);
       const [g, e, r] = await Promise.all([getGames(), getExpansions(user?.id), getRealms(user?.id)]);
       setGames(g);
       setExpansions(e);
@@ -52,6 +52,14 @@ export function useGameData(user, authLoading) {
   }, [user]);
 
   const addRealm = useCallback(async (data) => {
+    if (!user?.id) {
+      // Prevent creating realms before authentication completes — otherwise
+      // realms are saved with a null user_id and disappear after refresh.
+      throw new Error('Cannot create realm: user is not authenticated');
+    }
+    if (realms.length >= MAX_REALMS) {
+      throw new Error(`Realm limit reached (${MAX_REALMS})`);
+    }
     const realm = {
       ...data,
       id:        generateRealmId(),
@@ -60,7 +68,7 @@ export function useGameData(user, authLoading) {
     await saveRealm(realm, user?.id);
     setRealms(prev => [...prev, realm]);
     return realm;
-  }, [user]);
+  }, [user, realms]);
 
   const updateRealm = useCallback((id, patch) => {
     setRealms(prev => {
