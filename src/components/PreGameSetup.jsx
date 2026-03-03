@@ -337,7 +337,14 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: '0.7rem', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'flex-end' }}>
+        <div style={{ display: 'flex', gap: '0.7rem', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={() => setStep(1)}
+          >
+            Create New Realm
+          </button>
           {meepleError && (
             <span style={{ fontStyle: 'italic', color: 'var(--red, #DC2626)', fontSize: '0.88rem' }}>
               {meepleError}
