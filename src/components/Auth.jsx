@@ -64,7 +64,12 @@ export default function Auth({ onSuccess }) {
       const { data, error: err } = await supabase.auth.signUp({ email, password: pw });
       setLoading(false);
       if (err) {
-        if (err.message.toLowerCase().includes('already registered')) {
+        const errorMsg = err.message.toLowerCase();
+        if (errorMsg.includes('already registered') || 
+            errorMsg.includes('already exists') || 
+            errorMsg.includes('user already') ||
+            errorMsg.includes('email already') ||
+            errorMsg.includes('duplicate')) {
           setError('An account with this email already exists.');
           switchMode('signin');
         } else {
