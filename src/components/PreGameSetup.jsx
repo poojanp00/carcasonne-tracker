@@ -292,7 +292,10 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
               {nameError}
             </p>
           )}
-          <div style={{ display: 'flex', gap: '0.7rem', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'flex-end' }}>
+          <div style={{ display: 'flex', gap: '0.7rem', flexWrap: 'wrap', alignItems: 'center', justifyContent: realms.length > 0 ? 'space-between' : 'flex-end' }}>
+            {realms.length > 0 && (
+              <button type="button" className="btn btn-ghost" onClick={() => setStep(2)}>← Back</button>
+            )}
             <button type="submit" className="btn">Next: Choose Meeples →</button>
           </div>
         </form>
