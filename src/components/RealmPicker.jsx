@@ -55,7 +55,7 @@ const TrashIcon = () => (
   </svg>
 );
 
-export default function RealmPicker({ realms, currentRealm = null, games = [], onSelect, onCreate, onDelete, initialMode = null }) {
+export default function RealmPicker({ realms, currentRealm = null, games = [], onSelect, onCreate, onDelete, initialMode = null, isGuest = false }) {
   const [mode,             setMode]             = useState(initialMode);
   const [realmName,        setRealmName]        = useState('');
   const [playerCount,      setPlayerCount]      = useState(2);
@@ -81,19 +81,33 @@ export default function RealmPicker({ realms, currentRealm = null, games = [], o
       setNameError(`Realm limit reached. Delete an existing realm to create a new one.`);
       return;
     }
-    const names = playerNames.map(n => n.trim()).filter(Boolean);
-    if (!realmName.trim() || names.length === 0) return;
+    
+    // For guests and users: use defaults for empty player names
+    const names = playerNames.map((name, i) => {
+      const trimmed = name.trim();
+      return trimmed || `Player ${i + 1}`;
+    });
+    
+    // For guests: auto-name realm "Mont Shastaire"
+    // For users: require realm name
+    const finalRealmName = isGuest ? 'Mont Shastaire' : realmName.trim();
+    
+    if (!isGuest && !finalRealmName) return;
+    if (names.length === 0) return;
+    
     const lower = names.map(n => n.toLowerCase());
     if (new Set(lower).size !== lower.length) {
       setNameError('Player names must be unique.');
       return;
     }
-    if (realms.some(r => r.name.toLowerCase() === realmName.trim().toLowerCase())) {
+    
+    if (realms.some(r => r.name.toLowerCase() === finalRealmName.toLowerCase())) {
       setNameError('A realm with this name already exists.');
       return;
     }
+    
     setNameError('');
-  onCreate({ name: realmName.trim(), players: names });
+    onCreate({ name: finalRealmName, players: names });
     setRealmName('');
     setPlayerNames(['', '']);
     setPlayerCount(2);
