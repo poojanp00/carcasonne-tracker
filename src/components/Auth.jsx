@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '../data/supabase';
 
 const EyeOpen = () => (
@@ -41,12 +41,76 @@ export default function Auth({ onSuccess }) {
   const [notice,  setNotice]  = useState(null);
   const [loading, setLoading] = useState(false);
   const [forgotMode, setForgotMode] = useState(false);
+  
+  // Password recovery states
+  const [recoveryMode, setRecoveryMode] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [showNewPw, setShowNewPw] = useState(false);
+
+  // Listen for auth state changes and URL parameters
+  useEffect(() => {
+    // Check URL for recovery parameter
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('type') === 'recovery') {
+      setRecoveryMode(true);
+      setError(null);
+      setNotice('Enter your new password below.');
+    }
+
+    // Listen for auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        setRecoveryMode(true);
+        setError(null);
+        setNotice('Enter your new password below.');
+      }
+    });
+
+    // Cleanup subscription
+    return () => subscription?.unsubscribe();
+  }, []);
 
   const switchMode = (m) => {
     setMode(m);setForgotMode(false);
     setError(null); setNotice(null);
     setPw(''); setConfirm('');
     setShowPw(false); setShowCf(false);
+  };
+
+  const handlePasswordReset = async (e) => {
+    e.preventDefault();
+    setError(null); setNotice(null);
+
+    if (newPassword !== confirmNewPassword) {
+      setError('Passwords do not match.');
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      setError('Password must be at least 6 characters long.');
+      return;
+    }
+
+    setLoading(true);
+
+    const { error } = await supabase.auth.updateUser({ 
+      password: newPassword 
+    });
+
+    setLoading(false);
+
+    if (error) {
+      setError(error.message);
+      return;
+    }
+
+    setNotice('Password updated successfully! You are now signed in.');
+    // Clear recovery mode and redirect 
+    setRecoveryMode(false);
+    // Clear URL parameters
+    window.history.replaceState({}, document.title, window.location.pathname);
+    onSuccess?.();
   };
 
   const handleSubmit = async (e) => {
@@ -116,110 +180,167 @@ export default function Auth({ onSuccess }) {
   return (
     <div className="app-wrapper" style={{ paddingTop: '2.5rem', paddingBottom: '4rem' }}>
       <div className="section-title">
-        <h2>{mode === 'signin' ? 'Sign In' : 'Create Account'}</h2>
+        <h2>{recoveryMode ? 'Reset Password' : mode === 'signin' ? 'Sign In' : 'Create Account'}</h2>
         <div className="section-title-line" />
       </div>
 
       <div className="tile-card" style={{ maxWidth: '360px', margin: '0 auto' }}>
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
-
-          {/* Name was intentionally removed: we no longer collect full name on signup */}
-
-          {/* Email */}
-          <div>
-            <label className="form-label" htmlFor="auth-email">Email</label>
-            <input
-              id="auth-email"
-              className="form-input"
-              type="email"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              required
-              autoComplete="email"
-              autoFocus={mode === 'signin'}
-            />
-          </div>
-
-          {/* Password */}
-          <div>
-            <label className="form-label" htmlFor="auth-pw">Password</label>
-            <div style={{ position: 'relative' }}>
-              <input
-                id="auth-pw"
-                className="form-input"
-                type={showPw ? 'text' : 'password'}
-                value={pw}
-                onChange={e => setPw(e.target.value)}
-                required
-                autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
-                minLength={6}
-                style={{ paddingRight: '2.4rem' }}
-              />
-              <EyeBtn show={showPw} onToggle={() => setShowPw(v => !v)} />
-            </div>
-          </div>
-
-          {/* Forgot password link moved to footer row */}
-
-          {/* Confirm (signup only) */}
-          {mode === 'signup' && (
+        {recoveryMode ? (
+          // Password Recovery Form
+          <form onSubmit={handlePasswordReset} style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
+            {/* New Password */}
             <div>
-              <label className="form-label" htmlFor="auth-confirm">Confirm Password</label>
+              <label className="form-label" htmlFor="new-password">New Password</label>
               <div style={{ position: 'relative' }}>
                 <input
-                  id="auth-confirm"
+                  id="new-password"
                   className="form-input"
-                  type={showCf ? 'text' : 'password'}
-                  value={confirm}
-                  onChange={e => setConfirm(e.target.value)}
+                  type={showNewPw ? 'text' : 'password'}
+                  value={newPassword}
+                  onChange={e => setNewPassword(e.target.value)}
                   required
                   autoComplete="new-password"
                   minLength={6}
                   style={{ paddingRight: '2.4rem' }}
+                  autoFocus
                 />
-                <EyeBtn show={showCf} onToggle={() => setShowCf(v => !v)} />
+                <EyeBtn show={showNewPw} onToggle={() => setShowNewPw(v => !v)} />
               </div>
             </div>
-          )}
 
-          {error  && <p style={{ color: '#DC2626', fontStyle: 'italic', fontSize: '0.88rem', margin: 0 }}>{error}</p>}
-          {notice && <p style={{ color: 'var(--stone-gray)', fontStyle: 'italic', fontSize: '0.88rem', margin: 0 }}>{notice}</p>}
+            {/* Confirm New Password */}
+            <div>
+              <label className="form-label" htmlFor="confirm-new-password">Confirm New Password</label>
+              <div style={{ position: 'relative' }}>
+                <input
+                  id="confirm-new-password"
+                  className="form-input"
+                  type={showNewPw ? 'text' : 'password'}
+                  value={confirmNewPassword}
+                  onChange={e => setConfirmNewPassword(e.target.value)}
+                  required
+                  autoComplete="new-password"
+                  minLength={6}
+                />
+              </div>
+            </div>
 
-          {mode === 'signin' && forgotMode ? (
-            <button
-              type="button"
-              className="btn"
-              disabled={loading}
-              onClick={handleSendMagicLink}
-              style={{ marginTop: '0.3rem' }}
-            >
-              {loading ? 'Please wait...' : 'Send one-time link'}
-            </button>
-          ) : (
+            {error && <p style={{ color: '#DC2626', fontStyle: 'italic', fontSize: '0.88rem', margin: 0 }}>{error}</p>}
+            {notice && <p style={{ color: 'var(--stone-gray)', fontStyle: 'italic', fontSize: '0.88rem', margin: 0 }}>{notice}</p>}
+
             <button
               type="submit"
               className="btn"
               disabled={loading}
               style={{ marginTop: '0.3rem' }}
             >
-              {loading ? 'Please wait...' : mode === 'signin' ? 'Sign In' : 'Create Account'}
+              {loading ? 'Please wait...' : 'Update Password'}
             </button>
-          )}
-        </form>
+          </form>
+        ) : (
+          // Regular Login/Signup Form
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
 
-        <div style={{ marginTop: '1.1rem', fontSize: '0.88rem', color: 'var(--stone-gray)', fontFamily: 'Crimson Text, serif', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            {mode === 'signin' ? (
-              <>No account?{' '}<button type="button" style={linkStyle} onClick={() => switchMode('signup')}>Create one</button></>
-            ) : (
-              <>Already have an account?{' '}<button type="button" style={linkStyle} onClick={() => switchMode('signin')}>Sign in</button></>
+            {/* Name was intentionally removed: we no longer collect full name on signup */}
+
+            {/* Email */}
+            <div>
+              <label className="form-label" htmlFor="auth-email">Email</label>
+              <input
+                id="auth-email"
+                className="form-input"
+                type="email"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                required
+                autoComplete="email"
+                autoFocus={mode === 'signin'}
+              />
+            </div>
+
+            {/* Password */}
+            <div>
+              <label className="form-label" htmlFor="auth-pw">Password</label>
+              <div style={{ position: 'relative' }}>
+                <input
+                  id="auth-pw"
+                  className="form-input"
+                  type={showPw ? 'text' : 'password'}
+                  value={pw}
+                  onChange={e => setPw(e.target.value)}
+                  required
+                  autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+                  minLength={6}
+                  style={{ paddingRight: '2.4rem' }}
+                />
+                <EyeBtn show={showPw} onToggle={() => setShowPw(v => !v)} />
+              </div>
+            </div>
+
+            {/* Forgot password link moved to footer row */}
+
+            {/* Confirm (signup only) */}
+            {mode === 'signup' && (
+              <div>
+                <label className="form-label" htmlFor="auth-confirm">Confirm Password</label>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    id="auth-confirm"
+                    className="form-input"
+                    type={showCf ? 'text' : 'password'}
+                    value={confirm}
+                    onChange={e => setConfirm(e.target.value)}
+                    required
+                    autoComplete="new-password"
+                    minLength={6}
+                    style={{ paddingRight: '2.4rem' }}
+                  />
+                  <EyeBtn show={showCf} onToggle={() => setShowCf(v => !v)} />
+                </div>
+              </div>
             )}
+
+            {error  && <p style={{ color: '#DC2626', fontStyle: 'italic', fontSize: '0.88rem', margin: 0 }}>{error}</p>}
+            {notice && <p style={{ color: 'var(--stone-gray)', fontStyle: 'italic', fontSize: '0.88rem', margin: 0 }}>{notice}</p>}
+
+            {mode === 'signin' && forgotMode ? (
+              <button
+                type="button"
+                className="btn"
+                disabled={loading}
+                onClick={handleSendMagicLink}
+                style={{ marginTop: '0.3rem' }}
+              >
+                {loading ? 'Please wait...' : 'Send one-time link'}
+              </button>
+            ) : (
+              <button
+                type="submit"
+                className="btn"
+                disabled={loading}
+                style={{ marginTop: '0.3rem' }}
+              >
+                {loading ? 'Please wait...' : mode === 'signin' ? 'Sign In' : 'Create Account'}
+              </button>
+            )}
+          </form>
+        )}
+
+        {!recoveryMode && (
+          <div style={{ marginTop: '1.1rem', fontSize: '0.88rem', color: 'var(--stone-gray)', fontFamily: 'Crimson Text, serif', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              {mode === 'signin' ? (
+                <>No account?{' '}<button type="button" style={linkStyle} onClick={() => switchMode('signup')}>Create one</button></>
+              ) : (
+                <>Already have an account?{' '}<button type="button" style={linkStyle} onClick={() => switchMode('signin')}>Sign in</button></>
+              )}
+            </div>
+            <div>
+              {mode === 'signin' && (
+                <button type="button" style={linkStyle} onClick={() => { setForgotMode(true); setError(null); }} disabled={loading} > Forgot password? </button>)}
+            </div>
           </div>
-          <div>
-            {mode === 'signin' && (
-              <button type="button" style={linkStyle} onClick={() => { setForgotMode(true); setError(null); }} disabled={loading} > Forgot password? </button>)}
-          </div>
-        </div>
+        )}
       </div>
     </div>
   );
