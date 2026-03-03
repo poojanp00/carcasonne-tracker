@@ -50,12 +50,51 @@ const FUN_MEEPLES = Object.entries(FUN_MODULES)
 // Carcassonne game supports maximum 6 players with base game + expansions
 const MAX_GAME_PLAYERS = 6;
 
-export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeples, defaultExpansions, realms = [], currentRealm = null, onRealmChange }) {
-  // Start at step 2 (meeple selection) - step 1 is realm selection handled elsewhere
-  const [step, setStep] = useState(2);
+export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeples, defaultExpansions, realms = [], currentRealm = null, onRealmChange, onRealmCreate, startAtRealmCreation = false }) {
+  // Start at step 1 (realm creation) if requested, otherwise step 2 (meeple selection) when realm exists
+  const [step, setStep] = useState(startAtRealmCreation ? 1 : 2);
+
+  // Realm creation state (step 1)
+  const [realmName, setRealmName] = useState('');
+  const [playerCount, setPlayerCount] = useState(2);
+  const [playerNames, setPlayerNames] = useState(['', '']);
+  const [nameError, setNameError] = useState('');
+  const MAX_REALMS = 12;
 
   // Limit active players to game maximum and ensure they exist
-  const activePlayers = (realm.players || []).slice(0, MAX_GAME_PLAYERS);
+  const activePlayers = (realm?.players || playerNames.filter(n => n.trim())).slice(0, MAX_GAME_PLAYERS);
+
+  const syncCount = (n) => {
+    const clamped = Math.max(2, Math.min(6, n));
+    setPlayerCount(clamped);
+    setPlayerNames(prev => {
+      const updated = [...prev];
+      while (updated.length < clamped) updated.push('');
+      return updated.slice(0, clamped);
+    });
+  };
+
+  const handleCreateRealm = async (e) => {
+    e.preventDefault();
+    if (realms.length >= MAX_REALMS) {
+      setNameError(`Realm limit reached. Delete an existing realm to create a new one.`);
+      return;
+    }
+    const names = playerNames.map(n => n.trim()).filter(Boolean);
+    if (!realmName.trim() || names.length === 0) return;
+    const lower = names.map(n => n.toLowerCase());
+    if (new Set(lower).size !== lower.length) {
+      setNameError('Player names must be unique.');
+      return;
+    }
+    if (realms.some(r => r.name.toLowerCase() === realmName.trim().toLowerCase())) {
+      setNameError('A realm with this name already exists.');
+      return;
+    }
+    setNameError('');
+    await onRealmCreate({ name: realmName.trim(), players: names });
+    setStep(2); // Move to meeple selection
+  };
 
   /**
    * MEEPLE ASSIGNMENT STATE
@@ -178,6 +217,83 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
       </div>
     </div>
   );
+
+  // ── Step 1: Create Realm ──
+  if (step === 1) {
+    return (
+      <div className="pregame-screen">
+        <div className="section-title">
+          <h2>Create New Realm</h2>
+          <div className="section-title-line" />
+        </div>
+
+        <form onSubmit={handleCreateRealm}>
+          <div className="tile-card" style={{ marginBottom: '0.9rem' }}>
+            <div className="form-group" style={{ maxWidth: '360px' }}>
+              <label className="form-label">Realm Name</label>
+              <input
+                className="form-input"
+                value={realmName}
+                onChange={e => setRealmName(e.target.value)}
+                placeholder="e.g. Mont Shastaire"
+                required
+                autoFocus
+              />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Number of Players</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => syncCount(playerCount - 1)}
+                  disabled={playerCount <= 2}
+                  style={{ width: '2.2rem', justifyContent: 'center' }}
+                >−</button>
+                <span style={{ fontFamily: 'Cinzel, serif', fontSize: '1.2rem', fontWeight: 600, minWidth: '1.5rem', textAlign: 'center', color: 'var(--earth-brown)' }}>
+                  {playerCount}
+                </span>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => syncCount(playerCount + 1)}
+                  disabled={playerCount >= 6}
+                  style={{ width: '2.2rem', justifyContent: 'center' }}
+                >+</button>
+              </div>
+            </div>
+            <div className="form-group" style={{ marginBottom: 0, maxWidth: '360px' }}>
+              <label className="form-label">Player Names</label>
+              <div className="realm-player-inputs">
+                {playerNames.map((name, i) => (
+                  <input
+                    key={i}
+                    className="form-input"
+                    value={name}
+                    onChange={e => {
+                      const u = [...playerNames];
+                      u[i] = e.target.value;
+                      setPlayerNames(u);
+                      setNameError('');
+                    }}
+                    placeholder={`Player ${i + 1}`}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+          {nameError && (
+            <p style={{ fontSize: '0.88rem', color: 'var(--deep-red)', fontStyle: 'italic', marginBottom: '0.5rem' }}>
+              {nameError}
+            </p>
+          )}
+          <div style={{ display: 'flex', gap: '0.7rem', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'flex-end' }}>
+            <button type="submit" className="btn">Next: Choose Meeples →</button>
+          </div>
+        </form>
+      </div>
+    );
+  }
 
   // ── Step 2: Meeples ──
   if (step === 2) {
