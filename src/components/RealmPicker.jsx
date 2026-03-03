@@ -28,23 +28,19 @@ function calcRealmStats(games) {
   return { totalPoints, farmWins, clutchGames, typePoints };
 }
 
-// Cakcykate win-loss records for each player (no ties)
+// Calculate win-loss records for each player (no ties)
 // {p1: {w: 5, l: 2}, p2: {w: 3, l: 4}}
 function calcPlayerRecords(games, players) {
   const records = Object.fromEntries(players.map(p => [p.toLowerCase(), { w: 0, l: 0 }]));
   for (const g of games) {
-    // get max score of game 
-    const maxScore = Math.max(...g.players.map(p => p.score));
-    
     for (const p of g.players) {
       const key = p.name.toLowerCase();
       if (!records[key]) continue;
       
-      // WIN RULE: Player with max total points wins (no ties)
-      // If you scored the maximum = win
-      // Everyone else = loss
-      if (p.score === maxScore) records[key].w++;
-      else                      records[key].l++;
+      // WIN RULE: Use precomputed winners from database
+      const isWinner = g.winners?.includes(p.name) || false;
+      if (isWinner) records[key].w++;
+      else          records[key].l++;
     }
   }
   return records;

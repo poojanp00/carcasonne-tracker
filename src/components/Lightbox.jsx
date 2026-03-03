@@ -27,10 +27,8 @@ export default function Lightbox({ game, games = [], onNavigate, onClose }) {
     return () => document.removeEventListener('keydown', onKey);
   }, [onClose, onNavigate, idx, games]);
 
-  const maxScore   = Math.max(...game.players.map(p => p.score));
-  const topPlayers = game.players.filter(p => p.score === maxScore);
-  const isTie      = false; // No ties - equal scores count as wins for all tied players
-  const winnerText = topPlayers.length > 1 ? `${topPlayers.map(p => p.name).join(' & ')} win` : `${topPlayers[0].name} wins`;
+  const topPlayers = game.winners || [];  // Use precomputed winners from database
+  const winnerText = topPlayers.length > 1 ? `${topPlayers.join(' & ')} win` : `${topPlayers[0]} wins`;
 
   const sorted = [...game.players].sort((a, b) => b.score - a.score);
   const TYPE_ORDER = ['road', 'city', 'monastery', 'field'];
