@@ -83,7 +83,7 @@ const STACK_OFFSETS = [
   { x: 0,  y: -5 }, // Player 6: more upward
 ];
 
-export default function Board({ session, onFinish, onReset, onCreateRealm }) {
+export default function Board({ session, onFinish, onReset }) {
   const players   = session?.players  || [];
   const meepleMap = session?.meeples  || {};
 
@@ -395,18 +395,6 @@ export default function Board({ session, onFinish, onReset, onCreateRealm }) {
               }}
             >
               {finishStep === 1 ? 'Finish Game' : 'Final Scoring'}
-            </button>
-          </div>
-          
-          {/* Create New Realm Button */}
-          <div style={{ marginTop: '0.9rem', paddingTop: '0.9rem', borderTop: '1px solid var(--warm-gold)' }}>
-            <button
-              type="button"
-              className="btn btn-ghost"
-              style={{ width: '100%', justifyContent: 'center' }}
-              onClick={onCreateRealm}
-            >
-              Create New Realm
             </button>
           </div>
         </div>
