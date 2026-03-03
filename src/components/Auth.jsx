@@ -30,7 +30,7 @@ const EyeBtn = ({ show, onToggle }) => (
   </button>
 );
 
-export default function Auth({ onSuccess }) {
+export default function Auth({ onSuccess, onGuestMode }) {
   const [mode,    setMode]    = useState('signin');  // 'signin' | 'signup'
   const [email,   setEmail]   = useState('');
   const [pw,      setPw]      = useState('');
@@ -369,14 +369,50 @@ export default function Auth({ onSuccess }) {
                 </button>
               </div>
             ) : (
-              <button
-                type="submit"
-                className="btn"
-                disabled={loading}
-                style={{ marginTop: '0.3rem' }}
-              >
-                {loading ? 'Please wait...' : mode === 'signin' ? 'Sign In' : 'Create Account'}
-              </button>
+              <>
+                <button
+                  type="submit"
+                  className="btn"
+                  disabled={loading}
+                  style={{ marginTop: '0.3rem' }}
+                >
+                  {loading ? 'Please wait...' : mode === 'signin' ? 'Sign In' : 'Create Account'}
+                </button>
+                
+                {/* Continue as Guest button - only show on signin mode */}
+                {mode === 'signin' && !forgotMode && (
+                  <button
+                    type="button"
+                    onClick={() => onGuestMode?.()}
+                    disabled={loading || magicLinkLoading || resetPasswordLoading}
+                    style={{ 
+                      marginTop: '0.5rem', 
+                      backgroundColor: 'transparent', 
+                      border: '1px solid var(--warm-gold)', 
+                      color: 'var(--charcoal)',
+                      fontFamily: 'Cinzel, serif',
+                      fontWeight: '600',
+                      letterSpacing: '0.05em',
+                      fontSize: '0.95rem',
+                      padding: '0.7rem 1.4rem',
+                      borderRadius: 'var(--radius-sm)',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                      width: '100%'
+                    }}
+                    onMouseOver={(e) => {
+                      e.target.style.backgroundColor = 'var(--warm-gold)';
+                      e.target.style.color = 'white';
+                    }}
+                    onMouseOut={(e) => {
+                      e.target.style.backgroundColor = 'transparent';
+                      e.target.style.color = 'var(--charcoal)';
+                    }}
+                  >
+                    Continue as Guest
+                  </button>
+                )}
+              </>
             )}
           </form>
         )}
