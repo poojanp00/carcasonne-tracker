@@ -30,7 +30,7 @@ function getMeepleColor(filename) {
 
 const today = () => new Date().toISOString().split('T')[0];
 
-export default function GameLogForm({ session, ownedExpansions, onSubmit, onCancel, isGuest = false }) {
+export default function GameLogForm({ session, ownedExpansions, onSubmit, onCancel }) {
   const { players = [], meeples = {}, expansions: prefillExp = [], finalScores = {}, scoreBreakdown = {}, farmWin: autoFarmWin = false } = session || {};
 
   const [date, setDate] = useState(today);
@@ -133,7 +133,7 @@ export default function GameLogForm({ session, ownedExpansions, onSubmit, onCanc
         {onCancel && (
           <button type="button" className="btn btn-ghost" onClick={onCancel}>← Back</button>
         )}
-        <button type="submit" className="btn">{isGuest ? 'Sign In to Save Game' : 'Record in Logbook'}</button>
+        <button type="submit" className="btn">Record in Logbook</button>
       </div>
     </form>
   );

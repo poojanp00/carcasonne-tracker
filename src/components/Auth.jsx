@@ -30,7 +30,7 @@ const EyeBtn = ({ show, onToggle }) => (
   </button>
 );
 
-export default function Auth({ onSuccess, onGuestMode }) {
+export default function Auth({ onSuccess }) {
   const [mode,    setMode]    = useState('signin');  // 'signin' | 'signup'
   const [email,   setEmail]   = useState('');
   const [pw,      setPw]      = useState('');
@@ -376,24 +376,6 @@ export default function Auth({ onSuccess, onGuestMode }) {
                 style={{ marginTop: '0.3rem' }}
               >
                 {loading ? 'Please wait...' : mode === 'signin' ? 'Sign In' : 'Create Account'}
-              </button>
-            )}
-
-            {/* Continue as Guest button - only show on signin mode */}
-            {mode === 'signin' && !forgotMode && (
-              <button
-                type="button"
-                className="btn"
-                onClick={() => onGuestMode?.()}
-                disabled={loading || magicLinkLoading || resetPasswordLoading}
-                style={{ 
-                  marginTop: '0.5rem', 
-                  backgroundColor: 'transparent', 
-                  border: '1px solid var(--warm-gold)', 
-                  color: 'var(--warm-gold)' 
-                }}
-              >
-                Continue as Guest
               </button>
             )}
           </form>
