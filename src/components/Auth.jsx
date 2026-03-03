@@ -43,33 +43,40 @@ export default function Auth({ onSuccess }) {
   const [forgotMode, setForgotMode] = useState(false);
   
   // Password recovery states
-  const [recoveryMode, setRecoveryMode] = useState(false);
+  const [recoveryMode, setRecoveryMode] = useState(() => {
+    // Initialize recovery mode based on URL immediately
+    const urlParams = new URLSearchParams(window.location.search);
+    return urlParams.get('type') === 'recovery';
+  });
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
   const [showNewPw, setShowNewPw] = useState(false);
 
   // Listen for auth state changes and URL parameters
   useEffect(() => {
-    // Check URL for recovery parameter
-    const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get('type') === 'recovery') {
-      setRecoveryMode(true);
+    // Update notice if we're starting in recovery mode
+    if (recoveryMode) {
       setError(null);
       setNotice('Enter your new password below.');
     }
 
     // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log('Auth event:', event, 'Recovery mode:', recoveryMode); // Debug log
+      
       if (event === 'PASSWORD_RECOVERY') {
         setRecoveryMode(true);
         setError(null);
         setNotice('Enter your new password below.');
+      } else if (event === 'SIGNED_IN' && !recoveryMode) {
+        // Only call onSuccess if we're not in recovery mode
+        onSuccess?.();
       }
     });
 
     // Cleanup subscription
     return () => subscription?.unsubscribe();
-  }, []);
+  }, [onSuccess, recoveryMode]);
 
   const switchMode = (m) => {
     setMode(m);setForgotMode(false);
@@ -147,7 +154,10 @@ export default function Auth({ onSuccess }) {
       if (err) { setError(err.message); return; }
     }
 
-    onSuccess?.();
+    // Don't call onSuccess if we're in recovery mode
+    if (!recoveryMode) {
+      onSuccess?.();
+    }
   };
 
   const handleSendMagicLink = async () => {
