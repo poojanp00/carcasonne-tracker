@@ -88,9 +88,9 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
       return trimmed || `Player ${i + 1}`;
     });
     
-    // For guests: auto-name realm "Mont Shastaire"
+    // For guests: auto-name realm "Guest"
     // For users: require realm name
-    const finalRealmName = isGuest ? 'Mont Shastaire' : realmName.trim();
+    const finalRealmName = isGuest ? 'Guest' : realmName.trim();
     
     if (!isGuest && !finalRealmName) return;
     if (names.length === 0) return;

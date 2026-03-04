@@ -88,7 +88,7 @@ export default function RealmPicker({ realms, currentRealm = null, games = [], o
       return trimmed || `Player ${i + 1}`;
     });
     
-    // For guests: auto-name realm "Mont Shastaire"
+    // For guests: auto-name realm "Guest"
     // For users: require realm name
     const finalRealmName = isGuest ? 'Guest' : realmName.trim();
     
