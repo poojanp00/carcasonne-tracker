@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 const TYPE_ORDER = ['road', 'city', 'monastery', 'field'];
 
@@ -55,7 +55,7 @@ const TrashIcon = () => (
   </svg>
 );
 
-export default function RealmPicker({ realms, currentRealm = null, games = [], onSelect, onCreate, onDelete, initialMode = null, isGuest = false }) {
+export default function RealmPicker({ realms, currentRealm = null, games = [], onSelect, onCreate, onDelete, initialMode = null, isGuest = false, getPlayersForRealm }) {
   const [mode,             setMode]             = useState(initialMode);
   const [realmName,        setRealmName]        = useState('');
   const [playerCount,      setPlayerCount]      = useState(2);
@@ -63,7 +63,38 @@ export default function RealmPicker({ realms, currentRealm = null, games = [], o
   const [nameError,        setNameError]        = useState('');
   const [pendingAction,    setPendingAction]    = useState(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [realmPlayers,     setRealmPlayers]     = useState([]); // State for normalized players
+  const [playersLoading,   setPlayersLoading]   = useState(false);
   const MAX_REALMS = 12;
+
+  // Load players for the current realm from normalized table
+  useEffect(() => {
+    if (!currentRealm || !getPlayersForRealm) {
+      setRealmPlayers([]);
+      return;
+    }
+
+    let mounted = true;
+    setPlayersLoading(true);
+
+    getPlayersForRealm(currentRealm.id)
+      .then(players => {
+        if (mounted) {
+          setRealmPlayers(players.map(p => p.name));
+        }
+      })
+      .catch(error => {
+        console.warn('Failed to load players from normalized table, falling back to realm.players:', error);
+        if (mounted) {
+          setRealmPlayers(currentRealm?.players || []);
+        }
+      })
+      .finally(() => {
+        if (mounted) setPlayersLoading(false);
+      });
+
+    return () => { mounted = false; };
+  }, [currentRealm, getPlayersForRealm]);
 
   const syncCount = (n) => {
     const clamped = Math.max(2, Math.min(6, n));
@@ -176,7 +207,9 @@ export default function RealmPicker({ realms, currentRealm = null, games = [], o
           {/* Active realm stats */}
           {currentRealm && (() => {
             const rs      = calcRealmStats(games);
-            const records = calcPlayerRecords(games, currentRealm.players);
+            // Use normalized player data instead of currentRealm.players
+            const playerNames = realmPlayers.length > 0 ? realmPlayers : (currentRealm.players || []);
+            const records = calcPlayerRecords(games, playerNames);
             const typeEntries = [
               ...TYPE_ORDER,
               ...Object.keys(rs.typePoints).filter(t => !TYPE_ORDER.includes(t)),
@@ -204,7 +237,7 @@ export default function RealmPicker({ realms, currentRealm = null, games = [], o
                 </div>
 
                 <div style={{ marginBottom: '1rem', fontFamily: 'Cinzel, serif', fontSize: '0.85rem' }}>
-                  {[...currentRealm.players]
+                  {[...playerNames]
                     .sort((a, b) => (records[b.toLowerCase()]?.w || 0) - (records[a.toLowerCase()]?.w || 0))
                     .map((name, i) => {
                       const w = records[name.toLowerCase()]?.w || 0;

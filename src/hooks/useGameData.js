@@ -27,6 +27,9 @@ import {
   getGames, insertGame, removeGame,
   getExpansions, upsertExpansion,
   getRealms, saveRealm, deleteRealm,
+  createPlayersForRealm, getPlayersForRealm, 
+  createGamePlayerRecords, updateGamePlayerData, getGamePlayersData,
+  getPlayerStatistics, addPlayerToRealm, removePlayerFromRealm,
   generateId, generateRealmId,
   migrateFromLocalStorage,
 } from '../data/storage';
@@ -80,13 +83,15 @@ export function useGameData(user, authLoading) {
    * ADD GAME OPERATION
    * 
    * Creates and records a new game in the database.
+   * Also creates normalized game_players records for each player.
    * Uses optimistic update pattern for responsive UI.
    * 
    * Process:
    * 1. Generate secure UUID for game
-   * 2. Add to local state immediately
-   * 3. Persist to database
-   * 4. Return ID for further operations
+   * 2. Create game_players records with actual player data
+   * 3. Create game record (keeping legacy players JSON for backward compatibility)
+   * 4. Add to local state immediately
+   * 5. Return ID for further operations
    * 
    * @param {Object} gameData - Game details (players, scores, expansions, etc.)
    * @returns {string} Generated game ID
@@ -94,7 +99,27 @@ export function useGameData(user, authLoading) {
   const addGame = useCallback(async (gameData) => {
     const id      = generateId();
     const newGame = { ...gameData, id };
+    
+    // Create the game record first
     await insertGame(newGame);
+    
+    // Create normalized game_players records if realmId is available
+    if (newGame.realmId && newGame.players && newGame.players.length > 0) {
+      try {
+        // Create game_players records
+        const playerNames = newGame.players.map(p => p.name);
+        await createGamePlayerRecords(id, playerNames, newGame.realmId);
+        
+        // Update each player's data with actual scores/characters
+        for (const player of newGame.players) {
+          await updateGamePlayerData(id, player.name, newGame.realmId, player);
+        }
+      } catch (playerError) {
+        console.error('Failed to create game player records:', playerError);
+        // Game was created successfully, continue without failing
+      }
+    }
+    
     setGames(prev => [newGame, ...prev]); // Add to beginning (newest first)
     return id;
   }, []);
@@ -159,7 +184,7 @@ export function useGameData(user, authLoading) {
       id:        generateRealmId(), // Uppercase UUID for visual distinction
       createdAt: new Date().toISOString().split('T')[0], // YYYY-MM-DD format
     };
-    await saveRealm(realm, user?.id);
+    await saveRealm(realm, user?.id, true); // Pass isNew=true for new realms
     setRealms(prev => [...prev, realm]);
     return realm;
   }, [user, realms]);
@@ -177,7 +202,7 @@ export function useGameData(user, authLoading) {
     setRealms(prev => {
       const updated = prev.map(r => r.id === id ? { ...r, ...patch } : r);
       const realm = updated.find(r => r.id === id);
-      if (realm) saveRealm(realm, user?.id); // Persist full updated realm
+      if (realm) saveRealm(realm, user?.id, false); // Pass isNew=false for updates
       return updated;
     });
   }, [user]);
@@ -201,11 +226,51 @@ export function useGameData(user, authLoading) {
     setGames(prev => prev.filter(g => g.realmId !== realmId));
   }, []);
 
+  /**
+   * ADD PLAYER TO EXISTING REALM
+   * 
+   * Adds a new player to an existing realm in the normalized players table.
+   * Components will automatically see the new player via getPlayersForRealm().
+   * 
+   * @param {string} realmId - Realm ID to add player to
+   * @param {string} playerName - Name of new player
+   */
+  const addPlayer = useCallback(async (realmId, playerName) => {
+    if (!user?.id) throw new Error('User not authenticated');
+    
+    await addPlayerToRealm(realmId, playerName, user.id);
+    
+    // No need to update local realm state - components read from normalized table
+  }, [user]);
+
+  /**
+   * REMOVE PLAYER FROM REALM
+   * 
+   * Removes a player from a realm and all associated game data.
+   * This is a destructive operation that cascades through game_players.
+   * 
+   * @param {string} realmId - Realm ID to remove player from  
+   * @param {string} playerName - Name of player to remove
+   */
+  const removePlayer = useCallback(async (realmId, playerName) => {
+    if (!user?.id) throw new Error('User not authenticated');
+    
+    await removePlayerFromRealm(realmId, playerName, user.id);
+    
+    // Refresh games since player removal affects game data
+    const refreshedGames = await getGames();
+    setGames(refreshedGames);
+  }, [user]);
+
   // Export all data and operations for component consumption
   return { 
     // Data state
     games, expansions, realms, loading, 
-    // CRUD operations  
-    addGame, deleteGame, toggleExpansion, addRealm, updateRealm, removeRealm 
+    // Game & Realm CRUD operations  
+    addGame, deleteGame, toggleExpansion, addRealm, updateRealm, removeRealm,
+    // Player management (normalized)
+    addPlayer, removePlayer, getPlayersForRealm, 
+    // Statistics & Data Access
+    getPlayerStatistics, getGamePlayersData
   };
 }

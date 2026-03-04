@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import crownImg from '../../images/icons/crown.png';
 
 // ─── Statistics ────────────────────────────────────────────────────────
@@ -8,7 +8,7 @@ const STATISTICS_CONFIG = {
   CLUTCH_THRESHOLD: 0.10, // 10% - margin threshold for "clutch" (close) games
 };
 
-// Aggregate per-type score totals across all games for a player
+// Aggregate per-type score totals across all games for a player (fallback for legacy data)
 function calcBreakdown(games, name) {
   const low    = name.toLowerCase();
   const totals = {};
@@ -23,33 +23,113 @@ function calcBreakdown(games, name) {
 }
 
 /**
- * COMPREHENSIVE CARCASSONNE GAME STATISTICS CALCULATOR
+ * ENHANCED STATISTICS CALCULATOR WITH SERVER-SIDE OPTIMIZATION
  * 
- * Analyzes a player's complete game history to extract meaningful performance metrics.
- * All calculations are opponent-relative (comparing against other players in each game).
- * 
- * Key Metrics Calculated:
- * 
- * BASIC STATS:
- * - Win/Loss record and percentages
- * - High score achievements and dates
- * - Point differentials and averages
- * 
- * ADVANCED ANALYSIS:
- * - Clutch factor: Performance in close games (margin < 10% of combined scores)
- * - Farm win percentage: How often victories come from field scoring dominance  
- * - Biggest blowouts: Largest victory margins with game details
- * - Current streaks: Consecutive wins/losses from most recent games
- * 
- * SCORING BREAKDOWNS:
- * - Per-category point totals across all games
- * - Expansion-specific scoring analysis
+ * Uses efficient server-side computation when normalized data is available,
+ * falling back to client-side calculation for legacy games.
  * 
  * @param {Array} games - Complete game history array
- * @param {string} name - Player name to analyze (case-insensitive)
+ * @param {string} name - Player name to analyze 
+ * @param {Object|null} serverStats - Pre-computed server statistics (if available)
  * @returns {Object} Comprehensive stats object with all calculated metrics
  */
-function calcStats(games, name) {
+function calcStats(games, name, serverStats = null) {
+  // If we have server-computed stats, use those as the base and supplement with client calculations
+  if (serverStats) {
+    const low = name.toLowerCase();
+    const mine = games.filter(g => g.players.some(p => p.name.toLowerCase() === low));
+    
+    // Calculate additional metrics not available from server
+    let biggestBlowout = 0, biggestBlowoutDate = null, biggestBlowoutMyScore = 0, biggestBlowoutTheirScore = 0;
+    let currentStreak = 0, streakType = null, netPtDiff = 0;
+    
+    // Process recent games for streak calculation (most recent first)
+    const recentGames = [...mine].sort((a, b) => new Date(b.date) - new Date(a.date));
+    
+    for (const g of mine) {
+      const me = g.players.find(p => p.name.toLowerCase() === low);
+      const isWinner = g.winners?.includes(me.name) || false;
+      const opponents = g.players.filter(p => p.name.toLowerCase() !== low);
+      const maxOpp = opponents.length > 0 ? Math.max(...opponents.map(p => p.score)) : 0;
+      
+      // Track biggest blowout
+      if (isWinner) {
+        const margin = me.score - maxOpp;
+        if (margin > biggestBlowout) {
+          biggestBlowout = margin;
+          biggestBlowoutDate = g.date;
+          biggestBlowoutMyScore = me.score;
+          biggestBlowoutTheirScore = maxOpp;
+        }
+      }
+      
+      netPtDiff += (me.score - maxOpp);
+    }
+    
+    // Calculate current streak from most recent games
+    for (const g of recentGames) {
+      const me = g.players.find(p => p.name.toLowerCase() === low);
+      const isWinner = g.winners?.includes(me.name) || false;
+      
+      if (currentStreak === 0) {
+        // Start new streak
+        currentStreak = 1;
+        streakType = isWinner ? 'W' : 'L';
+      } else if ((streakType === 'W' && isWinner) || (streakType === 'L' && !isWinner)) {
+        // Continue streak
+        currentStreak++;
+      } else {
+        // Streak broken
+        break;
+      }
+    }
+    
+    // Calculate derived metrics
+    const clutchRate = serverStats.clutch_games > 0 ? 
+      Math.round((serverStats.clutch_wins / serverStats.clutch_games) * 100) : 0;
+    const farmRate = serverStats.wins > 0 ?
+      Math.round((serverStats.farm_wins / serverStats.wins) * 100) : 0;
+    
+    // Return enhanced server stats with client-calculated supplements
+    return {
+      // Core stats from server (more accurate)
+      wins: serverStats.wins,
+      losses: serverStats.losses,
+      winRate: Math.round(serverStats.win_rate),
+      total: serverStats.total_games,
+      highScore: serverStats.high_score,
+      highScoreDate: serverStats.high_score_date,
+      totalPoints: serverStats.total_points,
+      avgScore: Math.round(serverStats.avg_score),
+      farmWins: serverStats.farm_wins,
+      clutchWins: serverStats.clutch_wins,
+      clutchLosses: serverStats.clutch_losses,
+      clutchGames: serverStats.clutch_games,
+      
+      // Client-calculated supplements
+      biggestBlowout,
+      biggestBlowoutDate,
+      biggestBlowoutMyScore,
+      biggestBlowoutTheirScore,
+      currentStreak,
+      streakType,
+      netPtDiff,
+      clutchRate,
+      farmRate,
+    };
+  }
+  
+  // Fallback to full client-side calculation for legacy data
+  return calcStatsLegacy(games, name);
+}
+
+/**
+ * LEGACY CLIENT-SIDE STATISTICS CALCULATION
+ * 
+ * Original comprehensive stats calculation for backward compatibility.
+ * Used when server-side statistics are not available.
+ */
+function calcStatsLegacy(games, name) {
   const low  = name.toLowerCase();
   // Filter to only games where this player participated
   const mine = games.filter(g => g.players.some(p => p.name.toLowerCase() === low));
@@ -69,12 +149,10 @@ function calcStats(games, name) {
     const maxOpp = opponents.length > 0 ? Math.max(...opponents.map(p => p.score)) : 0;
 
     // WIN/LOSS ANALYSIS
-    // Use precomputed winners from database instead of calculating
     if (isWinner) {
       wins++;
       
       // BLOWOUT TRACKING
-      // Track the largest victory margin for bragging rights
       const margin = my - maxOpp;
       if (margin > biggestBlowout) {
         biggestBlowout          = margin;
@@ -87,16 +165,62 @@ function calcStats(games, name) {
     }
 
     // HIGH SCORE TRACKING
-    // Personal best regardless of game outcome
     if (my > highScore) { highScore = my; highScoreDate = g.date; }
     
     // POINT DIFFERENTIAL ANALYSIS
-    // Cumulative margin tracking for average dominance calculation
     netPtDiff   += (my - maxOpp);
     totalPoints += my;
 
     // FARM WIN ANALYSIS
-    // Track when victories come primarily from field scoring
+    if (g.farmWin && isWinner) farmWins++;
+    
+    // CLUTCH GAME ANALYSIS
+    if (g.clutchWin) {
+      clutchGames++;
+      if (isWinner) clutchWins++;
+      else clutchLosses++;
+    }
+  }
+
+  // CALCULATE DERIVED STATISTICS
+  const total = wins + losses;
+  const winRate = total > 0 ? Math.round((wins / total) * 100) : 0;
+  const avgScore = total > 0 ? Math.round(totalPoints / total) : 0;
+  const clutchRate = clutchGames > 0 ? Math.round((clutchWins / clutchGames) * 100) : 0;
+  const farmRate = wins > 0 ? Math.round((farmWins / wins) * 100) : 0;
+
+  // STREAK CALCULATION (process games chronologically, most recent first)
+  const sorted = [...mine].sort((a, b) => new Date(b.date) - new Date(a.date));
+  let currentStreak = 0, streakType = null;
+  
+  for (const g of sorted) {
+    const me = g.players.find(p => p.name.toLowerCase() === low);
+    const isWinner = g.winners?.includes(me.name) || false;
+    
+    if (currentStreak === 0) {
+      // Initialize streak with most recent game result
+      currentStreak = 1;
+      streakType    = isWinner ? 'W' : 'L';
+    } else if ((streakType === 'W' && isWinner) || (streakType === 'L' && !isWinner)) {
+      // Extend current streak (same outcome type)
+      currentStreak++;
+    } else {
+      // Different outcome breaks the streak
+      break;
+    }
+  }
+
+  // Return comprehensive statistics object
+  return {
+    wins, losses, winRate, total,
+    highScore, highScoreDate, 
+    totalPoints, avgScore, netPtDiff,
+    farmWins, farmRate,
+    clutchWins, clutchLosses, clutchGames, clutchRate,
+    biggestBlowout, biggestBlowoutDate, biggestBlowoutMyScore, biggestBlowoutTheirScore,
+    currentStreak, streakType,
+  };
+}
     // Game must be marked as farmWin AND player must have won
     if (g.farmWin && isWinner) farmWins++;
 
@@ -337,12 +461,51 @@ function PlayerCard({ name, stats, breakdown, colorClass, isLeader, typeLeaders 
   );
 }
 
-export default function Stats({ games, realms = [], currentRealm = null, onRealmChange, isGuest = false }) {
+export default function Stats({ games, realms = [], currentRealm = null, onRealmChange, isGuest = false, getPlayerStatistics }) {
   const realmGames = currentRealm ? games.filter(g => g.realmId === currentRealm.id) : [];
+  const [serverStats, setServerStats] = useState(null);
+  const [statsLoading, setStatsLoading] = useState(false);
+
+  // Load server-side statistics when realm changes
+  useEffect(() => {
+    if (!currentRealm || !getPlayerStatistics) {
+      setServerStats(null);
+      return;
+    }
+
+    let mounted = true;
+    setStatsLoading(true);
+
+    getPlayerStatistics(currentRealm.id)
+      .then(stats => {
+        if (mounted) {
+          // Convert array to name-indexed object for lookup
+          const statsMap = {};
+          (stats || []).forEach(stat => {
+            statsMap[stat.player_name] = stat;
+          });
+          setServerStats(statsMap);
+        }
+      })
+      .catch(error => {
+        console.warn('Failed to load server statistics, falling back to client calculation:', error);
+        if (mounted) setServerStats(null);
+      })
+      .finally(() => {
+        if (mounted) setStatsLoading(false);
+      });
+
+    return () => { mounted = false; };
+  }, [currentRealm, getPlayerStatistics]);
 
   const BASE_BREAKDOWN = { road: 0, city: 0, monastery: 0, field: 0 };
 
   const { sorted, leader, typeLeaders } = useMemo(() => {
+    // Show loading state while server stats are being fetched
+    if (statsLoading && currentRealm) {
+      return { sorted: [], leader: null, typeLeaders: {} };
+    }
+
     // Derive player names: from games if available, else from realm roster
     let names;
     if (realmGames.length > 0) {
@@ -357,7 +520,7 @@ export default function Stats({ games, realms = [], currentRealm = null, onRealm
 
     const allStats = names.map(name => ({
       name,
-      ...calcStats(realmGames, name),
+      ...calcStats(realmGames, name, serverStats?.[name]),
       breakdown: realmGames.length > 0 ? calcBreakdown(realmGames, name) : { ...BASE_BREAKDOWN },
     }));
 
@@ -377,7 +540,7 @@ export default function Stats({ games, realms = [], currentRealm = null, onRealm
       }
     }
     return { sorted: s, leader: realmGames.length > 0 ? byWinRate[0]?.name : null, typeLeaders };
-  }, [realmGames, currentRealm]);
+  }, [realmGames, currentRealm, serverStats, statsLoading]);
 
   return (
     <div>

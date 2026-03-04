@@ -16,7 +16,7 @@
  * - Previous game settings used as smart defaults
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 /**
  * MEEPLE LOADING SYSTEM (STANDARD MEEPLES)
@@ -50,7 +50,7 @@ const FUN_MEEPLES = Object.entries(FUN_MODULES)
 // Carcassonne game supports maximum 6 players with base game + expansions
 const MAX_GAME_PLAYERS = 6;
 
-export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeples, defaultExpansions, realms = [], currentRealm = null, onRealmChange, onRealmCreate, startAtRealmCreation = false, isGuest = false }) {
+export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeples, defaultExpansions, realms = [], currentRealm = null, onRealmChange, onRealmCreate, startAtRealmCreation = false, isGuest = false, getPlayersForRealm }) {
   // Start at step 1 if requested, no realms exist, or no current realm - otherwise step 2 
   const initialStep = startAtRealmCreation || realms.length === 0 || !realm ? 1 : 2;
   const [step, setStep] = useState(initialStep);
@@ -60,10 +60,41 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
   const [playerCount, setPlayerCount] = useState(2);
   const [playerNames, setPlayerNames] = useState(['', '']);
   const [nameError, setNameError] = useState('');
+  const [realmPlayers, setRealmPlayers] = useState([]);  // State for normalized players
+  const [playersLoading, setPlayersLoading] = useState(false);
   const MAX_REALMS = 12;
 
+  // Load players for the current realm from normalized table
+  useEffect(() => {
+    if (!realm || !getPlayersForRealm) {
+      setRealmPlayers([]);
+      return;
+    }
+
+    let mounted = true; 
+    setPlayersLoading(true);
+
+    getPlayersForRealm(realm.id)
+      .then(players => {
+        if (mounted) {
+          setRealmPlayers(players.map(p => p.name));
+        }
+      })
+      .catch(error => {
+        console.warn('Failed to load players from normalized table, falling back to realm.players:', error);
+        if (mounted) {
+          setRealmPlayers(realm?.players || []);
+        }
+      })
+      .finally(() => {
+        if (mounted) setPlayersLoading(false);
+      });
+
+    return () => { mounted = false; };
+  }, [realm, getPlayersForRealm]);
+
   // Limit active players to game maximum and ensure they exist
-  const activePlayers = (realm?.players || playerNames.filter(n => n.trim())).slice(0, MAX_GAME_PLAYERS);
+  const activePlayers = (realmPlayers.length > 0 ? realmPlayers : playerNames.filter(n => n.trim())).slice(0, MAX_GAME_PLAYERS);
 
   const syncCount = (n) => {
     const clamped = Math.max(2, Math.min(6, n));

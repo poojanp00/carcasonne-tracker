@@ -363,6 +363,7 @@ export default function App() {
                 onCreate={handleRealmCreate}
                 onDelete={handleRealmDelete}
                 isGuest={isGuest}
+                getPlayersForRealm={appData.getPlayersForRealm}
               />
             )}
             {tab === 'board' && (
@@ -391,6 +392,7 @@ export default function App() {
                           onRealmCreate={handleRealmCreate}
                           startAtRealmCreation={true}
                           isGuest={isGuest}
+                          getPlayersForRealm={appData.getPlayersForRealm}
                         />
                       : <PreGameSetup
                         key={session.realm.id}
@@ -404,6 +406,7 @@ export default function App() {
                         onRealmChange={handleRealmSelect}
                         onRealmCreate={handleRealmCreate}
                         isGuest={isGuest}
+                        getPlayersForRealm={appData.getPlayersForRealm}
                       />
                 : appData.realms.length === 0
                   ? <PreGameSetup
@@ -419,6 +422,7 @@ export default function App() {
                       onRealmCreate={handleRealmCreate}
                       startAtRealmCreation={true}
                       isGuest={isGuest}
+                      getPlayersForRealm={appData.getPlayersForRealm}
                     />
                   : (
                     <div>
@@ -449,7 +453,7 @@ export default function App() {
                   )
             )}
             {tab === 'history' && <Logbook games={appData.games} realms={appData.realms} currentRealm={session?.realm || null} onRealmChange={handleRealmSelect} onDelete={handleDelete} isGuest={isGuest} />}
-            {tab === 'statistics' && <Statistics games={appData.games} realms={appData.realms} currentRealm={session?.realm || null} onRealmChange={handleRealmSelect} isGuest={isGuest} />}
+            {tab === 'statistics' && <Statistics games={appData.games} realms={appData.realms} currentRealm={session?.realm || null} onRealmChange={handleRealmSelect} isGuest={isGuest} getPlayerStatistics={appData.getPlayerStatistics} />}
             {tab === 'collection' && <Collection expansions={appData.expansions} onToggle={appOperations.toggleExpansion} userId={user?.id} isGuest={isGuest} />}
           </div>
           </div>
