@@ -1,19 +1,8 @@
-.DS_Store
-images/.DS_Store
+# Node dependencies
 node_modules/
-package-lock.json
+
+# Build output
 dist/
-.env
-.env.local
-.env.*.local
-.vscode/
-.idea/
-.vite/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-coverage/
-.cache/
-.parcel-cache/
-.eslintcache
-*.tgz
+
+# macOS system files
+**/.DS_Store
