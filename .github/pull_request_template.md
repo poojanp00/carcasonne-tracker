@@ -13,4 +13,3 @@ Brief description of the change.
 ## Notes
 
 *
-
