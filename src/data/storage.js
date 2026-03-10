@@ -194,6 +194,7 @@ export async function upsertExpansion(name, type, owned, userId) {
  * Migrates user data including realms, games, expansions, and board state.
  * Runs only once per user, tracked by localStorage migration flag.
  * Safely handles missing or corrupted data during the transition.
+ * i do not understand what this function is used for. 
  */
 
 export async function migrateFromLocalStorage(userId) {
