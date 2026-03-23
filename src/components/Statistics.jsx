@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import crownImg from '../../images/icons/crown.png';
+import PointBreakdownChart from './PointBreakdownChart';
 
 // ─── Statistics ────────────────────────────────────────────────────────
 
@@ -219,19 +220,20 @@ const TYPE_LABELS = {
   abbey: 'Abbey', barn: 'Barn', abbot: 'Abbot', wagon: 'Wagon',
 };
 
-function PlayerCard({ name, stats, breakdown, colorClass, isLeader, typeLeaders }) {
-  // Ordering by expansion grouping to maintain consistency
+function PlayerCard({ name, stats, breakdown, colorClass, isLeader }) {
+  // Ordering by expansion grouping
   const typeOrder = [
     'road', 'city', 'monastery', 'field',           // Base game
     'abbot',                                         // The Abbot
     'inn', 'cathedral',                              // Inns & Cathedrals
     'wine', 'grain', 'cloth', 'pig',                 // Traders & Builders
-    'princess', 'fairy',                             // The Princess & the Dragon
     'abbey', 'barn',                                 // Abbey & Mayor
+    'princess', 'fairy',                             // The Princess & the Dragon
     'largest_city', 'largest_road',                  // Count, King & Robber
     'wagon',                                         // Other/wagon
   ];
-  const allTypes = typeOrder.filter(t => t in breakdown);
+  const displayTypes = typeOrder.filter(t => breakdown && breakdown[t] > 0);
+
   return (
     <div className={`player-card ${colorClass}`}>
       {isLeader && <img src={crownImg} alt="Leader" title="Current leader" className="card-crown" />}
@@ -322,23 +324,6 @@ function PlayerCard({ name, stats, breakdown, colorClass, isLeader, typeLeaders 
         </ValInfo>
       </div>
 
-      {allTypes.length > 0 && (
-        <>
-          <div className="stat-divider" />
-          <div style={{ fontSize: '0.7rem', fontFamily: 'Cinzel, serif', letterSpacing: '0.1em', color: 'var(--stone-gray)', marginBottom: '0.35rem' }}>
-            POINT TOTALS
-          </div>
-          {allTypes.map(type => (
-            <div key={type} className="stat-row">
-              <span className="stat-label">{TYPE_LABELS[type] ?? type.charAt(0).toUpperCase() + type.slice(1)}</span>
-              <span className="stat-value">
-                {typeLeaders?.[type] === name && <span style={{ color: 'var(--forest-green)', fontWeight: 700, marginRight: '0.25rem' }}>*</span>}
-                {breakdown[type]}
-              </span>
-            </div>
-          ))}
-        </>
-      )}
     </div>
   );
 }
@@ -433,19 +418,26 @@ export default function Stats({ games, realms = [], currentRealm = null, onRealm
           Select a realm to view statistics.
         </div>
       ) : (
-        <div className="stats-grid" style={{ gridTemplateColumns: sorted.length === 4 ? 'repeat(2, 1fr)' : sorted.length >= 3 ? 'repeat(3, 1fr)' : 'repeat(2, 1fr)' }}>
-          {sorted.map((ps, i) => (
-            <PlayerCard
-              key={ps.name}
-              name={ps.name}
-              stats={ps}
-              breakdown={ps.breakdown}
-              colorClass={PLAYER_COLOR_CLASSES[i % PLAYER_COLOR_CLASSES.length]}
-              isLeader={ps.name === leader}
-              typeLeaders={typeLeaders}
-            />
-          ))}
-        </div>
+        <>
+          <div className="stats-grid" style={{ gridTemplateColumns: sorted.length === 4 ? 'repeat(2, 1fr)' : sorted.length >= 3 ? 'repeat(3, 1fr)' : 'repeat(2, 1fr)' }}>
+            {sorted.map((ps, i) => (
+              <PlayerCard
+                key={ps.name}
+                name={ps.name}
+                stats={ps}
+                breakdown={ps.breakdown}
+                colorClass={PLAYER_COLOR_CLASSES[i % PLAYER_COLOR_CLASSES.length]}
+                isLeader={ps.name === leader}
+              />
+            ))}
+          </div>
+
+          {sorted.some(p => Object.values(p.breakdown).some(v => v > 0)) && (
+            <div style={{ marginTop: '3rem', display: 'flex', flexDirection: 'column', gap: '3rem' }}>
+              <PointBreakdownChart players={sorted} />
+            </div>
+          )}
+        </>
       )}
         </>
       )}
