@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell, Legend, ResponsiveContainer } from 'recharts';
 import crownImg from '../../images/icons/crown.png';
 import pigImg   from '../../images/icons/pig.png';
 import cImg     from '../../images/icons/C.png';
@@ -28,7 +29,90 @@ function getMeepleColor(filename) {
   return match ? (MEEPLE_COLOR_MAP[match[0].toLowerCase()] ?? FALLBACK_COLOR) : FALLBACK_COLOR;
 }
 
+// Custom label for bar segments
+function BarLabel(props) {
+  const { x, y, width, height, value, dataKey } = props;
+  if (value === undefined || value === null || value === 0) return null;
+
+  const label = dataKey.replace(/_/g, ' ').charAt(0).toUpperCase() + dataKey.slice(1).replace(/_/g, ' ');
+  const fontSize = 9;
+  const textWidth = label.length * 3.5;
+
+  // If bar is wide enough for horizontal text (need comfortable space)
+  if (width > 40) {
+    return (
+      <text
+        x={x + width / 2}
+        y={y + height / 2}
+        textAnchor="middle"
+        dominantBaseline="middle"
+        fill="#f5f5f5"
+        fontSize={fontSize}
+        fontWeight="600"
+        fontFamily="Cinzel, serif"
+      >
+        {label}
+      </text>
+    );
+  }
+
+  // If bar is at least 6px wide, write vertically
+  if (width >= 6) {
+    return (
+      <text
+        x={x + width / 2}
+        y={y + height / 2}
+        textAnchor="middle"
+        dominantBaseline="middle"
+        fill="#f5f5f5"
+        fontSize={fontSize}
+        fontWeight="600"
+        fontFamily="Cinzel, serif"
+        transform={`rotate(-90 ${x + width / 2} ${y + height / 2})`}
+      >
+        {label}
+      </text>
+    );
+  }
+
+  return null;
+}
+
 const today = () => new Date().toISOString().split('T')[0];
+
+// Scoring types in consistent order (matches Statistics component)
+const SCORE_TYPE_ORDER = [
+  'road', 'city', 'monastery', 'field',           // Base game
+  'abbot',                                         // The Abbot
+  'inn', 'cathedral',                              // Inns & Cathedrals
+  'wine', 'grain', 'cloth', 'pig',                 // Traders & Builders
+  'abbey', 'barn',                                 // Abbey & Mayor
+  'princess', 'fairy',                             // The Princess & the Dragon
+  'largest_city', 'largest_road',                  // Count, King & Robber
+  'wagon',                                         // Other/wagon
+];
+
+// Consistent color palette for each scoring type - Medieval/Earthy with more variation
+const SCORE_TYPE_COLORS = {
+  road: '#6B4423',       // Saddle brown
+  city: '#A67C52',       // Medium tan
+  monastery: '#3D2817',  // Very dark brown
+  field: '#6B8E23',      // Olive green
+  abbot: '#A52A2A',      // Crimson
+  inn: '#CD853F',        // Peru
+  cathedral: '#5A6C7D',  // Steel blue
+  wine: '#8B1A1A',       // Dark red
+  grain: '#DAA520',      // Goldenrod
+  cloth: '#8B7355',      // Burlywood
+  pig: '#B8860B',        // Dark goldenrod
+  abbey: '#2F6B3F',      // Hunter green
+  barn: '#8B4513',       // Saddle brown (lighter)
+  princess: '#C41E3A',   // Carmine
+  fairy: '#D4418E',      // Pink/mauve
+  largest_city: '#1F4788',    // Deep blue
+  largest_road: '#2D5A2D',    // Deep forest green
+  wagon: '#996633',      // Brown
+};
 
 export default function GameLogForm({ session, ownedExpansions, onSubmit, onCancel, isGuest = false }) {
   const { players = [], meeples = {}, expansions: prefillExp = [], finalScores = {}, scoreBreakdown = {}, farmWin: autoFarmWin = false } = session || {};
@@ -84,10 +168,13 @@ export default function GameLogForm({ session, ownedExpansions, onSubmit, onCanc
           />
         </div>
 
+        {/* Player cards with final scores and ranking */}
         <div className="postgame-scores-grid">
           {sortedPlayers.map((name) => {
             const color    = getMeepleColor(meeples[name]);
             const isWinner = winners.includes(name);
+            const bd = scoreBreakdown[name] || {};
+            const bdEntries = SCORE_TYPE_ORDER.filter(t => (bd[t] ?? 0) > 0);
             return (
               <div key={name} className="postgame-player-card" style={{ borderLeft: `3px solid ${color}` }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -114,11 +201,70 @@ export default function GameLogForm({ session, ownedExpansions, onSubmit, onCanc
                     {finalScores[name] ?? 0}
                   </div>
                 </div>
+                {bdEntries.length > 0 && (
+                  <p style={{
+                    fontFamily: 'Crimson Text, serif',
+                    fontStyle: 'italic',
+                    fontSize: '0.82rem',
+                    color: 'var(--stone-gray)',
+                    margin: '0.4rem 0 0',
+                    letterSpacing: '0.01em',
+                  }}>
+                    {bdEntries.map(t => `${bd[t]} ${t.charAt(0).toUpperCase() + t.slice(1).replace(/_/g, ' ')}`).join(' · ')}
+                  </p>
+                )}
               </div>
             );
           })}
         </div>
 
+      </div>
+
+      {/* Points distribution chart */}
+      <div className="tile-card" style={{ marginBottom: '1.4rem' }}>
+        <div style={{ marginBottom: '1rem' }}>
+          <div style={{ fontSize: '0.7rem', fontFamily: 'Cinzel, serif', letterSpacing: '0.1em', color: 'var(--stone-gray)', marginBottom: '0.8rem' }}>
+            POINTS BREAKDOWN
+          </div>
+          {(() => {
+            // Find which scoring types were actually used in the game
+            const usedTypes = new Set();
+            sortedPlayers.forEach(name => {
+              const breakdown = scoreBreakdown[name] || {};
+              Object.keys(breakdown).forEach(type => {
+                if (breakdown[type] > 0) usedTypes.add(type);
+              });
+            });
+            const displayTypes = SCORE_TYPE_ORDER.filter(t => usedTypes.has(t));
+
+            return (
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart
+                  data={sortedPlayers.map(name => ({
+                    name,
+                    ...scoreBreakdown[name] || {},
+                  }))}
+                  layout="vertical"
+                  margin={{ top: 5, right: 30, left: 100, bottom: 5 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(201,163,74,0.2)" />
+                  <XAxis type="number" stroke="var(--stone-gray)" />
+                  <YAxis dataKey="name" type="category" stroke="var(--stone-gray)" width={95} />
+                  {displayTypes.map(type => (
+                    <Bar
+                      key={type}
+                      dataKey={type}
+                      stackId="a"
+                      fill={SCORE_TYPE_COLORS[type]}
+                      isAnimationActive={false}
+                      label={(props) => <BarLabel {...props} dataKey={type} />}
+                    />
+                  ))}
+                </BarChart>
+              </ResponsiveContainer>
+            );
+          })()}
+        </div>
       </div>
 
       {/* Expansions */}

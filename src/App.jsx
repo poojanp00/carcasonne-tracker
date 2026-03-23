@@ -199,6 +199,8 @@ export default function App() {
     'The Princess & the Dragon':  ['princess', 'fairy'],
     'Traders & Builders':         ['wine', 'grain', 'cloth', 'pig'],
     'Count, King & Robber':       ['largest_city', 'largest_road'],
+    'Abbey & Mayor':              ['abbey', 'barn'],
+    'The Abbot':                  ['abbot'],
   };
 
   const handleGameStart = useCallback(async (setup) => {

@@ -106,6 +106,8 @@ export default function Board({ session, onFinish, onReset }) {
   const track = board.trackLength || 50;
   const hasTB  = (session?.expansions || []).includes('Traders & Builders');
   const hasIC  = (session?.expansions || []).some(e => e === 'Inns & Cathedrals' || e === 'Bridges, Castles & Bazaars');
+  const hasAM  = (session?.expansions || []).includes('Abbey & Mayor');
+  const hasAbbot = (session?.expansions || []).includes('The Abbot');
 
   function appendLog(msg, player = null) {
     const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
@@ -168,31 +170,33 @@ export default function Board({ session, onFinish, onReset }) {
   function addPoints(player, delta, type = 'road') {
     delta = Number(delta) || 0;
     if (delta === 0) return; // Ignore zero-point changes
-    
+
     pushHistory(); // Save state for undo
-    
+
     // Current position calculation
     const curPos  = board.positions[player] || 0;
     const curLaps = board.laps[player] || 0;
-    
+
     // New position with track wrapping
     const sum     = curPos + delta;
     const lapInc  = Math.floor(sum / track); // How many complete laps to add
     const newPos  = ((sum % track) + track) % track; // Modulo with negative handling
     const newLaps = curLaps + (lapInc > 0 ? lapInc : 0); // Prevent negative laps
     const newTotal = newLaps * track + newPos; // Final score for logging
-    
+
     // Update score breakdown by category
-    const prevBreakdown = board.scoreTotals?.[player] || { road: 0, city: 0, monastery: 0, field: 0 };
-    setBoard(b => ({
-      ...b,
-      positions:   { ...b.positions, [player]: newPos  },
-      laps:        { ...b.laps,      [player]: newLaps },
-      scoreTotals: {
-        ...b.scoreTotals,
-        [player]: { ...prevBreakdown, [type]: (prevBreakdown[type] || 0) + delta },
-      },
-    }));
+    setBoard(b => {
+      const prevBreakdown = b.scoreTotals?.[player] || { road: 0, city: 0, monastery: 0, field: 0 };
+      return {
+        ...b,
+        positions:   { ...b.positions, [player]: newPos  },
+        laps:        { ...b.laps,      [player]: newLaps },
+        scoreTotals: {
+          ...b.scoreTotals,
+          [player]: { ...prevBreakdown, [type]: (prevBreakdown[type] || 0) + delta },
+        },
+      };
+    });
     
     // Generate human-readable category names for logging
     const label = type === 'pig' ? 'Field (Pig)' : 
@@ -452,7 +456,7 @@ export default function Board({ session, onFinish, onReset }) {
                     <button type="button" className="btn btn-sm board-btn-equal" onClick={() => setInput(v => ({ ...v, [name]: String(Number(v[name] || 0) + 1) }))}>+1</button>
                     <button type="button" className="btn btn-sm board-btn-equal" onClick={() => setInput(v => ({ ...v, [name]: String(Number(v[name] || 0) + 2) }))}>+2</button>
                     <button type="button" className="btn btn-sm board-btn-equal" onClick={() => setInput(v => ({ ...v, [name]: String(Number(v[name] || 0) + 3) }))}>+3</button>
-                    {finishStep === 1 && hasTB && <button type="button" className="btn btn-sm board-btn-equal" onClick={() => setInput(v => ({ ...v, [name]: String(Number(v[name] || 0) + 4) }))}>+4</button>}
+                    {((finishStep === 1 && (hasTB || hasAM)) || (finishStep === 0 && hasTB && hasAM)) && <button type="button" className="btn btn-sm board-btn-equal" onClick={() => setInput(v => ({ ...v, [name]: String(Number(v[name] || 0) + 4) }))}>+4</button>}
                   </div>
                   <div className="board-btn-row">
                     {['road', 'city', 'monastery'].map(type => (
@@ -473,6 +477,24 @@ export default function Board({ session, onFinish, onReset }) {
                       </button>
                     ))}
                   </div>
+                  {hasAbbot && (
+                    <div className="board-btn-row">
+                      <button
+                        type="button"
+                        className="btn btn-sm"
+                        style={{ width: '100%', justifyContent: 'center' }}
+                        onClick={() => {
+                          const val = Number(input[name] || 0);
+                          if (!Number.isNaN(val) && val !== 0) {
+                            addPoints(name, val, 'abbot');
+                            setInput(v => ({ ...v, [name]: 0 }));
+                          }
+                        }}
+                      >
+                        Abbot
+                      </button>
+                    </div>
+                  )}
                   {hasIC && (
                     <div className="board-btn-row">
                       {[['inn', 'Inn'], ['cathedral', 'Cathedral']].map(([type, label]) => (
@@ -494,7 +516,46 @@ export default function Board({ session, onFinish, onReset }) {
                       ))}
                     </div>
                   )}
-                  {finishStep === 1 && (
+                  {hasAM && (
+                    <div className="board-btn-row">
+                      {(hasTB ? [['abbey', 'Abbey'], ['field', 'Field'], ['pig', 'Pig']] : [['abbey', 'Abbey'], ['field', 'Field']]).map(([type, label]) => (
+                        <button
+                          key={type}
+                          type="button"
+                          className="btn btn-sm board-btn-equal"
+                          style={{ justifyContent: 'center' }}
+                          onClick={() => {
+                            const val = Number(input[name] || 0);
+                            if (!Number.isNaN(val) && val !== 0) {
+                              addPoints(name, val, type);
+                              setInput(v => ({ ...v, [name]: 0 }));
+                            }
+                          }}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {finishStep === 1 && hasAM && (
+                    <div className="board-btn-row">
+                      <button
+                        type="button"
+                        className="btn btn-sm"
+                        style={{ width: '100%', justifyContent: 'center' }}
+                        onClick={() => {
+                          const val = Number(input[name] || 0);
+                          if (!Number.isNaN(val) && val !== 0) {
+                            addPoints(name, val, 'barn');
+                            setInput(v => ({ ...v, [name]: 0 }));
+                          }
+                        }}
+                      >
+                        Barn
+                      </button>
+                    </div>
+                  )}
+                  {finishStep === 1 && !hasAM && (
                     hasTB ? (
                       <>
                         <div className="board-btn-row">
