@@ -216,16 +216,22 @@ const TYPE_LABELS = {
   princess: 'Princess', fairy: 'Fairy',
   wine: 'Wine', grain: 'Grain', cloth: 'Cloth', pig: 'Pig',
   largest_city: 'Largest City', largest_road: 'Largest Road',
+  abbey: 'Abbey', barn: 'Barn', abbot: 'Abbot', wagon: 'Wagon',
 };
 
 function PlayerCard({ name, stats, breakdown, colorClass, isLeader, typeLeaders }) {
-  const canonicalOrder = ['road', 'city', 'monastery', 'field'];
-  // Show canonical types if they exist in breakdown (even at 0), extras only when > 0
-  // Show canonical types if present in breakdown (even at 0), extras if key exists (expansion was played)
-  const allTypes = [
-    ...canonicalOrder.filter(t => t in breakdown),
-    ...Object.keys(breakdown).filter(t => !canonicalOrder.includes(t)),
+  // Ordering by expansion grouping to maintain consistency
+  const typeOrder = [
+    'road', 'city', 'monastery', 'field',           // Base game
+    'abbot',                                         // The Abbot
+    'inn', 'cathedral',                              // Inns & Cathedrals
+    'wine', 'grain', 'cloth', 'pig',                 // Traders & Builders
+    'princess', 'fairy',                             // The Princess & the Dragon
+    'abbey', 'barn',                                 // Abbey & Mayor
+    'largest_city', 'largest_road',                  // Count, King & Robber
+    'wagon',                                         // Other/wagon
   ];
+  const allTypes = typeOrder.filter(t => t in breakdown);
   return (
     <div className={`player-card ${colorClass}`}>
       {isLeader && <img src={crownImg} alt="Leader" title="Current leader" className="card-crown" />}
@@ -355,10 +361,20 @@ export default function Stats({ games, realms = [], currentRealm = null, onRealm
       names = currentRealm?.players || [];
     }
 
+    // Collect all scoring types used in any game in the realm
+    const allTypesInRealm = new Set();
+    realmGames.forEach(g => {
+      g.players.forEach(p => {
+        if (p.breakdown) Object.keys(p.breakdown).forEach(t => allTypesInRealm.add(t));
+      });
+    });
+
     const allStats = names.map(name => ({
       name,
       ...calcStats(realmGames, name),
-      breakdown: realmGames.length > 0 ? calcBreakdown(realmGames, name) : { ...BASE_BREAKDOWN },
+      breakdown: realmGames.length > 0
+        ? { ...Object.fromEntries([...allTypesInRealm].map(t => [t, 0])), ...calcBreakdown(realmGames, name) }
+        : { ...BASE_BREAKDOWN },
     }));
 
     // Crown leader: best win rate — only meaningful with games

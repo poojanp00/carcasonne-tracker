@@ -174,6 +174,10 @@ flowchart TD
 
 **`games.expansions`** is a `text[]` column listing the expansion names active during that game. This allows straightforward AND-filtering in the logbook without a join table.
 
+**`games.players[].breakdown`** contains per-player score distribution by category (e.g., `{ road: 12, city: 9, monastery: 15, field: 2, abbey: 1 }`). This enables the Points Breakdown chart visualization in the post-game form and logbook lightbox. Categories are initialized at game start based on owned expansions and accumulated during play.
+
+**`board_state.score_totals`** tracks the live score breakdown during a game, keyed by player name. Updated every time a player adds points via a scoring category button. When the game finishes, this breakdown is copied to the games record for historical reference.
+
 **`realms.password_hash`** column exists in the schema but is unused — realms are scoped to the authenticated user and require no password.
 
 ### Example records
@@ -197,8 +201,8 @@ flowchart TD
   "realm_id": "ABCD1234",
   "date": "2026-02-20",
   "players": [
-    { "name": "Poojan", "score": 94, "meeple": "blue.png" },
-    { "name": "Diya",   "score": 87, "meeple": "red.png"  }
+    { "name": "Poojan", "score": 94, "meeple": "blue.png", "breakdown": { "road": 12, "city": 45, "monastery": 30, "inn": 7 } },
+    { "name": "Diya",   "score": 87, "meeple": "red.png",  "breakdown": { "road": 18, "city": 38, "monastery": 25, "inn": 6 } }
   ],
   "expansions": ["Inns & Cathedrals", "The River"],
   "farm_win": false
@@ -254,11 +258,20 @@ Clicking **Final Scoring** snapshots final scores and navigates to the **Final S
 
 Clicking **← Back** returns to the live board with scores intact (board state is not reset until a new game starts).
 
+### Final Scores Form
+
+After finishing a game, the form displays:
+- **Player card grid** — each player's final score with winner crown icon
+- **Points breakdown chart** — horizontal stacked bar chart showing score distribution by category
+  - Only scoring types actually used in the game are displayed
+  - Bar segments labeled with category names (Road, City, Abbey, etc.) in medieval color palette
+  - Consistent category ordering across all views (base game types, then Abbot, then expansion types)
+
 ### Logbook
 
 Filterable game history table (date, winner, margin). Filters by expansion using AND logic. Clicking a row opens a **match detail lightbox** showing:
 - Full date, winner, point margin
-- Per-player scores
+- Per-player scores with identical breakdown chart visualization
 - Expansions played
 
 Lightbox keyboard controls: `Esc` / `Space` to close; `↑` / `↓` to navigate between entries with a slide animation.

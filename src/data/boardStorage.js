@@ -87,25 +87,30 @@ export async function getBoard(players = []) {
       .select('*')
       .eq('id', 1)
       .single();
-    
+
     if (!data) return makeDefault(players);
-    
+
     // PLAYER LIST VALIDATION
     // If specific players expected, ensure exact match with stored data
     const stored = data.players || [];
     if (players.length > 0) {
-      const same = players.length === stored.length && 
+      const same = players.length === stored.length &&
                    players.every(p => stored.includes(p));
       if (!same) return makeDefault(players); // Player mismatch - fresh state
     }
-    
+
     // SCORE BREAKDOWN VALIDATION
     // Ensure every stored player has complete scoring data
     const scoreTotals = data.score_totals || {};
     for (const p of (data.players || [])) {
-      if (!scoreTotals[p]) scoreTotals[p] = { ...BASE_BREAKDOWN };
+      if (!scoreTotals[p]) {
+        scoreTotals[p] = { ...BASE_BREAKDOWN };
+      } else {
+        // Ensure breakdown has all base types (in case it was created with missing types)
+        scoreTotals[p] = { ...BASE_BREAKDOWN, ...scoreTotals[p] };
+      }
     }
-    
+
     // Return validated and normalized state
     return {
       positions:   data.positions    || {},

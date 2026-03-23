@@ -141,7 +141,7 @@ export async function insertGame(game) {
     realm_id:    game.realmId  || null, // Optional realm association
     date:        game.date,              // YYYY-MM-DD format
     players:     game.players,           // Array of player objects
-    expansions:  game.expansions || [],  // Active expansion names 
+    expansions:  game.expansions || [],  // Active expansion names
     winners:     game.winners    || [],  // Precomputed winners from frontend
     max_score:   game.maxScore  || 0,    // Maximum score in the game
     clutch_win:  game.clutchWin  || false, // Victory in close game
