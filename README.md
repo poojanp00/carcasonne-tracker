@@ -108,7 +108,11 @@ erDiagram
     EXPANSIONS {
         uuid user_id FK
         text name
+        text category
         text type
+        int tiles
+        text[] perPlayer
+        text[] fixed
         bool owned
     }
 
@@ -180,6 +184,12 @@ flowchart TD
 
 **`realms.password_hash`** column exists in the schema but is unused — realms are scoped to the authenticated user and require no password.
 
+**Expansion metadata** (`category`, `tiles`, `perPlayer`, `fixed`) tracks the physical and rule requirements for each expansion:
+- **category**: Grouping for UI organization (`base_mini`, `major`, `mini`)
+- **tiles**: Number of game tiles in the expansion
+- **perPlayer**: Array of per-player components (e.g., `["abbot"]`, `["builder", "pig"]`)
+- **fixed**: Array of shared/single-copy components (e.g., `["trade_goods_tokens"]`, `["dragon", "fairy"]`)
+
 ### Example records
 
 **realms**
@@ -208,6 +218,25 @@ flowchart TD
   "farm_win": false
 }
 ```
+
+**expansions** (expansion metadata with component requirements)
+
+```json
+{
+  "name": "Abbey & Mayor",
+  "category": "major",
+  "tiles": 12,
+  "perPlayer": ["mayor", "wagon", "barn"],
+  "fixed": ["abbey_tiles"],
+  "owned": false,
+  "user_id": "uuid-123"
+}
+```
+
+**Expansion categories:**
+- **base_mini** — Small foundational expansions (River, Abbot, Festival) that add few new rules
+- **major** — Full-size expansions with many tiles and complex interactions
+- **mini** — Specialized mini expansions with targeted mechanics
 
 ---
 
