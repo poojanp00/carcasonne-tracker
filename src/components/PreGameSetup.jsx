@@ -16,7 +16,7 @@
  * - Previous game settings used as smart defaults
  */
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 
 /**
  * MEEPLE LOADING SYSTEM (STANDARD MEEPLES)
@@ -225,12 +225,109 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
 
   /**
    * EXPANSION TOGGLE LOGIC
-   * 
+   *
    * Adds or removes expansions from the selected set.
    * Maintains array order for consistent UI display.
    */
   const toggleExpansion = (name) =>
     setSelectedExp(prev => prev.includes(name) ? prev.filter(e => e !== name) : [...prev, name]);
+
+  /**
+   * REQUIRED PIECES CALCULATION
+   *
+   * Dynamically computes all required components based on selected expansions.
+   * Organizes into three categories: tiles (by source), per-player pieces, and fixed items.
+   * Includes base game (72 tiles, 8 followers per player) by default.
+   */
+  const requiredPieces = useMemo(() => {
+    const pieces = {
+      tiles: [{ source: 'Game', qty: 72 }], // Base game tiles
+      perPlayer: {
+        followers: 8, // Base game followers per player
+      },
+      fixed: new Set(),
+    };
+
+    // Map expansion names to their metadata
+    const expansionMetadata = ownedExpansions.reduce((acc, name) => {
+      // Find matching expansion in the metadata
+      const exp = [
+        { name: 'The River', category: 'base_mini', tiles: 12, perPlayer: [], fixed: [] },
+        { name: 'The River II', category: 'base_mini', tiles: 12, perPlayer: [], fixed: [] },
+        { name: 'The Abbot', category: 'base_mini', tiles: 0, perPlayer: ['abbot'], fixed: [] },
+        { name: 'The Festival', category: 'base_mini', tiles: 10, perPlayer: [], fixed: [] },
+        { name: 'Inns & Cathedrals', category: 'major', tiles: 18, perPlayer: ['large_meeple'], fixed: [] },
+        { name: 'Traders & Builders', category: 'major', tiles: 24, perPlayer: ['builder', 'pig'], fixed: ['trade_goods_tokens'] },
+        { name: 'The Princess & the Dragon', category: 'major', tiles: 30, perPlayer: [], fixed: ['dragon', 'fairy'] },
+        { name: 'The Tower', category: 'major', tiles: 18, perPlayer: [], fixed: ['tower_pieces'] },
+        { name: 'Abbey & Mayor', category: 'major', tiles: 12, perPlayer: ['mayor', 'wagon', 'barn'], fixed: ['abbey_tiles'] },
+        { name: 'Count, King & Robber', category: 'major', tiles: 12, perPlayer: [], fixed: ['count', 'king_token', 'robber_baron_token'] },
+        { name: 'The Catapult', category: 'major', tiles: 12, perPlayer: [], fixed: ['catapult_device', 'catapult_tokens'] },
+        { name: 'Bridges, Castles & Bazaars', category: 'major', tiles: 12, perPlayer: [], fixed: ['bridge_pieces', 'castle_tokens'] },
+        { name: 'Hills & Sheep', category: 'major', tiles: 18, perPlayer: ['shepherd'], fixed: ['sheep_tokens', 'wolf_tokens'] },
+        { name: 'Under the Big Top', category: 'major', tiles: 20, perPlayer: ['ringmaster'], fixed: ['animal_tokens'] },
+        { name: 'Ghosts, Castles & Cemeteries', category: 'mini', tiles: 18, perPlayer: [], fixed: ['ghost_meeples'] },
+        { name: 'The Flying Machines', category: 'mini', tiles: 8, perPlayer: [], fixed: [] },
+        { name: 'The Ferries', category: 'mini', tiles: 8, perPlayer: [], fixed: ['ferry_tokens'] },
+        { name: 'The Gold Mines', category: 'mini', tiles: 8, perPlayer: [], fixed: ['gold_tokens'] },
+        { name: 'Mage & Witch', category: 'mini', tiles: 8, perPlayer: [], fixed: ['mage', 'witch'] },
+        { name: 'Robbers', category: 'mini', tiles: 8, perPlayer: ['robber'], fixed: [] },
+        { name: 'Crop Circles', category: 'mini', tiles: 6, perPlayer: [], fixed: [] },
+      ].find(e => e.name === name);
+
+      if (exp) acc[name] = exp;
+      return acc;
+    }, {});
+
+    // Aggregate pieces from selected expansions
+    selectedExp.forEach(expName => {
+      const exp = expansionMetadata[expName];
+      if (!exp) return;
+
+      // Add tiles as separate line item
+      if (exp.tiles > 0) {
+        pieces.tiles.push({ source: expName, qty: exp.tiles });
+      }
+
+      // Add per-player pieces (x1 per piece type, not multiplied by player count)
+      exp.perPlayer?.forEach(piece => {
+        if (!pieces.perPlayer[piece]) {
+          pieces.perPlayer[piece] = 1;
+        }
+      });
+
+      // Add fixed pieces
+      exp.fixed?.forEach(piece => {
+        pieces.fixed.add(piece);
+      });
+    });
+
+    return pieces;
+  }, [selectedExp, ownedExpansions]);
+
+  /**
+   * FORMAT PIECE NAME FOR DISPLAY
+   * Converts snake_case and camelCase to Title Case
+   */
+  const formatPieceName = (name) =>
+    name
+      .replace(/_/g, ' ')
+      .replace(/([a-z])([A-Z])/g, '$1 $2')
+      .split(' ')
+      .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(' ');
+
+  /**
+   * COMPONENT BREAKDOWN MAP
+   * Maps fixed items to their detailed sub-components
+   */
+  const componentBreakdown = {
+    trade_goods_tokens: [
+      { name: 'Wine', qty: 9 },
+      { name: 'Wheat', qty: 6 },
+      { name: 'Cloth', qty: 5 },
+    ],
+  };
 
   /**
    * GAME START HANDLER
@@ -422,13 +519,15 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
         <div className="section-title-line" />
       </div>
 
-      {realmChips}
-
-      <div className="tile-card" style={{ marginBottom: '1.4rem' }}>
-        {ownedExpansions.length === 0 ? (
-          <p className="section-intro">No expansions owned — base game only.</p>
-        ) : (
-          <>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.4rem', marginBottom: '1.4rem' }}>
+        {/* Expansions Selection */}
+        <div className="tile-card">
+          <div style={{ fontSize: '0.7rem', fontFamily: 'Cinzel, serif', letterSpacing: '0.1em', color: 'var(--stone-gray)', marginBottom: '0.8rem' }}>
+            SELECT EXPANSIONS
+          </div>
+          {ownedExpansions.length === 0 ? (
+            <p className="section-intro">No expansions owned — base game only.</p>
+          ) : (
             <div className="expansion-chips">
               {ownedExpansions.map(name => (
                 <button
@@ -441,8 +540,92 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
                 </button>
               ))}
             </div>
-          </>
-        )}
+          )}
+        </div>
+
+        {/* Required Pieces Checklist */}
+        <div className="tile-card">
+          <div style={{ fontSize: '0.7rem', fontFamily: 'Cinzel, serif', letterSpacing: '0.1em', color: 'var(--stone-gray)', marginBottom: '0.8rem' }}>
+            REQUIRED PIECES
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+              {/* Tiles section */}
+              <div>
+                <div style={{ fontSize: '0.75rem', fontFamily: 'Cinzel, serif', fontWeight: 600, color: 'var(--stone-gray)', marginBottom: '0.4rem', letterSpacing: '0.05em' }}>
+                  TILES
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                  {requiredPieces.tiles.map(({ source, qty }) => (
+                    <div key={source} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.88rem', fontFamily: 'Crimson Text, serif' }}>
+                      <span>{source === 'Game' ? 'Base game' : source}</span>
+                      <span style={{ fontWeight: 600, color: 'var(--earth-brown)' }}>×{qty}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Divider */}
+              <div style={{ height: '1px', background: 'rgba(201,163,74,0.2)', margin: '0.2rem 0' }} />
+
+              {/* Per-player pieces section */}
+              <div>
+                <div style={{ fontSize: '0.75rem', fontFamily: 'Cinzel, serif', fontWeight: 600, color: 'var(--stone-gray)', marginBottom: '0.4rem', letterSpacing: '0.05em' }}>
+                  Meeples Per Player
+                </div>
+                {Object.keys(requiredPieces.perPlayer).length === 0 ? (
+                  <p style={{ fontSize: '0.82rem', fontFamily: 'Crimson Text, serif', fontStyle: 'italic', color: 'var(--stone-gray)', margin: 0 }}>None</p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                    {Object.entries(requiredPieces.perPlayer)
+                      .map(([piece, qty]) => (
+                        <div key={piece} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.88rem', fontFamily: 'Crimson Text, serif' }}>
+                          <span>{formatPieceName(piece)}</span>
+                          <span style={{ fontWeight: 600, color: 'var(--earth-brown)' }}>×{qty}</span>
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </div>
+
+              {requiredPieces.fixed.size > 0 && (
+                <>
+                  {/* Divider */}
+                  <div style={{ height: '1px', background: 'rgba(201,163,74,0.2)', margin: '0.2rem 0' }} />
+
+                  {/* Other (Fixed) pieces section */}
+                  <div>
+                    <div style={{ fontSize: '0.75rem', fontFamily: 'Cinzel, serif', fontWeight: 600, color: 'var(--stone-gray)', marginBottom: '0.4rem', letterSpacing: '0.05em' }}>
+                      OTHER
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                      {Array.from(requiredPieces.fixed)
+                        .map(piece => {
+                          const breakdown = componentBreakdown[piece];
+                          return (
+                            <div key={piece} style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.88rem', fontFamily: 'Crimson Text, serif' }}>
+                                <span>{formatPieceName(piece)}</span>
+                                {!breakdown && <span style={{ fontWeight: 600, color: 'var(--earth-brown)' }}>×1</span>}
+                              </div>
+                              {breakdown && (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem', marginLeft: '1rem', borderLeft: '2px solid rgba(201,163,74,0.3)', paddingLeft: '0.6rem' }}>
+                                  {breakdown.map(comp => (
+                                    <div key={comp.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.82rem', fontFamily: 'Crimson Text, serif', color: 'var(--stone-gray)' }}>
+                                      <span>{comp.name}</span>
+                                      <span style={{ fontWeight: 600, color: 'var(--earth-brown)' }}>×{comp.qty}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+        </div>
       </div>
 
       <div style={{ display: 'flex', gap: '0.7rem', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
