@@ -641,6 +641,12 @@ h3 { font-size: 1.15rem; font-weight: 600; }
   pointer-events: none;
   box-shadow: 0 2px 8px rgba(0,0,0,0.25);
 }
+
+/* Longer tooltip for infrastructure formulas */
+.stat-info-wrap.infrastructure-info .stat-info-tooltip {
+  width: 350px;
+  text-align: left;
+}
 .stat-info-wrap:hover .stat-info-tooltip {
   display: block;
 }
@@ -688,6 +694,72 @@ h3 { font-size: 1.15rem; font-weight: 600; }
 .badge-high { background: rgba(58,125,68,0.18); color: var(--forest-green); border: 1px solid var(--forest-green); }
 .badge-mid  { background: rgba(212,160,23,0.18); color: #8A6200; border: 1px solid var(--mustard); }
 .badge-low  { background: rgba(158,42,43,0.14);  color: var(--deep-red); border: 1px solid var(--deep-red); }
+
+/* Chart Styling */
+.chart-wrapper {
+  width: 100%;
+}
+
+.chart-container {
+  background: var(--aged-paper);
+  border: var(--border-tile);
+  border-radius: var(--radius-tile);
+  box-shadow: var(--shadow-tile);
+  padding: 0.5rem 1.5rem 1.5rem 1.5rem;
+  transition: box-shadow var(--transition-lift);
+}
+
+.chart-container:hover {
+  box-shadow: var(--shadow-tile-hover);
+}
+
+.chart-header {
+  font-family: 'Cinzel', serif;
+  font-size: 0.85rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--earth-brown);
+  margin-bottom: 0.1rem;
+  text-align: center;
+  font-weight: 600;
+}
+
+.chart-description {
+  font-family: 'Crimson Text', serif;
+  font-size: 0.95rem;
+  color: var(--stone-gray);
+  text-align: center;
+  font-style: italic;
+  margin-bottom: 1.5rem;
+  line-height: 1.5;
+}
+
+/* Recharts overrides for medieval theme */
+.chart-container .recharts-wrapper {
+  filter: drop-shadow(0 1px 2px rgba(43,27,10,0.08));
+}
+
+.chart-container .recharts-legend-wrapper {
+  padding-top: 0.5rem !important;
+}
+
+.chart-container .recharts-legend-item {
+  font-family: 'Crimson Text', serif !important;
+}
+
+/* Legacy support for old point breakdown chart */
+.point-breakdown-container {
+  background: var(--aged-paper);
+  border: var(--border-tile);
+  border-radius: var(--radius-tile);
+  box-shadow: var(--shadow-tile);
+  padding: 1.5rem;
+  transition: box-shadow var(--transition-lift);
+}
+
+.point-breakdown-container:hover {
+  box-shadow: var(--shadow-tile-hover);
+}
 
 .avg-section {
   margin-top: 1rem;
