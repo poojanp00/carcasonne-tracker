@@ -205,10 +205,10 @@ export default function App() {
 
   const handleGameStart = useCallback(async (setup) => {
     const extraTypes = (setup.expansions || []).flatMap(e => EXPANSION_TYPES[e] || []);
-    await resetBoard(setup.players, extraTypes);
+    await resetBoard(user.id, setup.players, extraTypes);
     setSession(prev => ({ ...prev, ...setup, finalScores: null }));
     setGameKey(k => k + 1);
-  }, []);
+  }, [user]);
 
   const handleBoardReset = useCallback(() => {
     setSession(prev => ({
@@ -378,7 +378,7 @@ export default function App() {
                       isGuest={isGuest}
                     />
                   : session.players
-                    ? <Board key={gameKey} session={session} onFinish={handleFinishGame} onReset={handleBoardReset} />
+                    ? <Board key={gameKey} userId={user?.id} session={session} onFinish={handleFinishGame} onReset={handleBoardReset} />
                     : session?.showRealmCreation
                       ? <PreGameSetup
                           key="realm-creation"

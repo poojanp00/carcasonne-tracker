@@ -66,26 +66,29 @@ function makeDefault(players = [], extraTypes = []) {
 
 /**
  * BOARD STATE RETRIEVAL WITH VALIDATION
- * 
+ *
  * Loads current board state from database with comprehensive validation.
  * Ensures data integrity and handles player list changes gracefully.
- * 
+ * Per-user isolation: each user has their own board state.
+ *
  * Validation Rules:
- * 1. Database record must exist and be retrievable
+ * 1. Database record must exist and be retrievable for the user
  * 2. If players provided, stored player list must exactly match
  * 3. All stored players must have complete score breakdown entries
  * 4. Fallback to fresh state on any validation failure
- * 
+ *
+ * @param {string} userId - UUID of the current user
  * @param {string[]} players - Expected players (empty = accept any)
  * @returns {Promise<Object>} Validated board state
  */
-export async function getBoard(players = []) {
+export async function getBoard(userId, players = []) {
+  if (!userId) return makeDefault(players);
   try {
-    // Fetch singleton board record (ID=1)
+    // Fetch user's board record
     const { data } = await supabase
       .from('board_state')
       .select('*')
-      .eq('id', 1)
+      .eq('user_id', userId)
       .single();
 
     if (!data) return makeDefault(players);
@@ -127,18 +130,20 @@ export async function getBoard(players = []) {
 
 /**
  * REAL-TIME BOARD STATE PERSISTENCE
- * 
+ *
  * Fire-and-forget save operation for frequent in-game updates.
  * Optimized for responsiveness - doesn't block UI on database latency.
  * Logs failures for debugging but doesn't interrupt gameplay.
- * 
+ *
  * Used during active scoring when players are adding points frequently.
- * 
+ *
  * @param {Object} board - Complete board state to persist
+ * @param {string} userId - UUID of the current user
  */
-export function saveBoard(board) {
+export function saveBoard(board, userId) {
+  if (!userId) return;
   supabase.from('board_state').upsert({
-    id:           1,  // Singleton pattern - only one active game
+    user_id:      userId,  // Per-user isolation
     positions:    board.positions,
     laps:         board.laps,
     track_length: board.trackLength || 50,
@@ -151,21 +156,23 @@ export function saveBoard(board) {
 
 /**
  * BOARD STATE RESET WITH SYNCHRONIZATION
- * 
+ *
  * Awaitable reset operation for game initialization and cleanup.
  * Ensures fresh state is committed before allowing game to proceed.
- * 
+ *
  * Used when starting new games or switching player configurations.
  * Callers that need guaranteed write completion should await this.
- * 
+ *
+ * @param {string} userId - UUID of the current user
  * @param {string[]} players - New player list
  * @param {string[]} extraTypes - Expansion scoring categories
  * @returns {Promise<Object>} Fresh board state after database write
  */
-export async function resetBoard(players = [], extraTypes = []) {
+export async function resetBoard(userId, players = [], extraTypes = []) {
+  if (!userId) throw new Error('resetBoard requires userId');
   const d = makeDefault(players, extraTypes);
   await supabase.from('board_state').upsert({
-    id:           1,
+    user_id:      userId,
     positions:    d.positions,
     laps:         d.laps,
     track_length: d.trackLength,
