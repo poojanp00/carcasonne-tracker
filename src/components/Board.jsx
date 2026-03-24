@@ -89,8 +89,6 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
 
   const [board,       setBoard]       = useState(null);
   const [input,       setInput]       = useState(() => Object.fromEntries(players.map(p => [p, 0])));
-  const [history,     setHistory]     = useState([]);
-  const [log,         setLog]         = useState([]);
   const [finishStep,       setFinishStep]       = useState(0); // 0 = normal, 1 = awaiting field confirm
   const [leadersAtFinish,  setLeadersAtFinish]  = useState([]);
   const [showTraders,          setShowTraders]          = useState(false);
@@ -99,9 +97,122 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
   const [confirmFinalScoring,  setConfirmFinalScoring]  = useState(false); // Final scoring confirmation
   const logEndRef = useRef(null);
 
-  useEffect(() => { getBoard(userId, players, isGuest).then(b => setBoard(b)); }, [userId, isGuest]);
+  // Generate log from moves and undo events merged chronologically
+  const log = board && board.moves
+    ? (() => {
+        const entries = [];
+
+        const track = board.trackLength || 50;
+        const playerPositions = Object.fromEntries(players.map(p => [p, 0])); // Track positions as we replay
+        const playerLaps = Object.fromEntries(players.map(p => [p, 0])); // Track laps as we replay
+
+        // Replay moves to detect lap completions and add log entries
+        for (let i = 0; i <= board.moveIndex; i++) {
+          const move = board.moves[i];
+          if (move) {
+            // Add move entry
+            entries.push({
+              type: 'move',
+              msg: `${move.player} scored +${move.amount} ${move.label}`,
+              player: move.player,
+              time: new Date(move.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+              timestamp: move.timestamp,
+              id: `move-${i}`,
+            });
+
+            // Check if this move completed a lap by calculating position change
+            const curPos = playerPositions[move.player] || 0;
+            const curLaps = playerLaps[move.player] || 0;
+            const sum = curPos + move.amount;
+            const lapInc = Math.floor(sum / track);
+            const newPos = ((sum % track) + track) % track;
+            const newLaps = curLaps + (lapInc > 0 ? lapInc : 0);
+
+            playerPositions[move.player] = newPos;
+            playerLaps[move.player] = newLaps;
+
+            if (newLaps > curLaps) {
+              entries.push({
+                type: 'lap',
+                msg: `${move.player} completed Lap ${newLaps}`,
+                player: move.player,
+                time: new Date(move.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+                timestamp: move.timestamp + 1, // Slightly after move for ordering
+                id: `lap-${i}-${newLaps}`,
+              });
+            }
+
+            // Check if final scoring starts at this move
+            if (board.finalScoringIndex === i + 1 && board.finalScoringTime) {
+              entries.push({
+                type: 'final-scoring',
+                msg: 'Final scoring started',
+                player: null,
+                time: new Date(board.finalScoringTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+                timestamp: board.finalScoringTime,
+                id: `final-scoring-${i}`,
+              });
+            }
+          }
+        }
+
+        // Add undo events
+        if (board.undoLog && board.undoLog.length > 0) {
+          board.undoLog.forEach((undo, idx) => {
+            entries.push({
+              type: 'undo',
+              msg: `Undo: ${undo.player} → ${undo.amount} ${undo.label}`,
+              player: undo.player,
+              time: new Date(undo.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+              timestamp: undo.timestamp,
+              id: `undo-${idx}`,
+            });
+          });
+        }
+
+        // Sort by timestamp
+        return entries.sort((a, b) => a.timestamp - b.timestamp);
+      })()
+    : [];
+
+  useEffect(() => {
+    setBoard(null); // Clear old board before loading new one
+    getBoard(userId, players, isGuest).then(b => setBoard(b));
+  }, [userId, players, isGuest]);
+
   useEffect(() => { if (board) saveBoard(board, userId, isGuest); }, [board, userId, isGuest]);
   useEffect(() => { logEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [log]);
+
+  // Recalculate board state from moves when moveIndex changes (for undo/redo)
+  useEffect(() => {
+    if (!board || board.moves.length === 0) return;
+
+    // Rebuild board state from moves[0..moveIndex]
+    const rebuilt = {
+      ...board,
+      positions: Object.fromEntries(players.map(p => [p, 0])),
+      laps: Object.fromEntries(players.map(p => [p, 0])),
+      scoreTotals: Object.fromEntries(players.map(p => [p, { road: 0, city: 0, monastery: 0, field: 0 }])),
+    };
+
+    for (let i = 0; i <= board.moveIndex; i++) {
+      const move = board.moves[i];
+      if (!move) continue;
+
+      const curPos = rebuilt.positions[move.player] || 0;
+      const curLaps = rebuilt.laps[move.player] || 0;
+      const sum = curPos + move.amount;
+      const lapInc = Math.floor(sum / track);
+      const newPos = ((sum % track) + track) % track;
+      const newLaps = curLaps + (lapInc > 0 ? lapInc : 0);
+
+      rebuilt.positions[move.player] = newPos;
+      rebuilt.laps[move.player] = newLaps;
+      rebuilt.scoreTotals[move.player][move.type] = (rebuilt.scoreTotals[move.player][move.type] || 0) + move.amount;
+    }
+
+    setBoard(rebuilt);
+  }, [board?.moveIndex, board?.moves.length]);
 
   if (!board) return null;
 
@@ -111,43 +222,85 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
   const hasAM  = (session?.expansions || []).includes('Abbey & Mayor');
   const hasAbbot = (session?.expansions || []).includes('The Abbot');
 
-  function appendLog(msg, player = null) {
-    const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-    setLog(prev => [...prev, { msg, player, time, id: Date.now() + Math.random() }].slice(-100));
-  }
-
   /**
-   * GAME HISTORY SYSTEM
-   * 
-   * Maintains a stack of board states for undo functionality.
-   * Critical for correcting scoring mistakes during gameplay.
-   * Limited to last 100 moves to prevent memory bloat in long games.
+   * ADD MOVE TO HISTORY
+   *
+   * Records a move (score adjustment) in the moves array.
+   * Truncates future moves if undo happened before this new move.
    */
-  function pushHistory() {
-    // Deep clone current board state before making changes
-    setHistory(h => [...h, JSON.parse(JSON.stringify(board))].slice(-100));
+  function addMove(player, type, amount, label) {
+    setBoard(prev => {
+      const newMoves = prev.moves.slice(0, prev.moveIndex + 1); // Truncate redo stack
+      newMoves.push({
+        player,
+        type,
+        amount,
+        label,
+        timestamp: Date.now(),
+        inFinalScoring: prev.finalScoringIndex !== null,
+      });
+      return {
+        ...prev,
+        moves: newMoves,
+        moveIndex: newMoves.length - 1,
+      };
+    });
   }
 
   /**
    * UNDO SYSTEM
-   * 
-   * Reverts to previous board state and logs the changes.
-   * Special handling for finish game step to prevent data loss.
-   * Calculates point differences to show what was undone.
+   *
+   * Reverts to previous move considering final scoring context.
+   * If in final scoring, undoes final scoring moves first.
+   * Only exits final scoring after undoing all final scoring moves.
    */
   function undoLastMove() {
-    if (finishStep === 1) { setFinishStep(0); return; } // Exit finish mode
-    if (history.length === 0) return; // No moves to undo
-    
-    const last = history[history.length - 1];
-    // Log what's being undone for each player who changed
-    for (const p of players) {
-      const cur  = (board.laps[p] || 0) * track + (board.positions[p] || 0);
-      const prev = (last.laps[p]  || 0) * track + (last.positions[p]  || 0);
-      if (cur !== prev) appendLog(`Undo: ${p} → ${prev} pts`, p);
+    if (!board) return;
+    if (board.moveIndex < 0) return; // No moves to undo
+
+    const currentMove = board.moves[board.moveIndex];
+    const isInFinalScoring = board.finalScoringIndex !== null;
+    const isCurrentMoveInFinalScoring = currentMove?.inFinalScoring;
+
+    // If in final scoring and current move is in final scoring, just undo the move
+    if (isInFinalScoring && isCurrentMoveInFinalScoring) {
+      setBoard(prev => ({
+        ...prev,
+        moveIndex: prev.moveIndex - 1,
+        undoLog: [
+          ...prev.undoLog,
+          {
+            player: currentMove.player,
+            amount: -currentMove.amount,
+            label: currentMove.label,
+            timestamp: Date.now(),
+          },
+        ],
+      }));
+      return;
     }
-    setBoard(last);
-    setHistory(h => h.slice(0, -1));
+
+    // If in final scoring but current move is NOT in final scoring, exit final scoring
+    if (isInFinalScoring && !isCurrentMoveInFinalScoring) {
+      setFinishStep(0);
+      setBoard(prev => ({ ...prev, finalScoringIndex: null }));
+      return;
+    }
+
+    // Regular game undo - add to undoLog
+    setBoard(prev => ({
+      ...prev,
+      moveIndex: prev.moveIndex - 1,
+      undoLog: [
+        ...prev.undoLog,
+        {
+          player: currentMove.player,
+          amount: -currentMove.amount,
+          label: currentMove.label,
+          timestamp: Date.now(),
+        },
+      ],
+    }));
   }
 
   /**
@@ -173,8 +326,6 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
     delta = Number(delta) || 0;
     if (delta === 0) return; // Ignore zero-point changes
 
-    pushHistory(); // Save state for undo
-
     // Current position calculation
     const curPos  = board.positions[player] || 0;
     const curLaps = board.laps[player] || 0;
@@ -185,6 +336,15 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
     const newPos  = ((sum % track) + track) % track; // Modulo with negative handling
     const newLaps = curLaps + (lapInc > 0 ? lapInc : 0); // Prevent negative laps
     const newTotal = newLaps * track + newPos; // Final score for logging
+
+    // Generate human-readable category names for logging
+    const label = type === 'pig' ? 'Field (Pig)' :
+                  type === 'inn' ? 'Road (Inn)' :
+                  type === 'cathedral' ? 'City (Cathedral)' :
+                  type.charAt(0).toUpperCase() + type.slice(1);
+
+    // Add move to history
+    addMove(player, type, delta, label);
 
     // Update score breakdown by category
     setBoard(b => {
@@ -199,13 +359,6 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
         },
       };
     });
-    
-    // Generate human-readable category names for logging
-    const label = type === 'pig' ? 'Field (Pig)' : 
-                  type === 'inn' ? 'Road (Inn)' : 
-                  type === 'cathedral' ? 'City (Cathedral)' : 
-                  type.charAt(0).toUpperCase() + type.slice(1);
-    appendLog(`${player} scored +${delta} ${label} → ${newTotal} pts`, player);
   }
 
   function handleReset() {
@@ -220,6 +373,8 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
   function confirmInitialScoring() {
     setConfirmFinalScoring(false);
     setLeadersAtFinish(leaders);
+    // Mark when final scoring started (for undo logic and logging)
+    setBoard(prev => ({ ...prev, finalScoringIndex: prev.moveIndex + 1, finalScoringTime: Date.now() }));
     if (hasTB) setShowTraders(true);
     else setFinishStep(1);
   }
@@ -250,7 +405,6 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
   }
 
   function applyTraderBonuses() {
-    pushHistory();
     const nb = JSON.parse(JSON.stringify(board));
     for (const good of ['wine', 'grain', 'cloth']) {
       for (const p of traderSelections[good]) {
@@ -264,7 +418,9 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
         nb.laps[p] = newLaps;
         if (!nb.scoreTotals[p]) nb.scoreTotals[p] = {};
         nb.scoreTotals[p][good] = (nb.scoreTotals[p][good] || 0) + 10;
-        appendLog(`${p} scored +10 ${good.charAt(0).toUpperCase() + good.slice(1)} → ${newLaps * track + newPos} pts`, p);
+
+        // Add move to history for each bonus
+        addMove(p, good, 10, good.charAt(0).toUpperCase() + good.slice(1));
       }
     }
     setBoard(nb);
@@ -410,10 +566,13 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
             <div className="board-log-entries">
               {log.map((entry) => {
                 const color = entry.player ? getMeepleColor(meepleMap[entry.player]) : 'var(--stone-gray)';
+                const isUndo = entry.type === 'undo';
+                const isLap = entry.type === 'lap';
+                const isFinalScoring = entry.type === 'final-scoring';
                 return (
-                  <div key={entry.id} className="board-log-entry" style={{ color }}>
-                    <span className="board-log-msg">
-                      {entry.player && (
+                  <div key={entry.id} className="board-log-entry" style={{ color, opacity: isUndo ? 0.65 : 1, fontWeight: isLap || isFinalScoring ? 600 : 400 }}>
+                    <span className="board-log-msg" style={{ textDecoration: isUndo ? 'line-through' : 'none' }}>
+                      {entry.player && !isUndo && (
                         <img
                           src={MEEPLE_IMGS[meepleMap[entry.player]] || FALLBACK_MEEPLE}
                           alt=""
@@ -435,7 +594,7 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
               className="btn btn-ghost btn-sm"
               style={{ flex: '1 1 0', justifyContent: 'center' }}
               onClick={undoLastMove}
-              disabled={history.length === 0 && finishStep === 0}
+              disabled={board.moveIndex < 0}
             >
               Undo
             </button>
