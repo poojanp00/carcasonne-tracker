@@ -219,8 +219,8 @@ export default function App() {
     }));
   }, []);
 
-  const handleFinishGame = useCallback((finalScores, scoreBreakdown, farmWin, gameDuration) => {
-    setSession(prev => ({ ...prev, finalScores, scoreBreakdown, farmWin, gameDuration }));
+  const handleFinishGame = useCallback((finalScores, scoreBreakdown, farmWin, gameDuration, maxFeatures) => {
+    setSession(prev => ({ ...prev, finalScores, scoreBreakdown, farmWin, gameDuration, maxFeatures }));
     setTab('board');
   }, []);
 

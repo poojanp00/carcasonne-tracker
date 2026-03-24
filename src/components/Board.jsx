@@ -346,9 +346,19 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
     // Add move to history
     addMove(player, type, delta, label);
 
-    // Update score breakdown by category
+    // Update score breakdown by category and track max features
     setBoard(b => {
       const prevBreakdown = b.scoreTotals?.[player] || { road: 0, city: 0, monastery: 0, field: 0 };
+      const maxFeatures = { ...b.maxFeatures };
+
+      // Check if this feature is the largest of its type
+      if (delta > 0) {
+        const currentMaxFeature = maxFeatures[type] || { amount: 0, player: null };
+        if (delta > currentMaxFeature.amount) {
+          maxFeatures[type] = { amount: delta, player };
+        }
+      }
+
       return {
         ...b,
         positions:   { ...b.positions, [player]: newPos  },
@@ -357,6 +367,7 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
           ...b.scoreTotals,
           [player]: { ...prevBreakdown, [type]: (prevBreakdown[type] || 0) + delta },
         },
+        maxFeatures,
       };
     });
   }
@@ -401,7 +412,7 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
 
     // Then reset for next game
     resetBoard(userId, players, [], isGuest);
-    onFinish(finalScores, scoreBreakdown, autoFarmWin, gameDuration);
+    onFinish(finalScores, scoreBreakdown, autoFarmWin, gameDuration, board.maxFeatures);
   }
 
   function applyTraderBonuses() {

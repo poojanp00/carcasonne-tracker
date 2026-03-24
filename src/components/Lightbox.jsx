@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend, ResponsiveContainer } from 'recharts';
+import GameHighlights from './GameHighlights';
 import pigImg from '../../images/icons/pig.png';
 import cImg   from '../../images/icons/C.png';
 
@@ -249,6 +250,11 @@ export default function Lightbox({ game, games = [], onNavigate, onClose }) {
               </div>
             ) : null;
           })()}
+
+          {/* Game Highlights - achievements are stored in camelCase from database normalization */}
+          {game.achievements && Object.keys(game.achievements).length > 0 && (
+            <GameHighlights achievements={game.achievements} />
+          )}
 
           {/* Expansions */}
           {game.expansions.length > 0 ? (

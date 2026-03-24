@@ -114,39 +114,64 @@ export async function getGames() {
     .order('inserted_at', { ascending: false }); // Newest first for recent game display
     
   // Normalize database structure to application format
-  return (data || []).map(g => ({
-    id:         g.id,
-    realmId:    g.realm_id,      // Foreign key to realms table
-    date:       g.date,          // Game date (YYYY-MM-DD)
-    players:    g.players    || [], // Player objects with scores and breakdowns
-    expansions: g.expansions || [], // Active expansion names
-    winners:    g.winners    || [], // Precomputed winners from database
-    maxScore:   g.max_score  || 0,  // Maximum score in the game
-    clutchWin:  g.clutch_win || false, // Close game victory flag
-    farmWin:    g.farm_win   || false, // Farm-dominant victory flag
-  }));
+  return (data || []).map(g => {
+    // Transform database achievement columns back to UI format
+    const achievements = {};
+    if (g.longest_road) achievements.longestRoad = g.longest_road;
+    if (g.largest_city) achievements.largestCity = g.largest_city;
+    if (g.largest_field) achievements.largestField = g.largest_field;
+    if (g.longest_inn) achievements.longestInn = g.longest_inn;
+    if (g.largest_cathedral) achievements.largestCathedral = g.largest_cathedral;
+    if (g.biggest_pig) achievements.biggestPig = g.biggest_pig;
+    if (g.largest_barn) achievements.largestBarn = g.largest_barn;
+
+    return {
+      id:            g.id,
+      realmId:       g.realm_id,      // Foreign key to realms table
+      date:          g.date,          // Game date (YYYY-MM-DD)
+      players:       g.players    || [], // Player objects with scores and breakdowns
+      expansions:    g.expansions || [], // Active expansion names
+      winners:       g.winners    || [], // Precomputed winners from database
+      maxScore:      g.max_score  || 0,  // Maximum score in the game
+      clutchWin:     g.clutch_win || false, // Close game victory flag
+      farmWin:       g.farm_win   || false, // Farm-dominant victory flag
+      achievements,  // Live-tracked achievements in UI format
+    };
+  });
 }
 
 /**
  * CREATE NEW GAME RECORD
- * 
+ *
  * Persists completed game data to database.
  * Games are associated with realms for organization and access control.
- * 
- * @param {Object} game - Game object with players, scores, expansions, etc.
+ * Stores live-tracked game achievements (longest road, largest city, etc.).
+ *
+ * @param {Object} game - Game object with players, scores, expansions, maxFeatures, etc.
  */
 export async function insertGame(game) {
+  // maxFeatures is live-tracked during gameplay: {road: {amount, player}, city: {amount, player}, ...}
+  // Map to database column names
+  const maxFeatures = game.maxFeatures || {};
+
   await supabase.from('games').insert({
-    id:          game.id,
-    realm_id:    game.realmId  || null, // Optional realm association
-    date:        game.date,              // YYYY-MM-DD format
-    players:     game.players,           // Array of player objects
-    expansions:  game.expansions || [],  // Active expansion names
-    winners:     game.winners    || [],  // Precomputed winners from frontend
-    max_score:   game.maxScore  || 0,    // Maximum score in the game
-    clutch_win:  game.clutchWin  || false, // Victory in close game
-    farm_win:    game.farmWin    || false, // Victory via farm dominance
-    duration:    game.gameDuration || 0, // Game duration in milliseconds
+    id:               game.id,
+    realm_id:         game.realmId  || null, // Optional realm association
+    date:             game.date,              // YYYY-MM-DD format
+    players:          game.players,           // Array of player objects
+    expansions:       game.expansions || [],  // Active expansion names
+    winners:          game.winners    || [],  // Precomputed winners from frontend
+    max_score:        game.maxScore  || 0,    // Maximum score in the game
+    clutch_win:       game.clutchWin  || false, // Victory in close game
+    farm_win:         game.farmWin    || false, // Victory via farm dominance
+    duration:         game.gameDuration || 0, // Game duration in milliseconds
+    longest_road:     maxFeatures.road        || null,
+    largest_city:     maxFeatures.city        || null,
+    largest_field:    maxFeatures.field       || null,
+    longest_inn:      maxFeatures.inn         || null,
+    largest_cathedral: maxFeatures.cathedral  || null,
+    biggest_pig:      maxFeatures.pig         || null,
+    largest_barn:     maxFeatures.barn        || null,
   });
 }
 
