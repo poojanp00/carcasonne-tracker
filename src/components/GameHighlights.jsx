@@ -35,7 +35,7 @@ export default function GameHighlights({ achievements = {} }) {
   if (displayAchievements.length === 0) return null;
 
   return (
-    <div style={{ marginTop: '1.4rem' }}>
+    <div>
       <div style={{
         fontSize: '0.7rem',
         fontFamily: 'Cinzel, serif',
@@ -48,8 +48,8 @@ export default function GameHighlights({ achievements = {} }) {
 
       <div style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
-        gap: '0.8rem',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+        gap: '1.2rem',
       }}>
         {displayAchievements.map(({ key, amount, player }) => (
           <div
@@ -57,9 +57,9 @@ export default function GameHighlights({ achievements = {} }) {
             style={{
               background: 'var(--aged-paper)',
               border: '1px solid var(--stone-gray-light)',
-              borderLeft: `3px solid ${ACHIEVEMENT_COLORS[key]}`,
+              borderLeft: `4px solid ${ACHIEVEMENT_COLORS[key]}`,
               borderRadius: 'var(--radius-tile)',
-              padding: '0.7rem 0.9rem',
+              padding: '1rem 1.1rem',
               fontFamily: 'Crimson Text, serif',
             }}
           >
