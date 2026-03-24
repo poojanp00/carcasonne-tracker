@@ -115,7 +115,7 @@ const SCORE_TYPE_COLORS = {
 };
 
 export default function GameLogForm({ session, ownedExpansions, onSubmit, onCancel, isGuest = false }) {
-  const { players = [], meeples = {}, expansions: prefillExp = [], finalScores = {}, scoreBreakdown = {}, farmWin: autoFarmWin = false } = session || {};
+  const { players = [], meeples = {}, expansions: prefillExp = [], finalScores = {}, scoreBreakdown = {}, farmWin: autoFarmWin = false, gameDuration = 0 } = session || {};
 
   const [date, setDate] = useState(today);
 
