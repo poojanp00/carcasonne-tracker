@@ -144,6 +144,7 @@ export default function GameLogForm({ session, ownedExpansions, onSubmit, onCanc
       expansions: [...prefillExp].sort(),
       farmWin:   autoFarmWin,
       clutchWin: isClutch,
+      gameDuration: session.gameDuration, // Game duration in milliseconds
     });
   };
 

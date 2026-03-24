@@ -91,12 +91,14 @@ function makeDefault(players = [], extraTypes = []) {
     scoreTotals[p] = { ...breakdown }; // Zero points in all categories
   }
   
-  return { 
-    positions, 
-    laps, 
+  return {
+    positions,
+    laps,
     trackLength: 50,  // Standard Carcassonne scoring track length
-    players, 
-    scoreTotals 
+    players,
+    scoreTotals,
+    startTime: Date.now(),  // Game start timestamp
+    endTime: null           // Game end timestamp (set when game finishes)
   };
 }
 
@@ -161,6 +163,8 @@ export async function getBoard(userId, players = [], isGuest = false) {
       trackLength: data.track_length || 50,
       players:     data.players      || [],
       scoreTotals,
+      startTime:   data.start_time   || Date.now(),
+      endTime:     data.end_time     || null,
     };
   } catch {
     // Database error or corrupt data - fall back to clean state
@@ -195,6 +199,8 @@ export function saveBoard(board, userId, isGuest = false) {
     track_length: board.trackLength || 50,
     players:      board.players     || [],
     score_totals: board.scoreTotals || {},
+    start_time:   board.startTime   || Date.now(),
+    end_time:     board.endTime     || null,
   }, { onConflict: 'user_id' }).then(({ error }) => {
     if (error) console.warn('Failed to save board:', error);
   });
@@ -228,6 +234,8 @@ export async function resetBoard(userId, players = [], extraTypes = [], isGuest 
     track_length: d.trackLength,
     players:      d.players,
     score_totals: d.scoreTotals,
+    start_time:   d.startTime,
+    end_time:     d.endTime,
   }, { onConflict: 'user_id' });
   return d;
 }
