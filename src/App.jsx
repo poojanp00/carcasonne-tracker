@@ -238,6 +238,23 @@ export default function App() {
     // User will click "Play Again" to reset and go back to scoreboard
   }, [appOperations.addGame, session, showToast, isGuest, signOutGuest]);
 
+  const handlePlayAgain = useCallback(async () => {
+    // Reset board and show expansion selection screen
+    const realm = session?.realm;
+    const players = session?.players || [];
+    const meeples = session?.meeples || {};
+    const expansions = session?.expansions || [];
+    await resetBoard(userId, players, [], isGuest);
+    // Clear players so PreGameSetup shows (will be pre-filled from realm)
+    // Keep meeples and expansions for next game
+    setSession({
+      realm,
+      lastMeeples: meeples,
+      lastExpansions: expansions,
+    });
+    setTab('board');
+  }, [session, resetBoard, userId, isGuest]);
+
   const handleDelete = useCallback((id) => {
     appOperations.deleteGame(id);
     showToast('Game removed.');
@@ -372,6 +389,7 @@ export default function App() {
                       ownedExpansions={ownedExpansions}
                       onSubmit={handleRecordGame}
                       onCancel={() => setSession(prev => ({ ...prev, finalScores: null }))}
+                      onPlayAgain={handlePlayAgain}
                       isGuest={isGuest}
                     />
                   : session.players

@@ -114,7 +114,7 @@ const SCORE_TYPE_COLORS = {
   wagon: '#996633',      // Brown
 };
 
-export default function GameLogForm({ session, ownedExpansions, onSubmit, onCancel, isGuest = false }) {
+export default function GameLogForm({ session, ownedExpansions, onSubmit, onCancel, onPlayAgain, isGuest = false }) {
   const { players = [], meeples = {}, expansions: prefillExp = [], finalScores = {}, scoreBreakdown = {}, farmWin: autoFarmWin = false, gameDuration = 0 } = session || {};
 
   const [date, setDate] = useState(today);
@@ -300,7 +300,7 @@ export default function GameLogForm({ session, ownedExpansions, onSubmit, onCanc
           <button type="submit" className="btn">Sign In to Save Game</button>
         )}
         {submitted && !isGuest && (
-          <button type="button" className="btn" onClick={onCancel} style={{ marginLeft: 'auto' }}>Play Again</button>
+          <button type="button" className="btn" onClick={onPlayAgain} style={{ marginLeft: 'auto' }}>Play Again</button>
         )}
       </div>
     </form>

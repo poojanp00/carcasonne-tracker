@@ -22,6 +22,7 @@ import { supabase } from './supabase';
 
 // SQL migration required:
 //   ALTER TABLE board_state ADD COLUMN IF NOT EXISTS score_totals jsonb DEFAULT '{}';
+//   ALTER TABLE board_state ADD COLUMN IF NOT EXISTS undo_log jsonb DEFAULT '[]';
 
 // Base scoring categories available in all Carcassonne games
 const BASE_TYPES = ['road', 'city', 'monastery', 'field'];
@@ -78,19 +79,19 @@ function makeDefault(players = [], extraTypes = []) {
   // Combine base types with expansion types (avoiding duplicates)
   const allTypes   = [...BASE_TYPES, ...extraTypes.filter(t => !BASE_TYPES.includes(t))];
   const breakdown  = Object.fromEntries(allTypes.map(t => [t, 0]));
-  
+
   // Initialize tracking objects
   const positions   = {};
   const laps        = {};
   const scoreTotals = {};
-  
+
   // Set starting state for each player
   for (const p of players) {
     positions[p]   = 0;            // Start at position 0 on the scoring track
     laps[p]        = 0;            // No completed laps initially
     scoreTotals[p] = { ...breakdown }; // Zero points in all categories
   }
-  
+
   return {
     positions,
     laps,
@@ -98,7 +99,12 @@ function makeDefault(players = [], extraTypes = []) {
     players,
     scoreTotals,
     startTime: Date.now(),  // Game start timestamp
-    endTime: null           // Game end timestamp (set when game finishes)
+    endTime: null,          // Game end timestamp (set when game finishes)
+    moves: [],              // All game moves for undo/redo
+    moveIndex: -1,          // Current position in moves (-1 = start)
+    finalScoringIndex: null, // Index when final scoring started (null = not in final scoring)
+    finalScoringTime: null,  // Timestamp when final scoring was initiated
+    undoLog: []             // Track undo events with timestamps for display log
   };
 }
 
@@ -158,13 +164,18 @@ export async function getBoard(userId, players = [], isGuest = false) {
 
     // Return validated and normalized state
     return {
-      positions:   data.positions    || {},
-      laps:        data.laps         || {},
-      trackLength: data.track_length || 50,
-      players:     data.players      || [],
+      positions:         data.positions         || {},
+      laps:              data.laps              || {},
+      trackLength:       data.track_length      || 50,
+      players:           data.players           || [],
       scoreTotals,
-      startTime:   data.start_time   || Date.now(),
-      endTime:     data.end_time     || null,
+      startTime:         data.start_time        || Date.now(),
+      endTime:           data.end_time          || null,
+      moves:             data.moves             || [],
+      moveIndex:         data.move_index ?? -1,
+      finalScoringIndex: data.final_scoring_index || null,
+      finalScoringTime:  data.final_scoring_time || null,
+      undoLog:           data.undo_log          || [],
     };
   } catch {
     // Database error or corrupt data - fall back to clean state
@@ -193,14 +204,19 @@ export function saveBoard(board, userId, isGuest = false) {
     return;
   }
   supabase.from('board_state').upsert({
-    user_id:      userId,  // Per-user isolation
-    positions:    board.positions,
-    laps:         board.laps,
-    track_length: board.trackLength || 50,
-    players:      board.players     || [],
-    score_totals: board.scoreTotals || {},
-    start_time:   board.startTime   || Date.now(),
-    end_time:     board.endTime     || null,
+    user_id:              userId,  // Per-user isolation
+    positions:            board.positions,
+    laps:                 board.laps,
+    track_length:         board.trackLength || 50,
+    players:              board.players     || [],
+    score_totals:         board.scoreTotals || {},
+    start_time:           board.startTime   || Date.now(),
+    end_time:             board.endTime     || null,
+    moves:                board.moves       || [],
+    move_index:           board.moveIndex ?? -1,
+    final_scoring_index:  board.finalScoringIndex || null,
+    final_scoring_time:   board.finalScoringTime || null,
+    undo_log:             board.undoLog     || [],
   }, { onConflict: 'user_id' }).then(({ error }) => {
     if (error) console.warn('Failed to save board:', error);
   });
@@ -228,14 +244,19 @@ export async function resetBoard(userId, players = [], extraTypes = [], isGuest 
 
   const d = makeDefault(players, extraTypes);
   await supabase.from('board_state').upsert({
-    user_id:      userId,
-    positions:    d.positions,
-    laps:         d.laps,
-    track_length: d.trackLength,
-    players:      d.players,
-    score_totals: d.scoreTotals,
-    start_time:   d.startTime,
-    end_time:     d.endTime,
+    user_id:              userId,
+    positions:            d.positions,
+    laps:                 d.laps,
+    track_length:         d.trackLength,
+    players:              d.players,
+    score_totals:         d.scoreTotals,
+    start_time:           d.startTime,
+    end_time:             d.endTime,
+    moves:                d.moves,
+    move_index:           d.moveIndex,
+    final_scoring_index:  d.finalScoringIndex,
+    final_scoring_time:   d.finalScoringTime,
+    undo_log:             d.undoLog,
   }, { onConflict: 'user_id' });
   return d;
 }
