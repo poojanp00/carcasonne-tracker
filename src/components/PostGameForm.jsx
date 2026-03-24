@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell, Legend, ResponsiveContainer } from 'recharts';
+import GameHighlights from './GameHighlights';
+import { transformMaxFeaturesToUI } from '../utils/achievements';
 import crownImg from '../../images/icons/crown.png';
 import pigImg   from '../../images/icons/pig.png';
 import cImg     from '../../images/icons/C.png';
@@ -115,7 +117,7 @@ const SCORE_TYPE_COLORS = {
 };
 
 export default function GameLogForm({ session, ownedExpansions, onSubmit, onCancel, onPlayAgain, isGuest = false }) {
-  const { players = [], meeples = {}, expansions: prefillExp = [], finalScores = {}, scoreBreakdown = {}, farmWin: autoFarmWin = false, gameDuration = 0 } = session || {};
+  const { players = [], meeples = {}, expansions: prefillExp = [], finalScores = {}, scoreBreakdown = {}, farmWin: autoFarmWin = false, gameDuration = 0, maxFeatures = {} } = session || {};
 
   const [date, setDate] = useState(today);
   const [submitted, setSubmitted] = useState(false);
@@ -160,6 +162,7 @@ export default function GameLogForm({ session, ownedExpansions, onSubmit, onCanc
       farmWin:   autoFarmWin,
       clutchWin: isClutch,
       gameDuration: session.gameDuration, // Game duration in milliseconds
+      maxFeatures, // Live-tracked largest features per category
     });
     setSubmitted(true);
   };
@@ -237,6 +240,11 @@ export default function GameLogForm({ session, ownedExpansions, onSubmit, onCanc
           })}
         </div>
 
+      </div>
+
+      {/* Game Highlights */}
+      <div className="tile-card" style={{ marginBottom: '1.4rem' }}>
+        <GameHighlights achievements={transformMaxFeaturesToUI(maxFeatures)} />
       </div>
 
       {/* Points distribution chart */}

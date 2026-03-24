@@ -22,6 +22,7 @@ import { supabase } from './supabase';
 
 // SQL migration required:
 //   ALTER TABLE board_state ADD COLUMN IF NOT EXISTS score_totals jsonb DEFAULT '{}';
+//   ALTER TABLE board_state ADD COLUMN IF NOT EXISTS max_features jsonb DEFAULT '{}';
 //   ALTER TABLE board_state ADD COLUMN IF NOT EXISTS undo_log jsonb DEFAULT '[]';
 
 // Base scoring categories available in all Carcassonne games
@@ -98,6 +99,7 @@ function makeDefault(players = [], extraTypes = []) {
     trackLength: 50,  // Standard Carcassonne scoring track length
     players,
     scoreTotals,
+    maxFeatures: {},        // Track largest individual feature per category: {type: {amount, player}}
     startTime: Date.now(),  // Game start timestamp
     endTime: null,          // Game end timestamp (set when game finishes)
     moves: [],              // All game moves for undo/redo
@@ -169,6 +171,7 @@ export async function getBoard(userId, players = [], isGuest = false) {
       trackLength:       data.track_length      || 50,
       players:           data.players           || [],
       scoreTotals,
+      maxFeatures:       data.max_features      || {},
       startTime:         data.start_time        || Date.now(),
       endTime:           data.end_time          || null,
       moves:             data.moves             || [],
@@ -210,6 +213,7 @@ export function saveBoard(board, userId, isGuest = false) {
     track_length:         board.trackLength || 50,
     players:              board.players     || [],
     score_totals:         board.scoreTotals || {},
+    max_features:         board.maxFeatures || {},
     start_time:           board.startTime   || Date.now(),
     end_time:             board.endTime     || null,
     moves:                board.moves       || [],
@@ -250,6 +254,7 @@ export async function resetBoard(userId, players = [], extraTypes = [], isGuest 
     track_length:         d.trackLength,
     players:              d.players,
     score_totals:         d.scoreTotals,
+    max_features:         d.maxFeatures,
     start_time:           d.startTime,
     end_time:             d.endTime,
     moves:                d.moves,

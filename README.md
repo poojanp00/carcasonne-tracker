@@ -102,6 +102,13 @@ erDiagram
         jsonb[] players
         text[] expansions
         bool farm_win
+        jsonb longest_road
+        jsonb largest_city
+        jsonb largest_field
+        jsonb longest_inn
+        jsonb largest_cathedral
+        jsonb biggest_pig
+        jsonb largest_barn
         timestamp inserted_at
     }
 
@@ -182,6 +189,8 @@ flowchart TD
 
 **`board_state.score_totals`** tracks the live score breakdown during a game, keyed by player name. Updated every time a player adds points via a scoring category button. When the game finishes, this breakdown is copied to the games record for historical reference.
 
+**Game Achievements** (`longest_road`, `largest_city`, `largest_field`, `longest_inn`, `largest_cathedral`, `biggest_pig`, `largest_barn`) store expansion-aware "Best-in-Game" honors. Each column is a JSONB object `{amount: number, player: string}` containing the player with the highest score for that achievement type, or NULL if that achievement wasn't scored in the game (e.g., if the expansion providing it wasn't used). These are automatically calculated during game submission by finding the maximum scorer for each type.
+
 **`realms.password_hash`** column exists in the schema but is unused — realms are scoped to the authenticated user and require no password.
 
 **Expansion metadata** (`category`, `tiles`, `perPlayer`, `fixed`) tracks the physical and rule requirements for each expansion:
@@ -215,7 +224,14 @@ flowchart TD
     { "name": "Diya",   "score": 87, "meeple": "red.png",  "breakdown": { "road": 18, "city": 38, "monastery": 25, "inn": 6 } }
   ],
   "expansions": ["Inns & Cathedrals", "The River"],
-  "farm_win": false
+  "farm_win": false,
+  "longest_road": { "amount": 18, "player": "Diya" },
+  "largest_city": { "amount": 45, "player": "Poojan" },
+  "largest_field": null,
+  "longest_inn": { "amount": 7, "player": "Poojan" },
+  "largest_cathedral": null,
+  "biggest_pig": null,
+  "largest_barn": null
 }
 ```
 
