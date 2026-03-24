@@ -146,6 +146,7 @@ export async function insertGame(game) {
     max_score:   game.maxScore  || 0,    // Maximum score in the game
     clutch_win:  game.clutchWin  || false, // Victory in close game
     farm_win:    game.farmWin    || false, // Victory via farm dominance
+    duration:    game.gameDuration || 0, // Game duration in milliseconds
   });
 }
 
