@@ -234,12 +234,8 @@ export default function App() {
     }
     appOperations.addGame({ ...gameData, realmId: session.realm.id });
     showToast('Game recorded in the logbook.');
-    setSession(prev => ({
-      realm: prev.realm,
-      lastMeeples:    normalizeMeeples(prev.meeples),
-      lastExpansions: prev.expansions,
-    }));
-    setTab('history');
+    // Keep the session as-is so PostGameForm can still show breakdown/winner
+    // User will click "Play Again" to reset and go back to scoreboard
   }, [appOperations.addGame, session, showToast, isGuest, signOutGuest]);
 
   const handleDelete = useCallback((id) => {

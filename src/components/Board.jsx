@@ -93,8 +93,10 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
   const [log,         setLog]         = useState([]);
   const [finishStep,       setFinishStep]       = useState(0); // 0 = normal, 1 = awaiting field confirm
   const [leadersAtFinish,  setLeadersAtFinish]  = useState([]);
-  const [showTraders,      setShowTraders]      = useState(false);
-  const [traderSelections, setTraderSelections] = useState({ wine: [], grain: [], cloth: [] });
+  const [showTraders,          setShowTraders]          = useState(false);
+  const [traderSelections,     setTraderSelections]     = useState({ wine: [], grain: [], cloth: [] });
+  const [confirmFinish,        setConfirmFinish]        = useState(false); // Finish game confirmation
+  const [confirmFinalScoring,  setConfirmFinalScoring]  = useState(false); // Final scoring confirmation
   const logEndRef = useRef(null);
 
   useEffect(() => { getBoard(userId, players, isGuest).then(b => setBoard(b)); }, [userId, isGuest]);
@@ -212,6 +214,19 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
   }
 
   function handleFinish() {
+    setConfirmFinish(true); // Show confirmation modal
+  }
+
+  function confirmInitialScoring() {
+    setConfirmFinalScoring(false);
+    setLeadersAtFinish(leaders);
+    if (hasTB) setShowTraders(true);
+    else setFinishStep(1);
+  }
+
+  function confirmFinishGame() {
+    setConfirmFinish(false);
+
     const finalScores    = Object.fromEntries(
       players.map(p => [p, (board.laps[p] || 0) * track + (board.positions[p] || 0)])
     );
@@ -277,8 +292,46 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
     posGroups[pos].push(p);
   });
 
+  // Final scoring confirmation modal
+  const finalScoringModal = confirmFinalScoring && (
+    <div className="realm-modal-overlay" onClick={() => setConfirmFinalScoring(false)}>
+      <div className="realm-modal tile-card" onClick={e => e.stopPropagation()}>
+        <h3 style={{ marginBottom: '0.5rem' }}>Are you sure?</h3>
+        <p style={{ fontSize: '0.95rem', marginBottom: '1.2rem', lineHeight: 1.5 }}>
+          You're about to proceed to final scoring.
+        </p>
+        <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'flex-end' }}>
+          <button className="btn btn-ghost btn-sm" onClick={() => setConfirmFinalScoring(false)}>Cancel</button>
+          <button className="btn btn-sm" onClick={confirmInitialScoring}>Proceed</button>
+        </div>
+      </div>
+    </div>
+  );
+
+  // Finish game confirmation modal
+  const finishModal = confirmFinish && (
+    <div className="realm-modal-overlay" onClick={() => setConfirmFinish(false)}>
+      <div className="realm-modal tile-card" onClick={e => e.stopPropagation()}>
+        <h3 style={{ marginBottom: '0.5rem' }}>Are you sure?</h3>
+        <p style={{ fontSize: '0.95rem', marginBottom: '1.2rem', lineHeight: 1.5 }}>
+          You're about to end the game and save final scores.
+        </p>
+        <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'flex-end' }}>
+          <button className="btn btn-ghost btn-sm" onClick={() => setConfirmFinish(false)}>Cancel</button>
+          <button className="btn btn-sm" onClick={confirmFinishGame}>Finish Game</button>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div>
+      {/* Final scoring confirmation modal */}
+      {finalScoringModal}
+
+      {/* Finish game confirmation modal */}
+      {finishModal}
+
       {/* Traders & Builders modal */}
       {showTraders && (
         <div className="lightbox-overlay" onClick={() => setShowTraders(false)}>
@@ -400,9 +453,7 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
               style={{ flex: '1 1 100%', justifyContent: 'center' }}
               onClick={() => {
                 if (finishStep === 0) {
-                  setLeadersAtFinish(leaders);
-                  if (hasTB) setShowTraders(true);
-                  else setFinishStep(1);
+                  setConfirmFinalScoring(true); // Show confirmation
                 } else {
                   handleFinish();
                 }

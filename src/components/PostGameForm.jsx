@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell, Legend, ResponsiveContainer } from 'recharts';
 import crownImg from '../../images/icons/crown.png';
 import pigImg   from '../../images/icons/pig.png';
@@ -118,6 +118,21 @@ export default function GameLogForm({ session, ownedExpansions, onSubmit, onCanc
   const { players = [], meeples = {}, expansions: prefillExp = [], finalScores = {}, scoreBreakdown = {}, farmWin: autoFarmWin = false, gameDuration = 0 } = session || {};
 
   const [date, setDate] = useState(today);
+  const [submitted, setSubmitted] = useState(false);
+  const hasAutoSubmitted = useRef(false);
+
+  // Auto-submit for logged-in users
+  useEffect(() => {
+    if (!isGuest && !hasAutoSubmitted.current) {
+      hasAutoSubmitted.current = true;
+      // Trigger form submission
+      const form = document.querySelector('form');
+      if (form) {
+        const submitEvent = new Event('submit', { bubbles: true, cancelable: true });
+        form.dispatchEvent(submitEvent);
+      }
+    }
+  }, [isGuest]);
 
   const scoreNums    = players.map(p => Number(finalScores[p]) || 0);
   const maxScore     = scoreNums.length > 0 ? Math.max(...scoreNums) : 0;
@@ -146,6 +161,7 @@ export default function GameLogForm({ session, ownedExpansions, onSubmit, onCanc
       clutchWin: isClutch,
       gameDuration: session.gameDuration, // Game duration in milliseconds
     });
+    setSubmitted(true);
   };
 
   return (
@@ -276,11 +292,16 @@ export default function GameLogForm({ session, ownedExpansions, onSubmit, onCanc
       </div>
 
       {/* Submit */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        {onCancel && (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: '1rem' }}>
+        {!submitted && onCancel && (
           <button type="button" className="btn btn-ghost" onClick={onCancel}>← Back</button>
         )}
-        <button type="submit" className="btn">{isGuest ? 'Sign In to Save Game' : 'Record in Logbook'}</button>
+        {!submitted && isGuest && (
+          <button type="submit" className="btn">Sign In to Save Game</button>
+        )}
+        {submitted && !isGuest && (
+          <button type="button" className="btn" onClick={onCancel} style={{ marginLeft: 'auto' }}>Play Again</button>
+        )}
       </div>
     </form>
   );
