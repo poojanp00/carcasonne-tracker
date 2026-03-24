@@ -149,7 +149,7 @@ export function saveBoard(board, userId) {
     track_length: board.trackLength || 50,
     players:      board.players     || [],
     score_totals: board.scoreTotals || {},
-  }).then(({ error }) => {
+  }, { onConflict: 'user_id' }).then(({ error }) => {
     if (error) console.warn('Failed to save board:', error);
   });
 }
@@ -178,6 +178,6 @@ export async function resetBoard(userId, players = [], extraTypes = []) {
     track_length: d.trackLength,
     players:      d.players,
     score_totals: d.scoreTotals,
-  });
+  }, { onConflict: 'user_id' });
   return d;
 }
