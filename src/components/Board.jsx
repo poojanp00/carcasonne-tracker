@@ -221,10 +221,15 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
     // Farm win: a single winner who was NOT leading when Final Scoring was first pressed
     const autoFarmWin    = finalWinners.length === 1 && !leadersAtFinish.includes(finalWinners[0]);
 
-    // Set game end time before resetting board
-    const gameDuration = Date.now() - board.startTime;
-    setBoard(prev => ({ ...prev, endTime: Date.now() }));
+    // Set endTime and calculate duration
+    const endTime = Date.now();
+    const gameDuration = endTime - board.startTime;
 
+    // Update board with endTime and save it BEFORE resetting
+    const updatedBoard = { ...board, endTime };
+    saveBoard(updatedBoard, userId, isGuest);
+
+    // Then reset for next game
     resetBoard(userId, players, [], isGuest);
     onFinish(finalScores, scoreBreakdown, autoFarmWin, gameDuration);
   }
