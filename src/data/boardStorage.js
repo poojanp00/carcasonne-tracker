@@ -29,6 +29,42 @@ const BASE_TYPES = ['road', 'city', 'monastery', 'field'];
 // Default score breakdown for new players (all categories start at 0)
 const BASE_BREAKDOWN = Object.fromEntries(BASE_TYPES.map(t => [t, 0]));
 
+// Guest mode helpers - use localStorage for temporary session storage
+const GUEST_STORAGE_KEY = 'carcassonne_guest_board';
+
+function getGuestBoard(players = []) {
+  try {
+    const stored = localStorage.getItem(GUEST_STORAGE_KEY);
+    if (!stored) return makeDefault(players);
+    const data = JSON.parse(stored);
+
+    // Validate player list matches
+    const storedPlayers = data.players || [];
+    if (players.length > 0) {
+      const same = players.length === storedPlayers.length &&
+                   players.every(p => storedPlayers.includes(p));
+      if (!same) return makeDefault(players);
+    }
+    return data;
+  } catch {
+    return makeDefault(players);
+  }
+}
+
+function saveGuestBoard(board) {
+  try {
+    localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify(board));
+  } catch {
+    console.warn('Failed to save guest board to localStorage');
+  }
+}
+
+function resetGuestBoard(players = [], extraTypes = []) {
+  const d = makeDefault(players, extraTypes);
+  saveGuestBoard(d);
+  return d;
+}
+
 /**
  * Creates a fresh board state for new games or when existing state is invalid.
  * Initializes all players at position 0 with zero laps and empty score breakdowns.
@@ -70,6 +106,7 @@ function makeDefault(players = [], extraTypes = []) {
  * Loads current board state from database with comprehensive validation.
  * Ensures data integrity and handles player list changes gracefully.
  * Per-user isolation: each user has their own board state.
+ * Guests use localStorage for temporary session-only storage.
  *
  * Validation Rules:
  * 1. Database record must exist and be retrievable for the user
@@ -77,12 +114,15 @@ function makeDefault(players = [], extraTypes = []) {
  * 3. All stored players must have complete score breakdown entries
  * 4. Fallback to fresh state on any validation failure
  *
- * @param {string} userId - UUID of the current user
+ * @param {string} userId - UUID of the current user (or guest session UUID)
  * @param {string[]} players - Expected players (empty = accept any)
+ * @param {boolean} isGuest - Whether this is a guest session
  * @returns {Promise<Object>} Validated board state
  */
-export async function getBoard(userId, players = []) {
+export async function getBoard(userId, players = [], isGuest = false) {
   if (!userId) return makeDefault(players);
+  if (isGuest) return getGuestBoard(players);
+
   try {
     // Fetch user's board record
     const { data } = await supabase
@@ -136,12 +176,18 @@ export async function getBoard(userId, players = []) {
  * Logs failures for debugging but doesn't interrupt gameplay.
  *
  * Used during active scoring when players are adding points frequently.
+ * Guests save to localStorage instead of the database.
  *
  * @param {Object} board - Complete board state to persist
  * @param {string} userId - UUID of the current user
+ * @param {boolean} isGuest - Whether this is a guest session
  */
-export function saveBoard(board, userId) {
+export function saveBoard(board, userId, isGuest = false) {
   if (!userId) return;
+  if (isGuest) {
+    saveGuestBoard(board);
+    return;
+  }
   supabase.from('board_state').upsert({
     user_id:      userId,  // Per-user isolation
     positions:    board.positions,
@@ -162,14 +208,18 @@ export function saveBoard(board, userId) {
  *
  * Used when starting new games or switching player configurations.
  * Callers that need guaranteed write completion should await this.
+ * Guests save to localStorage instead of the database.
  *
  * @param {string} userId - UUID of the current user
  * @param {string[]} players - New player list
  * @param {string[]} extraTypes - Expansion scoring categories
+ * @param {boolean} isGuest - Whether this is a guest session
  * @returns {Promise<Object>} Fresh board state after database write
  */
-export async function resetBoard(userId, players = [], extraTypes = []) {
+export async function resetBoard(userId, players = [], extraTypes = [], isGuest = false) {
   if (!userId) throw new Error('resetBoard requires userId');
+  if (isGuest) return resetGuestBoard(players, extraTypes);
+
   const d = makeDefault(players, extraTypes);
   await supabase.from('board_state').upsert({
     user_id:      userId,
