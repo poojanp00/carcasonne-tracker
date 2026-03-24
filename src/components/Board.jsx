@@ -83,7 +83,7 @@ const STACK_OFFSETS = [
   { x: 0,  y: -5 }, // Player 6: more upward
 ];
 
-export default function Board({ session, onFinish, onReset }) {
+export default function Board({ userId, session, onFinish, onReset }) {
   const players   = session?.players  || [];
   const meepleMap = session?.meeples  || {};
 
@@ -97,8 +97,8 @@ export default function Board({ session, onFinish, onReset }) {
   const [traderSelections, setTraderSelections] = useState({ wine: [], grain: [], cloth: [] });
   const logEndRef = useRef(null);
 
-  useEffect(() => { getBoard(players).then(b => setBoard(b)); }, []);
-  useEffect(() => { if (board) saveBoard(board); }, [board]);
+  useEffect(() => { getBoard(userId, players).then(b => setBoard(b)); }, [userId]);
+  useEffect(() => { if (board) saveBoard(board, userId); }, [board, userId]);
   useEffect(() => { logEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [log]);
 
   if (!board) return null;
@@ -207,7 +207,7 @@ export default function Board({ session, onFinish, onReset }) {
   }
 
   function handleReset() {
-    resetBoard(players);
+    resetBoard(userId, players);
     onReset();
   }
 
@@ -220,7 +220,7 @@ export default function Board({ session, onFinish, onReset }) {
     const finalWinners   = players.filter(p => finalScores[p] === maxFinal);
     // Farm win: a single winner who was NOT leading when Final Scoring was first pressed
     const autoFarmWin    = finalWinners.length === 1 && !leadersAtFinish.includes(finalWinners[0]);
-    resetBoard(players);
+    resetBoard(userId, players);
     onFinish(finalScores, scoreBreakdown, autoFarmWin);
   }
 
