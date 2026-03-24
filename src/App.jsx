@@ -73,7 +73,8 @@ export default function App() {
     }
   }, []); // Only run once on mount
 
-  const { user, authLoading, signOut, completeRecovery, isGuest, enableGuestMode, signOutGuest } = useAuth();
+  const { user, authLoading, signOut, completeRecovery, isGuest, enableGuestMode, signOutGuest, guestUserId } = useAuth();
+  const userId = isGuest ? guestUserId : user?.id;
   const { games, expansions, realms, loading, addGame, deleteGame, toggleExpansion, addRealm, updateRealm, removeRealm } = useGameData(isGuest ? null : user, authLoading || (isGuest && false));
 
   // Guest mode state
@@ -205,10 +206,10 @@ export default function App() {
 
   const handleGameStart = useCallback(async (setup) => {
     const extraTypes = (setup.expansions || []).flatMap(e => EXPANSION_TYPES[e] || []);
-    await resetBoard(user.id, setup.players, extraTypes);
+    await resetBoard(userId, setup.players, extraTypes);
     setSession(prev => ({ ...prev, ...setup, finalScores: null }));
     setGameKey(k => k + 1);
-  }, [user]);
+  }, [userId]);
 
   const handleBoardReset = useCallback(() => {
     setSession(prev => ({
@@ -378,7 +379,7 @@ export default function App() {
                       isGuest={isGuest}
                     />
                   : session.players
-                    ? <Board key={gameKey} userId={user?.id} session={session} onFinish={handleFinishGame} onReset={handleBoardReset} />
+                    ? <Board key={gameKey} userId={userId} session={session} onFinish={handleFinishGame} onReset={handleBoardReset} />
                     : session?.showRealmCreation
                       ? <PreGameSetup
                           key="realm-creation"

@@ -5,6 +5,7 @@ export function useAuth() {
   const [user,        setUser]        = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [isGuest,     setIsGuest]     = useState(false);
+  const [guestUserId, setGuestUserId] = useState(null);
 
   useEffect(() => {
     // Check if we're in recovery mode before setting user
@@ -35,11 +36,13 @@ export function useAuth() {
   
   const enableGuestMode = () => {
     setIsGuest(true);
+    setGuestUserId(crypto.randomUUID()); // Generate temp session UUID for board state saving
     setAuthLoading(false);
   };
-  
+
   const signOutGuest = () => {
     setIsGuest(false);
+    setGuestUserId(null);
   };
   
   const completeRecovery = async () => {
@@ -49,5 +52,5 @@ export function useAuth() {
     setUser(session?.user ?? null);
   };
 
-  return { user, authLoading, signOut, completeRecovery, isGuest, enableGuestMode, signOutGuest };
+  return { user, authLoading, signOut, completeRecovery, isGuest, enableGuestMode, signOutGuest, guestUserId };
 }
