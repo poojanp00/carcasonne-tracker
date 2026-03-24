@@ -175,19 +175,21 @@ export default function GameLogForm({ session, ownedExpansions, onSubmit, onCanc
       </div>
 
       {/* Player scores */}
-      <div className="tile-card" style={{ marginBottom: '1.4rem' }}>
-        {/* Date row */}
-        <div style={{ marginBottom: '1rem' }}>
-          <input
-            id="game-date"
-            className="form-input"
-            type="date"
-            value={date}
-            onChange={e => setDate(e.target.value)}
-            style={{ maxWidth: '200px' }}
-          />
+      <div style={{ marginBottom: '1.2rem', background: 'var(--aged-paper)', border: 'var(--border-tile)', borderRadius: 'var(--radius-tile)', padding: '0.45rem 1rem', display: 'flex', gap: '1.5rem', alignItems: 'center' }}>
+        <div style={{ fontFamily: "'Crimson Text', serif", fontSize: '0.95rem', color: 'var(--stone-gray)', fontStyle: 'italic' }}>
+          {new Date(date).toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}
         </div>
+        <div style={{ width: '1px', height: '20px', background: 'var(--stone-gray)', opacity: 0.3 }} />
+        <div style={{ fontFamily: "'Crimson Text', serif", fontSize: '0.95rem', color: 'var(--stone-gray)', fontStyle: 'italic' }}>
+          {Math.floor(gameDuration / 60000)}m {Math.floor((gameDuration % 60000) / 1000)}s
+        </div>
+        <div style={{ width: '1px', height: '20px', background: 'var(--stone-gray)', opacity: 0.3 }} />
+        <div style={{ fontFamily: "'Crimson Text', serif", fontSize: '0.95rem', color: 'var(--stone-gray)', fontStyle: 'italic' }}>
+          {prefillExp.length === 0 ? 'Base Game' : prefillExp.join(' · ')}
+        </div>
+      </div>
 
+      <div className="tile-card" style={{ marginBottom: '1.4rem' }}>
         {/* Player cards with final scores and ranking */}
         <div className="postgame-scores-grid">
           {sortedPlayers.map((name) => {
@@ -290,13 +292,6 @@ export default function GameLogForm({ session, ownedExpansions, onSubmit, onCanc
             );
           })()}
         </div>
-      </div>
-
-      {/* Expansions */}
-      <div style={{ marginBottom: '1.6rem', background: 'var(--aged-paper)', border: 'var(--border-tile)', borderRadius: 'var(--radius-tile)', padding: '0.6rem 1rem' }}>
-        <span style={{ fontStyle: 'italic', color: 'var(--stone-gray)', fontSize: '0.92rem' }}>
-          {prefillExp.length === 0 ? 'Base game' : prefillExp.join(' · ')}
-        </span>
       </div>
 
       {/* Submit */}

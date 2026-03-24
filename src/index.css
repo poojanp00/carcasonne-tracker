@@ -245,7 +245,7 @@ h3 { font-size: 1.15rem; font-weight: 600; }
   border-radius: var(--radius-tile);
   border: 2px solid #6B4F10;
   background: linear-gradient(160deg, #D9AE52 0%, #B88B2E 55%, #9A7020 100%);
-  color: #3A2800;
+  color: #FCF8F3;
   font-weight: 700;
   box-shadow: 2px 3px 0 #5A3E08, inset 0 1px 0 rgba(255,255,255,0.28);
   transition: transform var(--transition-lift), box-shadow var(--transition-lift);
@@ -438,11 +438,11 @@ h3 { font-size: 1.15rem; font-weight: 600; }
 /* button group: row of 3 equal buttons, then input same total width */
 .board-btn-group { display: flex; flex-direction: column; gap: 0.3rem; }
 
-.board-btn-row { display: flex; gap: 0.3rem; }
+.board-btn-row { display: flex; gap: 0.3rem; margin-bottom: 0.2rem; }
 
 .board-btn-equal { flex: 1; text-align: center; }
 
-.board-score-input { width: 100%; min-width: 0; box-sizing: border-box; padding-top: 0.2rem; padding-bottom: 0.2rem; font-size: 0.82rem; }
+.board-score-input { width: 100%; min-width: 0; box-sizing: border-box; padding-top: 0.2rem; padding-bottom: 0.2rem; font-size: 1.2rem; }
 
 /* Compact button size for board controls */
 .board-player-card { padding: 0.7rem 0.8rem; }
@@ -1112,6 +1112,7 @@ input[type="file"] { display: none; }
 }
 @keyframes toastIn  { from { transform: translateX(110%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 @keyframes toastOut { from { opacity: 1; } to { opacity: 0; transform: translateX(110%); } }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
 /* ── Empty State ── */
 .empty-state {

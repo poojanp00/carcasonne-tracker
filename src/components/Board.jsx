@@ -89,12 +89,13 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
 
   const [board,       setBoard]       = useState(null);
   const [input,       setInput]       = useState(() => Object.fromEntries(players.map(p => [p, 0])));
+  const [selectedPlayers, setSelectedPlayers] = useState(new Set()); // Track which players are selected for scoring
   const [finishStep,       setFinishStep]       = useState(0); // 0 = normal, 1 = awaiting field confirm
   const [leadersAtFinish,  setLeadersAtFinish]  = useState([]);
   const [showTraders,          setShowTraders]          = useState(false);
   const [traderSelections,     setTraderSelections]     = useState({ wine: [], grain: [], cloth: [] });
   const [confirmFinish,        setConfirmFinish]        = useState(false); // Finish game confirmation
-  const [confirmFinalScoring,  setConfirmFinalScoring]  = useState(false); // Final scoring confirmation
+  const [warning,             setWarning]             = useState(null); // Warning toast for no players selected
   const logEndRef = useRef(null);
 
   // Generate log from moves and undo events merged chronologically
@@ -372,6 +373,26 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
     });
   }
 
+  // Apply points to all selected players and reset selection
+  function addPointsToSelected(delta, type = 'road') {
+    if (!delta || Number(delta) === 0) return;
+
+    // Show warning if no players are selected
+    if (selectedPlayers.size === 0) {
+      setWarning('Select a player first');
+      setTimeout(() => setWarning(null), 2500);
+      return;
+    }
+
+    selectedPlayers.forEach(player => {
+      addPoints(player, delta, type);
+    });
+
+    // Reset selected players and input field
+    setSelectedPlayers(new Set());
+    setInput(v => Object.fromEntries(players.map(p => [p, 0])));
+  }
+
   function handleReset() {
     resetBoard(userId, players, [], isGuest);
     onReset();
@@ -382,7 +403,6 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
   }
 
   function confirmInitialScoring() {
-    setConfirmFinalScoring(false);
     setLeadersAtFinish(leaders);
     // Mark when final scoring started (for undo logic and logging)
     setBoard(prev => ({ ...prev, finalScoringIndex: prev.moveIndex + 1, finalScoringTime: Date.now() }));
@@ -459,22 +479,6 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
     posGroups[pos].push(p);
   });
 
-  // Final scoring confirmation modal
-  const finalScoringModal = confirmFinalScoring && (
-    <div className="realm-modal-overlay" onClick={() => setConfirmFinalScoring(false)}>
-      <div className="realm-modal tile-card" onClick={e => e.stopPropagation()}>
-        <h3 style={{ marginBottom: '0.5rem' }}>Are you sure?</h3>
-        <p style={{ fontSize: '0.95rem', marginBottom: '1.2rem', lineHeight: 1.5 }}>
-          You're about to proceed to final scoring.
-        </p>
-        <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'flex-end' }}>
-          <button className="btn btn-ghost btn-sm" onClick={() => setConfirmFinalScoring(false)}>Cancel</button>
-          <button className="btn btn-sm" onClick={confirmInitialScoring}>Proceed</button>
-        </div>
-      </div>
-    </div>
-  );
-
   // Finish game confirmation modal
   const finishModal = confirmFinish && (
     <div className="realm-modal-overlay" onClick={() => setConfirmFinish(false)}>
@@ -493,9 +497,6 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
 
   return (
     <div>
-      {/* Final scoring confirmation modal */}
-      {finalScoringModal}
-
       {/* Finish game confirmation modal */}
       {finishModal}
 
@@ -623,7 +624,7 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
               style={{ flex: '1 1 100%', justifyContent: 'center' }}
               onClick={() => {
                 if (finishStep === 0) {
-                  setConfirmFinalScoring(true); // Show confirmation
+                  confirmInitialScoring();
                 } else {
                   handleFinish();
                 }
@@ -664,177 +665,208 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
 
         {/* Player controls */}
         <div className="board-controls">
-          <div className="board-player-grid">
-          {players.map((name, pi) => {
-            const color = getMeepleColor(meepleMap[name]);
-            return (
-              <div key={name} className="board-player-card tile-card">
-                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'stretch' }}>
-                  {/* Name top, meeple anchored to bottom */}
-                  <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
-                    <span style={{ fontFamily: 'Cinzel, serif', fontSize: '0.82rem', fontWeight: 700, color, textAlign: 'center' }}>{name}</span>
-                    <img src={MEEPLE_IMGS[meepleMap[name]] || FALLBACK_MEEPLE} alt="meeple" style={{ height: 50, width: 'auto' }} />
-                  </div>
-                  {/* Controls on the right */}
-                <div className="board-btn-group" style={{ flex: 1, minWidth: 0 }}>
-                  <input
-                    type="number"
-                    className="form-input board-score-input"
-                    value={input[name] || 0}
-                    onChange={e => setInput(v => ({ ...v, [name]: e.target.value }))}
-                  />
-                  <div className="board-btn-row">
-                    <button type="button" className="btn btn-sm board-btn-equal" onClick={() => setInput(v => ({ ...v, [name]: String(Number(v[name] || 0) + 1) }))}>+1</button>
-                    <button type="button" className="btn btn-sm board-btn-equal" onClick={() => setInput(v => ({ ...v, [name]: String(Number(v[name] || 0) + 2) }))}>+2</button>
-                    <button type="button" className="btn btn-sm board-btn-equal" onClick={() => setInput(v => ({ ...v, [name]: String(Number(v[name] || 0) + 3) }))}>+3</button>
-                    {((finishStep === 1 && (hasTB || hasAM)) || (finishStep === 0 && hasTB && hasAM)) && <button type="button" className="btn btn-sm board-btn-equal" onClick={() => setInput(v => ({ ...v, [name]: String(Number(v[name] || 0) + 4) }))}>+4</button>}
-                  </div>
-                  <div className="board-btn-row">
-                    {['road', 'city', 'monastery'].map(type => (
-                      <button
-                        key={type}
-                        type="button"
-                        className="btn btn-sm board-btn-equal"
-                        style={{ justifyContent: 'center' }}
-                        onClick={() => {
-                          const val = Number(input[name] || 0);
-                          if (!Number.isNaN(val) && val !== 0) {
-                            addPoints(name, val, type);
-                            setInput(v => ({ ...v, [name]: 0 }));
-                          }
-                        }}
-                      >
-                        {type.charAt(0).toUpperCase() + type.slice(1)}
-                      </button>
-                    ))}
-                  </div>
-                  {hasAbbot && (
-                    <div className="board-btn-row">
-                      <button
-                        type="button"
-                        className="btn btn-sm"
-                        style={{ width: '100%', justifyContent: 'center' }}
-                        onClick={() => {
-                          const val = Number(input[name] || 0);
-                          if (!Number.isNaN(val) && val !== 0) {
-                            addPoints(name, val, 'abbot');
-                            setInput(v => ({ ...v, [name]: 0 }));
-                          }
-                        }}
-                      >
-                        Abbot
-                      </button>
-                    </div>
-                  )}
-                  {hasIC && (
-                    <div className="board-btn-row">
-                      {[['inn', 'Inn'], ['cathedral', 'Cathedral']].map(([type, label]) => (
-                        <button
-                          key={type}
-                          type="button"
-                          className="btn btn-sm board-btn-equal"
-                          style={{ justifyContent: 'center' }}
-                          onClick={() => {
-                            const val = Number(input[name] || 0);
-                            if (!Number.isNaN(val) && val !== 0) {
-                              addPoints(name, val, type);
-                              setInput(v => ({ ...v, [name]: 0 }));
-                            }
-                          }}
-                        >
-                          {label}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  {hasAM && (
-                    <div className="board-btn-row">
-                      {(hasTB ? [['abbey', 'Abbey'], ['field', 'Field'], ['pig', 'Pig']] : [['abbey', 'Abbey'], ['field', 'Field']]).map(([type, label]) => (
-                        <button
-                          key={type}
-                          type="button"
-                          className="btn btn-sm board-btn-equal"
-                          style={{ justifyContent: 'center' }}
-                          onClick={() => {
-                            const val = Number(input[name] || 0);
-                            if (!Number.isNaN(val) && val !== 0) {
-                              addPoints(name, val, type);
-                              setInput(v => ({ ...v, [name]: 0 }));
-                            }
-                          }}
-                        >
-                          {label}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  {finishStep === 1 && hasAM && (
-                    <div className="board-btn-row">
-                      <button
-                        type="button"
-                        className="btn btn-sm"
-                        style={{ width: '100%', justifyContent: 'center' }}
-                        onClick={() => {
-                          const val = Number(input[name] || 0);
-                          if (!Number.isNaN(val) && val !== 0) {
-                            addPoints(name, val, 'barn');
-                            setInput(v => ({ ...v, [name]: 0 }));
-                          }
-                        }}
-                      >
-                        Barn
-                      </button>
-                    </div>
-                  )}
-                  {finishStep === 1 && !hasAM && (
-                    hasTB ? (
-                      <>
-                        <div className="board-btn-row">
-                          {[['field', 'Field'], ['pig', 'Pig']].map(([type, label]) => (
-                            <button
-                              key={type}
-                              type="button"
-                              className="btn btn-sm board-btn-equal"
-                              style={{ justifyContent: 'center' }}
-                              onClick={() => {
-                                const val = Number(input[name] || 0);
-                                if (!Number.isNaN(val) && val !== 0) {
-                                  addPoints(name, val, type);
-                                  setInput(v => ({ ...v, [name]: 0 }));
-                                }
-                              }}
-                            >
-                              {label}
-                            </button>
-                          ))}
-                        </div>
-                      </>
-                    ) : (
-                      <button
-                        type="button"
-                        className="btn btn-sm"
-                        style={{ width: '100%', justifyContent: 'center' }}
-                        onClick={() => {
-                          const val = Number(input[name] || 0);
-                          if (!Number.isNaN(val) && val !== 0) {
-                            addPoints(name, val, 'field');
-                            setInput(v => ({ ...v, [name]: 0 }));
-                          }
-                        }}
-                      >
-                        Field
-                      </button>
-                    )
-                  )}
-                </div>
-                </div>{/* end meeple+controls row */}
-              </div>
-            );
-          })}
+          {/* Meeple Selector */}
+          <div className="tile-card" style={{ marginBottom: '1rem', padding: '0.8rem' }}>
+            <div style={{ fontSize: '0.7rem', fontFamily: 'Cinzel, serif', letterSpacing: '0.1em', color: 'var(--stone-gray)', marginBottom: '0.6rem' }}>
+              PLAYERS
+            </div>
+            <div style={{ display: 'flex', gap: '1rem 0.6rem', flexWrap: 'wrap' }}>
+              {players.map((name) => {
+                const color = getMeepleColor(meepleMap[name]);
+                const isSelected = selectedPlayers.has(name);
+                return (
+                  <button
+                    key={name}
+                    type="button"
+                    onClick={() => {
+                      const newSelected = new Set(selectedPlayers);
+                      if (newSelected.has(name)) {
+                        newSelected.delete(name);
+                      } else {
+                        newSelected.add(name);
+                      }
+                      setSelectedPlayers(newSelected);
+                    }}
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: '0.3rem',
+                      padding: '0.4rem 0.3rem',
+                      border: isSelected ? `2px solid ${color}` : '2px solid transparent',
+                      borderRadius: '12px',
+                      background: isSelected ? `${color}15` : 'transparent',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                      flex: '1 1 calc(33.333% - 0.4rem)',
+                    }}
+                  >
+                    <img src={MEEPLE_IMGS[meepleMap[name]] || FALLBACK_MEEPLE} alt={name} style={{ height: 50, width: 'auto' }} />
+                    <span style={{ fontSize: '0.7rem', fontFamily: 'Cinzel, serif', color, fontWeight: 600 }}>{name}</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
+          {/* Shared Scoring Controls */}
+          <div className="tile-card">
+            <div style={{ fontSize: '0.7rem', fontFamily: 'Cinzel, serif', letterSpacing: '0.1em', color: 'var(--stone-gray)', marginBottom: '0.4rem' }}>
+              POINTS TO ADD
+            </div>
+            <input
+              type="number"
+              className="form-input board-score-input"
+              value={Object.values(input)[0] || 0}
+              onChange={e => {
+                const val = e.target.value;
+                const newInput = Object.fromEntries(players.map(p => [p, val]));
+                setInput(newInput);
+              }}
+              placeholder="Enter points"
+              style={{ marginBottom: '1rem', textAlign: 'right' }}
+            />
+            <div className="board-btn-row">
+              <button type="button" className="btn btn-sm board-btn-equal" style={{}} onClick={() => {
+                const val = Object.values(input)[0] || 0;
+                setInput(Object.fromEntries(players.map(p => [p, String(Number(val) + 1)])));
+              }}>+1</button>
+              <button type="button" className="btn btn-sm board-btn-equal" style={{}} onClick={() => {
+                const val = Object.values(input)[0] || 0;
+                setInput(Object.fromEntries(players.map(p => [p, String(Number(val) + 2)])));
+              }}>+2</button>
+              <button type="button" className="btn btn-sm board-btn-equal" style={{}} onClick={() => {
+                const val = Object.values(input)[0] || 0;
+                setInput(Object.fromEntries(players.map(p => [p, String(Number(val) + 3)])));
+              }}>+3</button>
+              {((finishStep === 1 && (hasTB || hasAM)) || (finishStep === 0 && hasTB && hasAM)) && <button type="button" className="btn btn-sm board-btn-equal" style={{}} onClick={() => {
+                const val = Object.values(input)[0] || 0;
+                setInput(Object.fromEntries(players.map(p => [p, String(Number(val) + 4)])));
+              }}>+4</button>}
+            </div>
+
+            <div className="board-btn-row">
+              {['road', 'city', 'monastery'].map(type => (
+                <button
+                  key={type}
+                  type="button"
+                  className="btn btn-sm board-btn-equal"
+                  style={{ justifyContent: 'center' }}
+                  onClick={() => addPointsToSelected(Object.values(input)[0], type)}
+                >
+                  {type.charAt(0).toUpperCase() + type.slice(1)}
+                </button>
+              ))}
+            </div>
+
+            {hasAbbot && (
+              <div className="board-btn-row">
+                <button
+                  type="button"
+                  className="btn btn-sm"
+                  style={{ width: '100%', justifyContent: 'center' }}
+                  onClick={() => addPointsToSelected(Object.values(input)[0], 'abbot')}
+                >
+                  Abbot
+                </button>
+              </div>
+            )}
+
+            {hasIC && (
+              <div className="board-btn-row">
+                {[['inn', 'Inn'], ['cathedral', 'Cathedral']].map(([type, label]) => (
+                  <button
+                    key={type}
+                    type="button"
+                    className="btn btn-sm board-btn-equal"
+                    style={{ justifyContent: 'center' }}
+                    onClick={() => addPointsToSelected(Object.values(input)[0], type)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {hasAM && (
+              <div className="board-btn-row">
+                {(hasTB ? [['abbey', 'Abbey'], ['field', 'Field'], ['pig', 'Pig']] : [['abbey', 'Abbey'], ['field', 'Field']]).map(([type, label]) => (
+                  <button
+                    key={type}
+                    type="button"
+                    className="btn btn-sm board-btn-equal"
+                    style={{ justifyContent: 'center' }}
+                    onClick={() => addPointsToSelected(Object.values(input)[0], type)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {finishStep === 1 && hasAM && (
+              <div className="board-btn-row">
+                <button
+                  type="button"
+                  className="btn btn-sm"
+                  style={{ width: '100%', justifyContent: 'center' }}
+                  onClick={() => addPointsToSelected(Object.values(input)[0], 'barn')}
+                >
+                  Barn
+                </button>
+              </div>
+            )}
+
+            {finishStep === 1 && !hasAM && (
+              hasTB ? (
+                <div className="board-btn-row">
+                  {[['field', 'Field'], ['pig', 'Pig']].map(([type, label]) => (
+                    <button
+                      key={type}
+                      type="button"
+                      className="btn btn-sm board-btn-equal"
+                      style={{ justifyContent: 'center' }}
+                      onClick={() => addPointsToSelected(Object.values(input)[0], type)}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  className="btn btn-sm"
+                  style={{ width: '100%', justifyContent: 'center' }}
+                  onClick={() => addPointsToSelected(Object.values(input)[0], 'field')}
+                >
+                  Field
+                </button>
+              )
+            )}
+          </div>
         </div>
       </div>
+
+      {/* Warning Toast */}
+      {warning && (
+        <div style={{
+          position: 'fixed',
+          bottom: '2rem',
+          right: '2rem',
+          background: 'var(--charcoal)',
+          color: 'var(--parchment)',
+          padding: '0.75rem 1.3rem',
+          borderRadius: 'var(--radius-tile)',
+          borderLeft: '4px solid #C44040',
+          fontFamily: "'Crimson Text', serif",
+          fontSize: '1rem',
+          boxShadow: '0 4px 18px rgba(0,0,0,0.4)',
+          zIndex: 20001,
+          animation: 'toastIn 0.3s ease, toastOut 0.3s ease 2.2s forwards',
+        }}>
+          {warning}
+        </div>
+      )}
     </div>
   );
 }
