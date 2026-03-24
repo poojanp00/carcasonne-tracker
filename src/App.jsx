@@ -276,8 +276,12 @@ export default function App() {
 
   const handleTabChange = useCallback((id) => {
     if (id === 'realms') setRealmPickerKey(k => k + 1);
+    // Clear postgame state and players when leaving board tab to return to pregame setup
+    if (id !== 'board' && session?.finalScores) {
+      setSession(prev => ({ ...prev, finalScores: null, scoreBreakdown: null, players: null }));
+    }
     setTab(id);
-  }, []);
+  }, [session]);
 
   // Carcassonne expansion priority: Always show River and Abbot first since they're
   // commonly used foundational expansions that integrate well with other expansions.
