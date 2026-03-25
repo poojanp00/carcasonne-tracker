@@ -436,25 +436,13 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
   }
 
   function applyTraderBonuses() {
-    const nb = JSON.parse(JSON.stringify(board));
+    // Add each goods token bonus as a move to the history
+    // The useEffect will automatically rebuild positions, laps, and scoreTotals from the moves
     for (const good of ['wine', 'grain', 'cloth']) {
       for (const p of traderSelections[good]) {
-        const curPos  = nb.positions[p] || 0;
-        const curLaps = nb.laps[p] || 0;
-        const sum     = curPos + 10;
-        const lapInc  = Math.floor(sum / track);
-        const newPos  = ((sum % track) + track) % track;
-        const newLaps = curLaps + (lapInc > 0 ? lapInc : 0);
-        nb.positions[p] = newPos;
-        nb.laps[p] = newLaps;
-        if (!nb.scoreTotals[p]) nb.scoreTotals[p] = {};
-        nb.scoreTotals[p][good] = (nb.scoreTotals[p][good] || 0) + 10;
-
-        // Add move to history for each bonus
         addMove(p, good, 10, good.charAt(0).toUpperCase() + good.slice(1));
       }
     }
-    setBoard(nb);
     setTraderSelections({ wine: [], grain: [], cloth: [] });
     setShowTraders(false);
     setFinishStep(1);
