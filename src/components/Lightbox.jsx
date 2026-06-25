@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend, ResponsiveContainer } from 'recharts';
 import GameHighlights from './GameHighlights';
+import { SCORE_TYPE_ORDER, SCORE_TYPE_COLORS } from '../constants';
 import pigImg from '../../images/icons/pig.png';
 import cImg   from '../../images/icons/C.png';
 
@@ -9,40 +10,6 @@ function formatDate(dateStr) {
     weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
   });
 }
-
-// Scoring types in consistent order
-const SCORE_TYPE_ORDER = [
-  'road', 'city', 'monastery', 'field',           // Base game
-  'abbot',                                         // The Abbot
-  'inn', 'cathedral',                              // Inns & Cathedrals
-  'wine', 'grain', 'cloth', 'pig',                 // Traders & Builders
-  'abbey', 'barn',                                 // Abbey & Mayor
-  'princess', 'fairy',                             // The Princess & the Dragon
-  'largest_city', 'largest_road',                  // Count, King & Robber
-  'wagon',                                         // Other/wagon
-];
-
-// Consistent color palette for each scoring type - Medieval/Earthy with more variation
-const SCORE_TYPE_COLORS = {
-  road: '#6B4423',       // Saddle brown
-  city: '#A67C52',       // Medium tan
-  monastery: '#3D2817',  // Very dark brown
-  field: '#6B8E23',      // Olive green
-  abbot: '#A52A2A',      // Crimson
-  inn: '#CD853F',        // Peru
-  cathedral: '#5A6C7D',  // Steel blue
-  wine: '#8B1A1A',       // Dark red
-  grain: '#DAA520',      // Goldenrod
-  cloth: '#8B7355',      // Burlywood
-  pig: '#B8860B',        // Dark goldenrod
-  abbey: '#2F6B3F',      // Hunter green
-  barn: '#8B4513',       // Saddle brown (lighter)
-  princess: '#C41E3A',   // Carmine
-  fairy: '#D4418E',      // Pink/mauve
-  largest_city: '#1F4788',    // Deep blue
-  largest_road: '#2D5A2D',    // Deep forest green
-  wagon: '#996633',      // Brown
-};
 
 // Custom label for bar segments
 function BarLabel(props) {
@@ -120,7 +87,6 @@ export default function Lightbox({ game, games = [], onNavigate, onClose }) {
     : `${topPlayers[0]} wins`;
 
   const sorted = [...game.players].sort((a, b) => b.score - a.score);
-  const TYPE_ORDER = ['road', 'city', 'monastery', 'field'];
   const margin = topPlayers.length === 1 && sorted.length > 1 ? sorted[0].score - sorted[1].score : null;
   const s1 = sorted[0]?.score ?? 0, s2 = sorted[1]?.score ?? 0;
   const isClutch = topPlayers.length === 1 && (s1 + s2) > 0 && (s1 - s2) / (s1 + s2) < 0.10;

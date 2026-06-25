@@ -25,7 +25,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import {
   getGames, insertGame, removeGame,
-  getExpansions, upsertExpansion,
+  getExpansions, saveOwnedExpansions,
   getRealms, saveRealm, deleteRealm,
   generateId, generateRealmId,
   migrateFromLocalStorage,
@@ -59,7 +59,7 @@ export function useGameData(user, authLoading) {
       setLoading(true);
       
       // Run migration for existing users upgrading from localStorage
-      if (user) await migrateFromLocalStorage(user.id);
+      if (user) await migrateFromLocalStorage(user.id, user.email);
       
       // Load all data in parallel for performance
       // Note: games load globally for now (filtered by realm in components)
@@ -124,9 +124,9 @@ export function useGameData(user, authLoading) {
     setExpansions(prev => {
       // Toggle ownership in local state
       const updated = prev.map(e => e.name === name ? { ...e, owned: !e.owned } : e);
-      const exp = updated.find(e => e.name === name);
-      // Persist change to database
-      if (exp) upsertExpansion(exp.name, exp.type, exp.owned, user?.id);
+      // Persist the user's full owned set as a single row.
+      const ownedNames = updated.filter(e => e.owned).map(e => e.name);
+      if (user?.id) saveOwnedExpansions(ownedNames, user.id, user.email);
       return updated;
     });
   }, [user]);
