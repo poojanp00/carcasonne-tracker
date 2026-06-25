@@ -188,30 +188,39 @@ export async function removeGame(id) {
 }
 
 // ── Expansions ────────────────────────────────────────────────────────────────
-// Schema requires:
-//   ALTER TABLE expansions ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES auth.users(id);
-//   ALTER TABLE expansions ADD CONSTRAINT expansions_name_user_id_key UNIQUE (name, user_id);
+// Schema (one row per user):
+//   create table user_expansions (
+//     user_id uuid primary key references auth.users(id) on delete cascade,
+//     owned   jsonb not null default '[]'::jsonb  -- canonical names of owned expansions
+//   );
+// The catalog itself (name/type/order) lives in code (DEFAULT_EXPANSIONS); the DB only
+// records which expansions each user owns.
 
 export async function getExpansions(userId) {
   if (!userId) return DEFAULT_EXPANSIONS;
-  const { data } = await supabase.from('expansions').select('*').eq('user_id', userId);
-  if (!data || data.length === 0) return DEFAULT_EXPANSIONS;
-  
-  // Merge user's owned expansions with default catalog
-  // This ensures new expansions appear even if user hasn't seen them yet
-  const defaultByName = Object.fromEntries(DEFAULT_EXPANSIONS.map(e => [e.name, e]));
-  const storedNames   = new Set(data.map(e => e.name));
-  return [
-    ...data.map(e => ({ name: e.name, type: e.type || defaultByName[e.name]?.type || 'full', owned: e.owned })),
-    ...DEFAULT_EXPANSIONS.filter(e => !storedNames.has(e.name)),
-  ];
+  const { data } = await supabase
+    .from('user_expansions')
+    .select('owned')
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  // No saved row yet → fall back to catalog defaults (River/Abbot owned).
+  if (!data) return DEFAULT_EXPANSIONS;
+
+  // Rebuild from the canonical catalog, applying the user's saved ownership.
+  // Any stored name not in the catalog (e.g. legacy comma-less duplicates) is ignored.
+  const ownedSet = new Set(data.owned || []);
+  return DEFAULT_EXPANSIONS.map(e => ({ ...e, owned: ownedSet.has(e.name) }));
 }
 
-export async function upsertExpansion(name, type, owned, userId) {
-  await supabase.from('expansions').upsert(
-    { name, type, owned, user_id: userId || null },
-    { onConflict: 'name,user_id' }
-  );
+export async function saveOwnedExpansions(ownedNames, userId, email) {
+  if (!userId) return;
+  // email is stored only to make the table human-readable in the DB editor.
+  const row = { user_id: userId, owned: ownedNames };
+  if (email) row.email = email;
+  await supabase
+    .from('user_expansions')
+    .upsert(row, { onConflict: 'user_id' });
 }
 
 // ── localStorage migration (runs once on first load) ─────────────────────────
@@ -223,7 +232,7 @@ export async function upsertExpansion(name, type, owned, userId) {
  * i do not understand what this function is used for. 
  */
 
-export async function migrateFromLocalStorage(userId) {
+export async function migrateFromLocalStorage(userId, email) {
   const LS_MIGRATED = 'carcassonne_migrated_v1';
   if (localStorage.getItem(LS_MIGRATED)) return;
 
@@ -274,14 +283,14 @@ export async function migrateFromLocalStorage(userId) {
       }
     }
 
-    if (rawExpansions) {
+    if (rawExpansions && userId) {
       const exps = JSON.parse(rawExpansions);
-      if (exps.length > 0) {
-        await supabase.from('expansions').upsert(
-          exps.map(e => ({ name: e.name, type: e.type || 'full', owned: e.owned || false, user_id: userId || null })),
-          { onConflict: 'name,user_id' }
-        );
-      }
+      const ownedNames = exps.filter(e => e.owned).map(e => e.name);
+      const row = { user_id: userId, owned: ownedNames };
+      if (email) row.email = email;
+      await supabase
+        .from('user_expansions')
+        .upsert(row, { onConflict: 'user_id' });
     }
 
     if (rawBoard) {
