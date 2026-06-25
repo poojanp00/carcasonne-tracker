@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { DEFAULT_EXPANSIONS } from './expansions';
+import { computeWinners } from '../utils/scoring';
 
 export function generateRealmId() {
   return crypto.randomUUID().toUpperCase();
@@ -268,8 +269,7 @@ export async function migrateFromLocalStorage(userId, email) {
         if (!Array.isArray(g.players)) continue;
         
         // Calculate winners for migrated games (they won't have winners field)
-        const maxScore = Math.max(...g.players.map(p => p.score || 0));
-        const winners = g.players.filter(p => (p.score || 0) === maxScore).map(p => p.name);
+        const { winners } = computeWinners(Object.fromEntries(g.players.map(p => [p.name, p.score || 0])));
         
         await supabase.from('games').upsert({
           id:         g.id,

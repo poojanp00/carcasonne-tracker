@@ -154,10 +154,14 @@ export default function Auth({ onSuccess, onGuestMode }) {
         return;
       }
       if (data.user && !data.session) {
-        // Check if this is actually an existing user vs. a new user needing email confirmation
-        // If user already exists, Supabase sometimes returns user without session instead of error
-        if (data.user.email_confirmed_at || data.user.confirmed_at) {
-          setError('An account with this email already exists.');
+        // Detect an existing account: when an email is already registered,
+        // Supabase returns an obfuscated user with an empty `identities` array
+        // (and no session) instead of an error.
+        const isExistingUser =
+          (Array.isArray(data.user.identities) && data.user.identities.length === 0) ||
+          data.user.email_confirmed_at || data.user.confirmed_at;
+        if (isExistingUser) {
+          setError('An account with this email already exists. Try signing in instead.');
         } else {
           setNotice('Check your email to confirm your account, then sign in.');
         }

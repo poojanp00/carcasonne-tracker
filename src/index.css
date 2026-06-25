@@ -994,6 +994,9 @@ h3 { font-size: 1.15rem; font-weight: 600; }
   box-shadow: var(--shadow-deep);
   max-width: 720px;
   width: 100%;
+  /* Auto margins center the modal when there's room, but collapse when the
+     content is taller than the viewport so the top stays scrollable. */
+  margin: auto;
   position: relative;
   overflow: hidden;
   animation: lbSlideUp 0.3s ease forwards;
@@ -1314,6 +1317,72 @@ input[type="file"] { display: none; }
   line-height: 1.6;
   color: var(--charcoal);
   opacity: 0.8;
+}
+
+.landing-howto {
+  max-width: 620px;
+  margin: 0 auto 3rem;
+  padding: 0 1rem;
+}
+
+.landing-howto-heading {
+  font-family: 'Cinzel', serif;
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--charcoal);
+  letter-spacing: 0.04em;
+  text-align: center;
+  margin-bottom: 1.6rem;
+}
+
+.landing-howto-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.landing-howto-step {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+  margin-bottom: 1.4rem;
+}
+
+.landing-howto-number {
+  flex: 0 0 auto;
+  width: 2rem;
+  height: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--warm-gold);
+  color: var(--charcoal);
+  font-family: 'Cinzel', serif;
+  font-weight: 700;
+  font-size: 0.95rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.landing-howto-content {
+  flex: 1 1 auto;
+}
+
+.landing-howto-title {
+  font-family: 'Cinzel', serif;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--charcoal);
+  letter-spacing: 0.03em;
+  margin-bottom: 0.3rem;
+}
+
+.landing-howto-body {
+  font-family: 'Crimson Text', serif;
+  font-size: 1rem;
+  line-height: 1.6;
+  color: var(--charcoal);
+  opacity: 0.85;
 }
 
 .landing-disclaimer {

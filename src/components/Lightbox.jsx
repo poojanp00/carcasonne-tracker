@@ -224,13 +224,13 @@ export default function Lightbox({ game, games = [], onNavigate, onClose }) {
 
           {/* Expansions */}
           {game.expansions.length > 0 ? (
-            <div className="expansion-chips" style={{ marginBottom: '1.2rem' }}>
+            <div className="expansion-chips" style={{ marginTop: '1.6rem', marginBottom: '1.2rem' }}>
               {game.expansions.map(exp => (
                 <span key={exp} className="expansion-chip display-only">{exp}</span>
               ))}
             </div>
           ) : (
-            <span style={{ fontStyle: 'italic', color: 'var(--stone-gray)', fontSize: '0.9rem', display: 'block', marginBottom: '1.2rem' }}>
+            <span style={{ fontStyle: 'italic', color: 'var(--stone-gray)', fontSize: '0.9rem', display: 'block', marginTop: '1.6rem', marginBottom: '1.2rem' }}>
               Base game — no expansions
             </span>
           )}

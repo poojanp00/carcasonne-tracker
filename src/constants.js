@@ -10,7 +10,7 @@ export const TABS = [
   { id: 'home',       label: 'About'       },
   { id: 'statistics', label: 'Statistics'  },
   { id: 'history',    label: 'Logbook'     },
-  { id: 'board',      label: 'score board' },
+  { id: 'board',      label: 'Play'        },
   { id: 'collection', label: 'Collection'  },
 ];
 

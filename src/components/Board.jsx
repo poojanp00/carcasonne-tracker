@@ -16,6 +16,7 @@
 import { useEffect, useRef, useState } from 'react';
 import BOARD_PATH from '../data/boardCoords';
 import { getBoard, saveBoard, resetBoard } from '../data/boardStorage';
+import { computeWinners } from '../utils/scoring';
 import boardImg from '../../images/score-board.jpg';
 
 /**
@@ -95,6 +96,7 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
   const [showTraders,          setShowTraders]          = useState(false);
   const [traderSelections,     setTraderSelections]     = useState({ wine: [], grain: [], cloth: [] });
   const [confirmFinish,        setConfirmFinish]        = useState(false); // Finish game confirmation
+  const [confirmReset,         setConfirmReset]         = useState(false); // Reset board confirmation
   const [warning,             setWarning]             = useState(null); // Warning toast for no players selected
   const logEndRef = useRef(null);
 
@@ -394,6 +396,11 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
   }
 
   function handleReset() {
+    setConfirmReset(true); // Show confirmation modal
+  }
+
+  function confirmResetBoard() {
+    setConfirmReset(false);
     resetBoard(userId, players, [], isGuest);
     onReset();
   }
@@ -417,8 +424,7 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
       players.map(p => [p, (board.laps[p] || 0) * track + (board.positions[p] || 0)])
     );
     const scoreBreakdown = board.scoreTotals || {};
-    const maxFinal       = Math.max(...Object.values(finalScores), 0);
-    const finalWinners   = players.filter(p => finalScores[p] === maxFinal);
+    const { winners: finalWinners } = computeWinners(finalScores);
     // Farm win: a single winner who was NOT leading when Final Scoring was first pressed
     const autoFarmWin    = finalWinners.length === 1 && !leadersAtFinish.includes(finalWinners[0]);
 
@@ -483,10 +489,29 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
     </div>
   );
 
+  // Reset board confirmation modal
+  const resetModal = confirmReset && (
+    <div className="realm-modal-overlay" onClick={() => setConfirmReset(false)}>
+      <div className="realm-modal tile-card" onClick={e => e.stopPropagation()}>
+        <h3 style={{ color: 'var(--deep-red)', marginBottom: '0.5rem' }}>Reset the board?</h3>
+        <p style={{ fontSize: '0.95rem', marginBottom: '1.2rem', lineHeight: 1.5 }}>
+          This will clear all scores and start a new game. This cannot be undone.
+        </p>
+        <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'flex-end' }}>
+          <button className="btn btn-ghost btn-sm" onClick={() => setConfirmReset(false)}>Cancel</button>
+          <button className="btn btn-danger btn-sm" onClick={confirmResetBoard}>Reset</button>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div>
       {/* Finish game confirmation modal */}
       {finishModal}
+
+      {/* Reset board confirmation modal */}
+      {resetModal}
 
       {/* Traders & Builders modal */}
       {showTraders && (
