@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { DEFAULT_EXPANSIONS } from './expansions';
+import { computeWinners } from '../utils/scoring';
 
 export function generateRealmId() {
   return crypto.randomUUID().toUpperCase();
@@ -197,13 +198,21 @@ export async function getExpansions(userId) {
   const { data } = await supabase.from('expansions').select('*').eq('user_id', userId);
   if (!data || data.length === 0) return DEFAULT_EXPANSIONS;
   
-  // Merge user's owned expansions with default catalog
-  // This ensures new expansions appear even if user hasn't seen them yet
-  const defaultByName = Object.fromEntries(DEFAULT_EXPANSIONS.map(e => [e.name, e]));
-  const storedNames   = new Set(data.map(e => e.name));
+  // Merge the user's saved ownership with the default catalog.
+  // `type` (full/mini) and other metadata are canonical properties of the
+  // catalog — never trust the stored value for them, since older rows may
+  // have persisted a wrong type. The DB row only contributes `owned`.
+  const storedByName  = Object.fromEntries(data.map(e => [e.name, e]));
+  const defaultNames  = new Set(DEFAULT_EXPANSIONS.map(e => e.name));
   return [
-    ...data.map(e => ({ name: e.name, type: e.type || defaultByName[e.name]?.type || 'full', owned: e.owned })),
-    ...DEFAULT_EXPANSIONS.filter(e => !storedNames.has(e.name)),
+    // Catalog in release order, with the user's ownership applied.
+    ...DEFAULT_EXPANSIONS.map(e =>
+      e.name in storedByName ? { ...e, owned: storedByName[e.name].owned } : e
+    ),
+    // Any custom expansions stored only in the DB (not in the catalog).
+    ...data
+      .filter(e => !defaultNames.has(e.name))
+      .map(e => ({ name: e.name, type: e.type || 'full', owned: e.owned })),
   ];
 }
 
@@ -259,8 +268,7 @@ export async function migrateFromLocalStorage(userId) {
         if (!Array.isArray(g.players)) continue;
         
         // Calculate winners for migrated games (they won't have winners field)
-        const maxScore = Math.max(...g.players.map(p => p.score || 0));
-        const winners = g.players.filter(p => (p.score || 0) === maxScore).map(p => p.name);
+        const { winners } = computeWinners(Object.fromEntries(g.players.map(p => [p.name, p.score || 0])));
         
         await supabase.from('games').upsert({
           id:         g.id,

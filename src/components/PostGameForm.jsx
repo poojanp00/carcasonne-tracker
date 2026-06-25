@@ -3,6 +3,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell, Legend, Resp
 import GameHighlights from './GameHighlights';
 import { transformMaxFeaturesToUI } from '../utils/achievements';
 import { getMeepleColor, getToday } from '../utils/formatters';
+import { computeWinners } from '../utils/scoring';
 import { SCORE_TYPE_ORDER, SCORE_TYPE_COLORS } from '../constants';
 import crownImg from '../../images/icons/crown.png';
 import pigImg   from '../../images/icons/pig.png';
@@ -86,8 +87,7 @@ export default function GameLogForm({ session, ownedExpansions, onSubmit, onCanc
   }, [isGuest]);
 
   const scoreNums    = players.map(p => Number(finalScores[p]) || 0);
-  const maxScore     = scoreNums.length > 0 ? Math.max(...scoreNums) : 0;
-  const winners      = maxScore > 0 ? players.filter(p => (Number(finalScores[p]) || 0) === maxScore) : [];
+  const { winners, maxScore } = computeWinners(Object.fromEntries(players.map(p => [p, finalScores[p]])));
   const sortedPlayers = [...players].sort((a, b) => (Number(finalScores[b]) || 0) - (Number(finalScores[a]) || 0));
 
   const sortedScores = [...scoreNums].sort((a, b) => b - a);

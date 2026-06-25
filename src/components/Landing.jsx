@@ -26,6 +26,33 @@ const HistoryIcon = () => (
   </svg>
 );
 
+const howToSteps = [
+  {
+    title: 'Gather players',
+    body: 'Create a group and add everyone at the table.',
+  },
+  {
+    title: 'Set up the game',
+    body: 'Select meeples, expansions, and game modes.',
+  },
+  {
+    title: 'Play the game',
+    body: 'Track scoring events live as cities, roads, monasteries, and other features are completed.',
+  },
+  {
+    title: 'Final Scoring',
+    body: 'Complete end-game scoring once the final tile is placed.',
+  },
+  {
+    title: 'Crown a winner',
+    body: 'View the final standings, score breakdowns, and game statistics.',
+  },
+  {
+    title: 'Build your legacy',
+    body: 'Sign in to save games to your logbook. Access your complete game history, group leaderboards, player stats, and long-term analytics.',
+  },
+];
+
 const features = [
   {
     icon: <MeepleIcon />,
@@ -77,6 +104,22 @@ export default function Landing() {
             <p className="landing-feature-body">{f.body}</p>
           </div>
         ))}
+      </section>
+
+      {/* How To */}
+      <section className="landing-howto">
+        <h3 className="landing-howto-heading">How It Works</h3>
+        <ol className="landing-howto-steps">
+          {howToSteps.map((s, i) => (
+            <li key={s.title} className="landing-howto-step">
+              <span className="landing-howto-number">{i + 1}</span>
+              <div className="landing-howto-content">
+                <h4 className="landing-howto-title">{s.title}</h4>
+                <p className="landing-howto-body">{s.body}</p>
+              </div>
+            </li>
+          ))}
+        </ol>
       </section>
 
       {/* Disclaimer */}
