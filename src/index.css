@@ -123,6 +123,43 @@ h3 { font-size: 1.15rem; font-weight: 600; }
   position: relative;
 }
 
+/* ── Header Layout ── */
+.header-layout {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.header-left {
+  flex: 1;
+  display: flex;
+  justify-content: flex-start;
+}
+
+.header-right {
+  flex: 1;
+}
+
+.header-title {
+  cursor: pointer;
+}
+
+.header-auth-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: 'Cinzel', serif;
+  font-size: 0.62rem;
+  letter-spacing: 0.06em;
+  color: var(--stone-gray);
+  padding: 0.1rem 0.3rem;
+  transition: color var(--transition-lift);
+}
+
+.header-auth-btn:hover {
+  color: var(--earth-brown);
+}
+
 .site-header .subtitle {
   font-style: italic;
   color: var(--stone-gray);
@@ -196,6 +233,18 @@ h3 { font-size: 1.15rem; font-weight: 600; }
 /* ── Section Panel ── */
 .section-panel {
   padding: 2.2rem 0 3rem;
+}
+
+.loading-state {
+  text-align: center;
+  padding-top: 4rem;
+  font-family: 'Cinzel', serif;
+  color: var(--stone-gray);
+  letter-spacing: 0.1em;
+}
+
+.chip-section {
+  margin-bottom: 1.3rem;
 }
 
 /* ── Section Title ── */
@@ -927,9 +976,10 @@ h3 { font-size: 1.15rem; font-weight: 600; }
   background: rgba(0,0,0,0.84);
   z-index: 10000;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   padding: 1rem;
+  overflow-y: auto;
   animation: lbFadeIn 0.28s ease forwards;
 }
 @keyframes lbFadeIn {
@@ -1178,6 +1228,106 @@ input[type="file"] { display: none; }
 .p6 .player-card-name { color: #1A8080; }
 
 /* ── Board controls overflow for 4+ players ── */
+
+/* ── Landing Page ── */
+.landing-page {
+  padding: 0.5rem 0 4rem;
+}
+
+.landing-hero {
+  text-align: center;
+  padding: 0 1rem 0.8rem;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.landing-welcome {
+  font-family: 'Cinzel', serif;
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--charcoal);
+  letter-spacing: 0.04em;
+  margin-bottom: 0.4rem;
+}
+
+.landing-tagline {
+  font-family: 'Crimson Text', serif;
+  font-size: 1.2rem;
+  font-style: italic;
+  color: var(--earth-brown);
+  margin-bottom: 1rem;
+}
+
+.landing-sub {
+  font-family: 'Crimson Text', serif;
+  font-size: 1.15rem;
+  color: var(--charcoal);
+  line-height: 1.7;
+  margin-bottom: 2rem;
+  opacity: 0.85;
+}
+
+.landing-cta {
+  font-size: 1rem;
+  padding: 0.75rem 2.2rem;
+  letter-spacing: 0.08em;
+}
+
+.landing-divider {
+  height: 2px;
+  background: linear-gradient(to right, transparent, var(--warm-gold), transparent);
+  margin: 0 auto 2.5rem;
+  max-width: 480px;
+}
+
+.landing-features {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1.2rem;
+  margin-bottom: 3rem;
+}
+
+.landing-feature-card {
+  background: var(--aged-paper);
+  border: var(--border-tile);
+  border-radius: var(--radius-tile);
+  padding: 1.4rem 1.3rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.landing-feature-icon {
+  margin-bottom: 0.6rem;
+}
+
+.landing-feature-title {
+  font-family: 'Cinzel', serif;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--charcoal);
+  letter-spacing: 0.04em;
+  margin-bottom: 0.4rem;
+}
+
+.landing-feature-body {
+  font-family: 'Crimson Text', serif;
+  font-size: 1rem;
+  line-height: 1.6;
+  color: var(--charcoal);
+  opacity: 0.8;
+}
+
+.landing-disclaimer {
+  font-family: 'Crimson Text', serif;
+  font-size: 0.82rem;
+  color: var(--stone-gray);
+  font-style: italic;
+  text-align: center;
+  max-width: 520px;
+  margin: 0 auto;
+  line-height: 1.5;
+  border-top: 1px solid rgba(139,94,60,0.2);
+  padding-top: 1.5rem;
+}
 
 /* ── Realm Password Modal ── */
 .realm-modal-overlay {

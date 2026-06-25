@@ -1,39 +1,6 @@
 import { useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from 'recharts';
-
-// Scoring types in consistent order (matches PostGameForm)
-const SCORE_TYPE_ORDER = [
-  'road', 'city', 'monastery', 'field',           // Base game
-  'abbot',                                         // The Abbot
-  'inn', 'cathedral',                              // Inns & Cathedrals
-  'wine', 'grain', 'cloth', 'pig',                 // Traders & Builders
-  'abbey', 'barn',                                 // Abbey & Mayor
-  'princess', 'fairy',                             // The Princess & the Dragon
-  'largest_city', 'largest_road',                  // Count, King & Robber
-  'wagon',                                         // Other/wagon
-];
-
-// Consistent color palette for each scoring type
-const SCORE_TYPE_COLORS = {
-  road: '#6B4423',       // Saddle brown
-  city: '#A67C52',       // Medium tan
-  monastery: '#3D2817',  // Very dark brown
-  field: '#6B8E23',      // Olive green
-  abbot: '#A52A2A',      // Crimson
-  inn: '#CD853F',        // Peru
-  cathedral: '#5A6C7D',  // Steel blue
-  wine: '#8B1A1A',       // Dark red
-  grain: '#DAA520',      // Goldenrod
-  cloth: '#8B7355',      // Burlywood
-  pig: '#B8860B',        // Dark goldenrod
-  abbey: '#2F6B3F',      // Hunter green
-  barn: '#8B4513',       // Saddle brown (lighter)
-  princess: '#C41E3A',   // Carmine
-  fairy: '#D4418E',      // Pink/mauve
-  largest_city: '#1F4788',    // Deep blue
-  largest_road: '#2D5A2D',    // Deep forest green
-  wagon: '#996633',      // Brown
-};
+import { SCORE_TYPE_ORDER, SCORE_TYPE_COLORS } from '../constants';
 
 // Custom label for bar segments
 function BarLabel(props) {
