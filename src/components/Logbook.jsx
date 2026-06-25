@@ -1,24 +1,17 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Lightbox from './Lightbox';
-
-function formatDate(dateStr) {
-  return new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', {
-    month: 'short', day: 'numeric', year: 'numeric',
-  });
-}
-
-const TrashIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <polyline points="3 6 5 6 21 6" />
-    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-    <path d="M10 11v6M14 11v6" />
-    <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-  </svg>
-);
+import { formatDate } from '../utils/formatters';
+import { TrashIcon } from './icons';
 
 export default function GameHistory({ games, realms = [], currentRealm = null, onRealmChange, onDelete, isGuest = false }) {
   const [selectedGame,    setSelectedGame]    = useState(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+
+  useEffect(() => {
+    const isOpen = !!confirmDeleteId || !!selectedGame;
+    document.body.style.overflow = isOpen ? 'hidden' : '';
+    return () => { document.body.style.overflow = ''; };
+  }, [confirmDeleteId, selectedGame]);
 
   const realmGames = currentRealm
     ? games.filter(g => g.realmId === currentRealm.id)
@@ -91,11 +84,11 @@ export default function GameHistory({ games, realms = [], currentRealm = null, o
 
       {!currentRealm ? (
         <div className="empty-state">
-          Select a realm to view its game history.
+          Select a group to view its game history.
         </div>
       ) : realmGames.length === 0 ? (
         <div className="empty-state">
-          No games recorded for this realm yet.
+          No games recorded for this group yet.
         </div>
       ) : (
         <div className="history-table-wrap">

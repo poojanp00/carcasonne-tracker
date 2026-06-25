@@ -7,24 +7,15 @@ import Board         from './components/Board';
 import RealmPicker   from './components/RealmPicker';
 import PreGameSetup  from './components/PreGameSetup';
 import Auth          from './components/Auth';
+import ChipGroup     from './components/ChipGroup';
+import Landing       from './components/Landing';
 import { useGameData } from './hooks/useGameData';
 import { useAuth }     from './hooks/useAuth';
 import { resetBoard }  from './data/boardStorage';
 import { DEFAULT_EXPANSIONS } from './data/expansions';
+import { TABS, APP_CONFIG, EXPANSION_TYPES, PINNED_EXPANSIONS } from './constants';
+import { normalizeMeeples } from './utils/formatters';
 import crownImg from '../images/icons/crown.png';
-
-// App-wide configuration constants
-const APP_CONFIG = {
-  TOAST_DURATION: 3100, // milliseconds before toast message disappears
-};
-
-const TABS = [
-  { id: 'realms',     label: 'Realms'     },
-  { id: 'statistics', label: 'Statistics' },
-  { id: 'history',    label: 'Logbook'    },
-  { id: 'board',      label: 'score board' },
-  { id: 'collection', label: 'Collection' },
-];
 
 
 function Toast({ message }) {
@@ -35,20 +26,10 @@ function Toast({ message }) {
   );
 }
 
-/**
- * Normalize meeple selections for consistency in session state.
- * Converts 'fun/' prefix meeples (custom/special meeples) to 'mystery.png'
- * to maintain a consistent interface while preserving the original selection.
- * This helps prevent UI issues when switching between different meeple sets.
- */
-const normalizeMeeples = (meeples) =>
-  meeples
-    ? Object.fromEntries(Object.entries(meeples).map(([p, k]) => [p, k.startsWith('fun/') ? 'mystery.png' : k]))
-    : meeples;
 
 export default function App() {
   const [session,        setSession]        = useState(null);
-  const [tab,            setTab]            = useState('realms');
+  const [tab,            setTab]            = useState('home');
   const [gameKey,        setGameKey]        = useState(0);
   const [toast,          setToast]          = useState(null);
   const [realmPickerKey, setRealmPickerKey] = useState(0);
@@ -125,23 +106,10 @@ export default function App() {
   useEffect(() => {
     // Skip if still loading data, no user, already have session, or no data available
     if (appData.loading || authLoading || (!user && !isGuest) || session || appData.games.length === 0 || appData.realms.length === 0) return;
-    
+
     // Find the most recent game by sorting games by date (newest first)
     const latest = [...appData.games].sort((a, b) => b.date.localeCompare(a.date))[0];
-    
-    // Find the realm that contains this latest game
-    const realm  = appData.realms.find(r => r.id === latest?.realmId);
-    if (realm) setSession({ realm });
-  }, [appData.loading, authLoading, user, isGuest]);  // eslint-disable-line react-hooks/exhaustive-deps
-  // Business rule: When a user first logs in, automatically select the realm
-  // where their most recent game was played to provide continuity
-  useEffect(() => {
-    // Skip if still loading data, no user, already have session, or no data available
-    if (appData.loading || authLoading || (!user && !isGuest) || session || appData.games.length === 0 || appData.realms.length === 0) return;
-    
-    // Find the most recent game by sorting games by date (newest first)
-    const latest = [...appData.games].sort((a, b) => b.date.localeCompare(a.date))[0];
-    
+
     // Find the realm that contains this latest game
     const realm  = appData.realms.find(r => r.id === latest?.realmId);
     if (realm) setSession({ realm });
@@ -149,7 +117,7 @@ export default function App() {
 
   const goHome = useCallback(() => {
     setSession(null);
-    setTab('realms');
+    setTab('home');
     setRealmPickerKey(k => k + 1);
   }, []);
 
@@ -170,39 +138,10 @@ export default function App() {
       setRealmPickerKey(k => k + 1);
     } catch (err) {
       console.error('create realm failed', err);
-      showToast(`Failed to create realm: ${err?.message || 'Unknown error'}`);
+      showToast(`Failed to create group: ${err?.message || 'Unknown error'}`);
     }
   }, [appOperations.addRealm, showToast]);
 
-  // Maps expansion names to the score types they add beyond the base four
-  /**
-   * Carcassonne Expansion Scoring Categories
-   * Maps expansion names to the additional scoring types they introduce.
-   * These determine what score input buttons appear during gameplay.
-   * 
-   * Base game: road, city, monastery, field
-   * 
-   * Inns & Cathedrals:
-   * - inn: Road tiles with inns double points but score 0 if incomplete
-   * - cathedral: City tiles with cathedrals +3 points per pennant, 0 if incomplete
-   * 
-   * Traders & Builders:
-   * - wine, grain, cloth: Trade goods collected from completed cities
-   * - pig: Placed on farms to increase field scoring by +1 per city
-   * 
-   * Abbey & Mayor:
-   * - barn: Placed on farms for immediate scoring, locks the farm
-   * - wagon: Can move between completed features for additional scoring
-   */
-  const EXPANSION_TYPES = {
-    'Inns & Cathedrals':          ['inn', 'cathedral'],
-    'Bridges, Castles & Bazaars': ['inn', 'cathedral'],
-    'The Princess & the Dragon':  ['princess', 'fairy'],
-    'Traders & Builders':         ['wine', 'grain', 'cloth', 'pig'],
-    'Count, King & Robber':       ['largest_city', 'largest_road'],
-    'Abbey & Mayor':              ['abbey', 'barn'],
-    'The Abbot':                  ['abbot'],
-  };
 
   const handleGameStart = useCallback(async (setup) => {
     const extraTypes = (setup.expansions || []).flatMap(e => EXPANSION_TYPES[e] || []);
@@ -228,7 +167,7 @@ export default function App() {
     if (isGuest) {
       // For guests, redirect to sign-in instead of recording
       setSession(null);
-      setTab('realms');
+      setTab('statistics');
       signOutGuest();
       return;
     }
@@ -264,8 +203,8 @@ export default function App() {
     await appOperations.removeRealm(realmId);
     if (session?.realm?.id === realmId) setSession(null);
     const remaining = appData.realms.filter(r => r.id !== realmId);
-    if (remaining.length === 0) { setRealmPickerKey(k => k + 1); setTab('realms'); }
-    showToast('Realm deleted.');
+    if (remaining.length === 0) { setRealmPickerKey(k => k + 1); setTab('statistics'); }
+    showToast('Group deleted.');
   }, [appOperations.removeRealm, session, appData.realms, showToast]);
 
   const handleUpdateRealm = useCallback((patch) => {
@@ -275,7 +214,7 @@ export default function App() {
   }, [session, appOperations.updateRealm]);
 
   const handleTabChange = useCallback((id) => {
-    if (id === 'realms') setRealmPickerKey(k => k + 1);
+    if (id === 'statistics') setRealmPickerKey(k => k + 1);
     // Clear postgame state and players when leaving board tab to return to pregame setup
     if (id !== 'board' && session?.finalScores) {
       setSession(prev => ({ ...prev, finalScores: null, scoreBreakdown: null, players: null }));
@@ -286,7 +225,6 @@ export default function App() {
   // Carcassonne expansion priority: Always show River and Abbot first since they're
   // commonly used foundational expansions that integrate well with other expansions.
   // River provides starting tile placement variety, Abbot offers monastery alternatives.
-  const PINNED_EXPANSIONS = ['The River', 'The Abbot'];
   const ownedExpansions = appData.expansions
     .filter(e => e.owned)
     .sort((a, b) => {
@@ -304,38 +242,34 @@ export default function App() {
     <div className="app-shell">
       <header className="site-header">
         <div className="app-wrapper">
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-start' }}>
+          <div className="header-layout">
+            <div className="header-left">
               {(user || isGuest) && (
                 <button
                   type="button"
-                  onClick={() => { 
+                  onClick={() => {
                     if (user) {
-                      signOut(); 
+                      signOut();
                     } else {
                       signOutGuest();
                     }
-                    goHome(); 
+                    goHome();
                   }}
-                  style={{
-                    background: 'none', border: 'none', cursor: 'pointer',
-                    fontFamily: 'Cinzel, serif', fontSize: '0.62rem', letterSpacing: '0.06em',
-                    color: 'var(--stone-gray)', padding: '0.1rem 0.3rem',
-                  }}
+                  className="header-auth-btn"
                 >
                   {isGuest ? 'Sign In' : 'Sign Out'}
                 </button>
               )}
             </div>
-            <h1 style={{ cursor: 'pointer' }} onClick={goHome}>Carcasscore</h1>
-            <div style={{ flex: 1 }} />
+            <h1 className="header-title" onClick={goHome}>Carcasscore</h1>
+            <div className="header-right" />
           </div>
         </div>
       </header>
 
       {/* ── Loading ── */}
       {(appData.loading || authLoading) && (
-        <div className="app-wrapper" style={{ textAlign: 'center', paddingTop: '4rem', fontFamily: 'Cinzel, serif', color: 'var(--stone-gray)', letterSpacing: '0.1em' }}>
+        <div className="app-wrapper loading-state">
           Loading...
         </div>
       )}
@@ -349,7 +283,7 @@ export default function App() {
           }} 
           onGuestMode={() => {
             enableGuestMode();
-            setTab('board');
+            setTab('home');
           }}
         />
       )}
@@ -373,18 +307,6 @@ export default function App() {
 
           <div className="app-wrapper">
           <div className="section-panel">
-            {tab === 'realms' && (
-              <RealmPicker
-                key={realmPickerKey}
-                realms={appData.realms}
-                currentRealm={session?.realm || null}
-                games={realmGames}
-                onSelect={handleRealmSelect}
-                onCreate={handleRealmCreate}
-                onDelete={handleRealmDelete}
-                isGuest={isGuest}
-              />
-            )}
             {tab === 'board' && (
               session
                 ? session.finalScores
@@ -434,7 +356,7 @@ export default function App() {
                       onStart={handleGameStart}
                       defaultMeeples={null}
                       defaultExpansions={null}
-                      realms={realms}
+                      realms={appData.realms}
                       currentRealm={null}
                       onRealmChange={handleRealmSelect}
                       onRealmCreate={handleRealmCreate}
@@ -448,29 +370,35 @@ export default function App() {
                         <div className="section-title-line" />
                       </div>
                       {appData.realms.length > 0 && (
-                        <div style={{ marginBottom: '1.3rem' }}>
-                          <div className="expansion-chips">
-                            {appData.realms.map(r => (
-                              <button
-                                key={r.id}
-                                type="button"
-                                className="expansion-chip"
-                                onClick={() => handleRealmSelect(r)}
-                              >
-                                {r.name}
-                              </button>
-                            ))}
-                          </div>
+                        <div className="chip-section">
+                          <ChipGroup
+                            items={appData.realms}
+                            selectedId={null}
+                            onSelect={handleRealmSelect}
+                          />
                         </div>
                       )}
                       <div className="empty-state">
-                        Select a realm to begin playing.
+                        Select a group to begin playing.
                       </div>
                     </div>
                   )
             )}
+            {tab === 'home' && <Landing />}
             {tab === 'history' && <Logbook games={appData.games} realms={appData.realms} currentRealm={session?.realm || null} onRealmChange={handleRealmSelect} onDelete={handleDelete} isGuest={isGuest} />}
-            {tab === 'statistics' && <Statistics games={appData.games} realms={appData.realms} currentRealm={session?.realm || null} onRealmChange={handleRealmSelect} isGuest={isGuest} />}
+            {tab === 'statistics' && (
+              <>
+                <RealmPicker
+                  key={realmPickerKey}
+                  realms={appData.realms}
+                  currentRealm={session?.realm || null}
+                  onSelect={handleRealmSelect}
+                  onCreate={handleRealmCreate}
+                  isGuest={isGuest}
+                />
+                {session?.realm && <Statistics games={appData.games} realms={appData.realms} currentRealm={session?.realm || null} onRealmChange={handleRealmSelect} onDelete={handleRealmDelete} isGuest={isGuest} />}
+              </>
+            )}
             {tab === 'collection' && <Collection expansions={appData.expansions} onToggle={appOperations.toggleExpansion} userId={user?.id} isGuest={isGuest} />}
           </div>
           </div>

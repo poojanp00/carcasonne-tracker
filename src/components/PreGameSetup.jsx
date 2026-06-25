@@ -17,10 +17,12 @@
  */
 
 import { useState, useMemo } from 'react';
+import { MAX_GAME_PLAYERS, MAX_REALMS } from '../constants';
+import { formatPieceName } from '../utils/formatters';
 
 /**
  * MEEPLE LOADING SYSTEM (STANDARD MEEPLES)
- * 
+ *
  * Dynamically imports all standard meeple images from the meeples folder.
  * Creates sorted list with human-readable labels for the selection interface.
  * Vite's glob import bundles these at build time for performance.
@@ -34,7 +36,7 @@ const MEEPLES = Object.entries(MEEPLE_MODULES).map(([path, img]) => {
 
 /**
  * FUN MEEPLES SYSTEM (CUSTOM/SPECIAL MEEPLES)
- * 
+ *
  * Loads custom meeples from the fun/ subdirectory for mystery resolution.
  * These are special character meeples that add personality to the game.
  * Filtered to exclude .heic files which aren't web-compatible.
@@ -42,13 +44,10 @@ const MEEPLES = Object.entries(MEEPLE_MODULES).map(([path, img]) => {
 const FUN_MODULES = import.meta.glob('../../images/meeples/fun/*.png', { eager: true, import: 'default' });
 const FUN_MEEPLES = Object.entries(FUN_MODULES)
   .filter(([path]) => !path.endsWith('.heic'))     // Remove incompatible formats
-  .map(([path, img]) => ({ 
+  .map(([path, img]) => ({
     key: `fun/${path.split('/').pop()}`,           // Prefix with 'fun/' for distinction
-    img 
+    img
   }));
-
-// Carcassonne game supports maximum 6 players with base game + expansions
-const MAX_GAME_PLAYERS = 6;
 
 export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeples, defaultExpansions, realms = [], currentRealm = null, onRealmChange, onRealmCreate, startAtRealmCreation = false, isGuest = false }) {
   // Start at step 1 if requested, no realms exist, or no current realm - otherwise step 2 
@@ -60,7 +59,6 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
   const [playerCount, setPlayerCount] = useState(2);
   const [playerNames, setPlayerNames] = useState(['', '']);
   const [nameError, setNameError] = useState('');
-  const MAX_REALMS = 12;
 
   // Limit active players to game maximum and ensure they exist
   const activePlayers = (realm?.players || playerNames.filter(n => n.trim())).slice(0, MAX_GAME_PLAYERS);
@@ -78,7 +76,7 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
   const handleCreateRealm = async (e) => {
     e.preventDefault();
     if (realms.length >= MAX_REALMS) {
-      setNameError(`Realm limit reached. Delete an existing realm to create a new one.`);
+      setNameError(`Group limit reached. Delete an existing group to create a new one.`);
       return;
     }
     
@@ -102,7 +100,7 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
     }
     
     if (realms.some(r => r.name.toLowerCase() === finalRealmName.toLowerCase())) {
-      setNameError('A realm with this name already exists.');
+      setNameError('A group with this name already exists.');
       return;
     }
     
@@ -305,17 +303,6 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
     return pieces;
   }, [selectedExp, ownedExpansions]);
 
-  /**
-   * FORMAT PIECE NAME FOR DISPLAY
-   * Converts snake_case and camelCase to Title Case
-   */
-  const formatPieceName = (name) =>
-    name
-      .replace(/_/g, ' ')
-      .replace(/([a-z])([A-Z])/g, '$1 $2')
-      .split(' ')
-      .map(w => w.charAt(0).toUpperCase() + w.slice(1))
-      .join(' ');
 
   /**
    * COMPONENT BREAKDOWN MAP
@@ -361,7 +348,7 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
     return (
       <div className="pregame-screen">
         <div className="section-title">
-          <h2>Create New Realm</h2>
+          <h2>Create New Group</h2>
           <div className="section-title-line" />
         </div>
 
@@ -369,7 +356,7 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
           <div className="tile-card" style={{ marginBottom: '0.9rem' }}>
             {!isGuest && (
               <div className="form-group" style={{ maxWidth: '360px' }}>
-                <label className="form-label">Realm Name</label>
+                <label className="form-label">Group Name</label>
                 <input
                   className="form-input"
                   value={realmName}
@@ -452,7 +439,7 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
         {activePlayers.length === 0 ? (
           <div className="tile-card" style={{ marginBottom: '1.4rem', textAlign: 'center' }}>
             <p style={{ fontFamily: 'Crimson Text, serif', fontStyle: 'italic', color: 'var(--stone-gray)', margin: 0 }}>
-              Create a realm first to configure players and meeples.
+              Create a group first to configure players and meeples.
             </p>
           </div>
         ) : (
@@ -494,7 +481,7 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
             className={activePlayers.length === 0 ? "btn" : "btn btn-ghost"}
             onClick={() => setStep(1)}
           >
-            Create New Realm
+            Create New Group
           </button>
           {activePlayers.length > 0 && (
             <>

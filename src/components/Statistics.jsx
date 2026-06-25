@@ -1,13 +1,9 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
+import { STATISTICS_CONFIG } from '../constants';
+import ChipGroup from './ChipGroup';
+import { TrashIcon } from './icons';
 import crownImg from '../../images/icons/crown.png';
 import PointBreakdownChart from './PointBreakdownChart';
-
-// ─── Statistics ────────────────────────────────────────────────────────
-
-// Game analysis constants
-const STATISTICS_CONFIG = {
-  CLUTCH_THRESHOLD: 0.10, // 10% - margin threshold for "clutch" (close) games
-};
 
 // Aggregate per-type score totals across all games for a player
 function calcBreakdown(games, name) {
@@ -211,6 +207,34 @@ function WinRateBadge({ rate }) {
 
 const PLAYER_COLOR_CLASSES = ['p1', 'p2', 'p3', 'p4', 'p5', 'p6'];
 
+const TYPE_ORDER_GROUP = ['road', 'city', 'monastery', 'field'];
+
+function calcGroupStats(games) {
+  let totalPoints = 0, farmWins = 0, clutchGames = 0;
+  const typePoints = {};
+  for (const g of games) {
+    totalPoints += g.players.reduce((s, p) => s + p.score, 0);
+    if (g.farmWin) farmWins++;
+    if (g.clutchWin) clutchGames++;
+    for (const p of g.players)
+      for (const [type, pts] of Object.entries(p.breakdown || {}))
+        typePoints[type] = (typePoints[type] || 0) + pts;
+  }
+  return { totalPoints, farmWins, clutchGames, typePoints };
+}
+
+function calcPlayerRecords(games, players) {
+  const records = Object.fromEntries(players.map(p => [p.toLowerCase(), { w: 0, l: 0 }]));
+  for (const g of games)
+    for (const p of g.players) {
+      const key = p.name.toLowerCase();
+      if (!records[key]) continue;
+      if (g.winners?.includes(p.name)) records[key].w++;
+      else records[key].l++;
+    }
+  return records;
+}
+
 const TYPE_LABELS = {
   road: 'Road', city: 'City', monastery: 'Monastery', field: 'Field',
   inn: 'Inn', cathedral: 'Cathedral',
@@ -328,8 +352,15 @@ function PlayerCard({ name, stats, breakdown, colorClass, isLeader }) {
   );
 }
 
-export default function Stats({ games, realms = [], currentRealm = null, onRealmChange, isGuest = false }) {
+export default function Stats({ games, realms = [], currentRealm = null, onRealmChange, onDelete, isGuest = false }) {
   const realmGames = currentRealm ? games.filter(g => g.realmId === currentRealm.id) : [];
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [groupExpanded, setGroupExpanded] = useState(false);
+
+  useEffect(() => {
+    document.body.style.overflow = confirmDelete ? 'hidden' : '';
+    return () => { document.body.style.overflow = ''; };
+  }, [confirmDelete]);
 
   const BASE_BREAKDOWN = { road: 0, city: 0, monastery: 0, field: 0 };
 
@@ -388,37 +419,102 @@ export default function Stats({ games, realms = [], currentRealm = null, onRealm
         {currentRealm && <span className="game-count">{realmGames.length} {realmGames.length === 1 ? 'game' : 'games'}</span>}
       </div>
 
-      {/* Guest mode - show blank state */}
-      {isGuest ? (
-        <div className="empty-state">
-          Sign in to view statistics and track game history.
-        </div>
-      ) : (
-        <>
-          {/* Realm filter chips */}
+      {/* Group chips */}
       {realms.length > 0 && (
         <div style={{ marginBottom: '1.3rem' }}>
-          <div className="expansion-chips">
-            {realms.map(r => (
-              <button
-                key={r.id}
-                type="button"
-                className={`expansion-chip ${currentRealm?.id === r.id ? 'selected' : ''}`}
-                onClick={() => onRealmChange(r)}
-              >
-                {r.name}
-              </button>
-            ))}
-          </div>
+          <ChipGroup items={realms} selectedId={currentRealm?.id} onSelect={onRealmChange} />
         </div>
       )}
 
-      {!currentRealm ? (
-        <div className="empty-state">
-          Select a realm to view statistics.
-        </div>
+      {/* Guest mode */}
+      {isGuest ? (
+        <div className="empty-state">Sign in to view statistics and track game history.</div>
+      ) : !currentRealm ? (
+        <div className="empty-state">Select a group to view statistics.</div>
       ) : (
         <>
+          {/* Delete confirmation modal */}
+          {confirmDelete && (
+            <div className="realm-modal-overlay" onClick={() => setConfirmDelete(false)}>
+              <div className="realm-modal tile-card" onClick={e => e.stopPropagation()}>
+                <h3 style={{ color: 'var(--deep-red)', marginBottom: '0.5rem' }}>Are you sure?</h3>
+                <p style={{ fontSize: '0.95rem', marginBottom: '1.2rem', lineHeight: 1.5 }}>
+                  This will permanently delete <strong>{currentRealm.name}</strong> and all its recorded games. This cannot be undone.
+                </p>
+                <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'flex-end' }}>
+                  <button className="btn btn-ghost btn-sm" onClick={() => setConfirmDelete(false)}>Cancel</button>
+                  <button className="btn btn-danger btn-sm" onClick={() => { setConfirmDelete(false); onDelete?.(currentRealm.id); }}>Delete</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Active group card */}
+          {(() => {
+            const gs = calcGroupStats(realmGames);
+            const records = calcPlayerRecords(realmGames, currentRealm.players);
+            const typeEntries = [
+              ...TYPE_ORDER_GROUP,
+              ...Object.keys(gs.typePoints).filter(t => !TYPE_ORDER_GROUP.includes(t)),
+            ];
+            return (
+              <div className="tile-card" style={{ marginBottom: '1.2rem', borderTop: '4px solid var(--warm-gold)' }}>
+                {/* Always-visible summary row */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.9rem', flexWrap: 'wrap' }}>
+                    <span style={{ fontFamily: 'Cinzel, serif', fontSize: '1.1rem', fontWeight: 700, color: 'var(--earth-brown)' }}>
+                      {currentRealm.name}
+                    </span>
+                    <span style={{ fontFamily: 'Cinzel, serif', fontSize: '0.85rem' }}>
+                      {[...currentRealm.players]
+                        .sort((a, b) => (records[b.toLowerCase()]?.w || 0) - (records[a.toLowerCase()]?.w || 0))
+                        .map((name, i) => (
+                          <span key={name}>
+                            {i > 0 && <span style={{ color: 'var(--stone-gray)' }}> · </span>}
+                            <span style={{ color: 'var(--charcoal)' }}>{name}</span>
+                            {' '}
+                            <span style={{ color: 'var(--forest-green)', fontWeight: 600 }}>{records[name.toLowerCase()]?.w || 0}</span>
+                          </span>
+                        ))}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setGroupExpanded(v => !v)}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'Cinzel, serif', fontSize: '0.7rem', letterSpacing: '0.08em', color: 'var(--stone-gray)', padding: 0, flexShrink: 0 }}
+                  >
+                    {groupExpanded ? 'less ▲' : 'more ▼'}
+                  </button>
+                </div>
+
+                {/* Expandable detail */}
+                {groupExpanded && (
+                  <>
+                    <div className="stat-divider" style={{ margin: '0.8rem 0' }} />
+                    <div style={{ fontSize: '0.7rem', fontFamily: 'Cinzel, serif', letterSpacing: '0.1em', color: 'var(--stone-gray)', marginBottom: '0.5rem' }}>GROUP STATS</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.3rem 1.2rem', marginBottom: '0.9rem' }}>
+                      {[['Games', realmGames.length], ['Total Pts', gs.totalPoints], ['Farm Wins', gs.farmWins], ['Clutch Games', gs.clutchGames]].map(([label, val]) => (
+                        <div key={label} className="stat-row" style={{ margin: 0 }}>
+                          <span className="stat-label" style={{ fontSize: '0.82rem' }}>{label}</span>
+                          <span className="stat-value" style={{ fontSize: '0.82rem' }}>{val}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{ fontSize: '0.7rem', fontFamily: 'Cinzel, serif', letterSpacing: '0.1em', color: 'var(--stone-gray)', marginBottom: '0.5rem' }}>POINT TOTALS</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.3rem 1.2rem' }}>
+                      {typeEntries.map(t => (
+                        <div key={t} className="stat-row" style={{ margin: 0 }}>
+                          <span className="stat-label" style={{ fontSize: '0.82rem' }}>{TYPE_LABELS[t] ?? t.charAt(0).toUpperCase() + t.slice(1)}</span>
+                          <span className="stat-value" style={{ fontSize: '0.82rem' }}>{gs.typePoints[t] || 0}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            );
+          })()}
+
           <div className="stats-grid" style={{ gridTemplateColumns: sorted.length === 4 ? 'repeat(2, 1fr)' : sorted.length >= 3 ? 'repeat(3, 1fr)' : 'repeat(2, 1fr)' }}>
             {sorted.map((ps, i) => (
               <PlayerCard
@@ -437,8 +533,17 @@ export default function Stats({ games, realms = [], currentRealm = null, onRealm
               <PointBreakdownChart players={sorted} />
             </div>
           )}
-        </>
-      )}
+
+          <div style={{ marginTop: '3rem', display: 'flex', justifyContent: 'center' }}>
+            <button
+              className="realm-trash-btn"
+              onClick={() => setConfirmDelete(true)}
+              title="Delete group"
+              style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--stone-gray)', fontSize: '0.82rem', fontFamily: 'Cinzel, serif', letterSpacing: '0.06em' }}
+            >
+              <TrashIcon /> Delete Group
+            </button>
+          </div>
         </>
       )}
     </div>
