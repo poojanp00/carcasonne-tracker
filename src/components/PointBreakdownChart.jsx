@@ -158,7 +158,7 @@ export default function PointBreakdownChart({ players }) {
           <BarChart
             data={chartData}
             layout="vertical"
-            margin={{ top: 5, right: 30, left: 100, bottom: 5 }}
+            margin={{ top: 5, right: 30, left: 5, bottom: 5 }}
           >
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(201,163,74,0.2)" />
             <XAxis type="number" stroke="var(--stone-gray)" />

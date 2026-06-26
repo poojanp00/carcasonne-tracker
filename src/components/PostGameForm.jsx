@@ -66,6 +66,24 @@ function BarLabel(props) {
   return null;
 }
 
+function CustomYAxisTick({ x, y, payload }) {
+  return (
+    <g transform={`translate(${x},${y})`}>
+      <text
+        x={-5}
+        y={0}
+        textAnchor="end"
+        dominantBaseline="middle"
+        fill="var(--stone-gray)"
+        fontSize="0.9rem"
+        fontFamily="Crimson Text, serif"
+      >
+        {payload.value}
+      </text>
+    </g>
+  );
+}
+
 export default function GameLogForm({ session, ownedExpansions, onSubmit, onCancel, onPlayAgain, isGuest = false }) {
   const { players = [], meeples = {}, expansions: prefillExp = [], finalScores = {}, scoreBreakdown = {}, farmWin: autoFarmWin = false, gameDuration = 0, maxFeatures = {} } = session || {};
 
@@ -221,11 +239,11 @@ export default function GameLogForm({ session, ownedExpansions, onSubmit, onCanc
                     ...scoreBreakdown[name] || {},
                   }))}
                   layout="vertical"
-                  margin={{ top: 5, right: 30, left: 100, bottom: 5 }}
+                  margin={{ top: 5, right: 30, left: 5, bottom: 5 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(201,163,74,0.2)" />
                   <XAxis type="number" stroke="var(--stone-gray)" />
-                  <YAxis dataKey="name" type="category" stroke="var(--stone-gray)" width={95} />
+                  <YAxis dataKey="name" type="category" stroke="var(--stone-gray)" width={95} tick={<CustomYAxisTick />} />
                   {displayTypes.map(type => (
                     <Bar
                       key={type}
