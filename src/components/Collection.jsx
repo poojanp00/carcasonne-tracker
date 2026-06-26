@@ -1,4 +1,18 @@
 import { useState } from 'react';
+import { DEFAULT_EXPANSIONS } from '../data/expansions';
+
+const COMPLETE_SET = new Set(DEFAULT_EXPANSIONS.filter(e => e.complete).map(e => e.name));
+
+function TrashIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="3 6 5 6 21 6" />
+      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+      <path d="M10 11v6M14 11v6" />
+      <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+    </svg>
+  );
+}
 
 // ── Full expansion icons ──────────────────────────────────────────
 import iconInnsCathedrals        from '../../images/icons/full-expansion-icons/Symbol_InnsCathedrals_C1C2.png';
@@ -44,7 +58,7 @@ const EXPANSION_ICONS = {
   'Crop Circles':                iconCropCircles,
 };
 
-function ExpansionGroup({ label, expansions, onToggle, canEdit }) {
+function ExpansionGroup({ label, expansions, onToggle, canEdit, completeSet }) {
   const [open, setOpen] = useState(true);
   const owned   = expansions.filter((e) => e.owned);
   const unowned = expansions.filter((e) => !e.owned);
@@ -66,20 +80,23 @@ function ExpansionGroup({ label, expansions, onToggle, canEdit }) {
             <>
               <div className="collection-group-label owned-label">In Your Possession</div>
               <div className="collection-grid" style={{ marginBottom: unowned.length > 0 ? '1.5rem' : 0 }}>
-                {owned.map((exp) => (
-                  <div
-                    key={exp.name}
-                    className={`expansion-item owned${canEdit ? '' : ' read-only'}`}
-                    onClick={canEdit ? () => onToggle(exp.name) : undefined}
-                    title={canEdit ? 'Click to mark as not owned' : undefined}
-                  >
-                    <div className="status-dot" />
-                    {EXPANSION_ICONS[exp.name] && (
-                      <img src={EXPANSION_ICONS[exp.name]} alt="" className="expansion-icon" />
-                    )}
-                    <span>{exp.name}</span>
-                  </div>
-                ))}
+                {owned.map((exp) => {
+                  const isComplete = completeSet?.has(exp.name) ?? true;
+                  return (
+                    <div
+                      key={exp.name}
+                      className={`expansion-item owned${canEdit && isComplete ? '' : ' read-only'}${!isComplete ? ' dev-tooltip' : ''}`}
+                      onClick={canEdit && isComplete ? () => onToggle(exp.name) : undefined}
+                      data-tooltip={!isComplete ? 'Under development. Please check back later.' : undefined}
+                    >
+                      <div className="status-dot" />
+                      {EXPANSION_ICONS[exp.name] && (
+                        <img src={EXPANSION_ICONS[exp.name]} alt="" className="expansion-icon" />
+                      )}
+                      <span>{exp.name}</span>
+                    </div>
+                  );
+                })}
               </div>
             </>
           )}
@@ -88,20 +105,23 @@ function ExpansionGroup({ label, expansions, onToggle, canEdit }) {
             <>
               <div className="collection-group-label unowned-label">Not Yet Acquired</div>
               <div className="collection-grid">
-                {unowned.map((exp) => (
-                  <div
-                    key={exp.name}
-                    className={`expansion-item unowned${canEdit ? '' : ' read-only'}`}
-                    onClick={canEdit ? () => onToggle(exp.name) : undefined}
-                    title={canEdit ? 'Click to mark as owned' : undefined}
-                  >
-                    <div className="status-dot" />
-                    {EXPANSION_ICONS[exp.name] && (
-                      <img src={EXPANSION_ICONS[exp.name]} alt="" className="expansion-icon" />
-                    )}
-                    <span>{exp.name}</span>
-                  </div>
-                ))}
+                {unowned.map((exp) => {
+                  const isComplete = completeSet?.has(exp.name) ?? true;
+                  return (
+                    <div
+                      key={exp.name}
+                      className={`expansion-item unowned${canEdit && isComplete ? '' : ' read-only'}${!isComplete ? ' dev-tooltip' : ''}`}
+                      onClick={canEdit && isComplete ? () => onToggle(exp.name) : undefined}
+                      data-tooltip={!isComplete ? 'Under development. Please check back later.' : undefined}
+                    >
+                      <div className="status-dot" />
+                      {EXPANSION_ICONS[exp.name] && (
+                        <img src={EXPANSION_ICONS[exp.name]} alt="" className="expansion-icon" />
+                      )}
+                      <span>{exp.name}</span>
+                    </div>
+                  );
+                })}
               </div>
             </>
           )}
@@ -111,11 +131,26 @@ function ExpansionGroup({ label, expansions, onToggle, canEdit }) {
   );
 }
 
-export default function Collection({ expansions, onToggle, userId, isGuest = false }) {
+export default function Collection({ expansions, onToggle, userId, isGuest = false, onDeleteAccount }) {
   const canEdit = !isGuest;
   const owned = expansions.filter((e) => e.owned);
   const full  = expansions.filter((e) => e.type === 'full');
   const mini  = expansions.filter((e) => e.type === 'mini');
+
+  const [deleteStep,   setDeleteStep]   = useState(0); // 0=hidden, 1=first confirm, 2=final confirm
+  const [deleting,     setDeleting]     = useState(false);
+  const [deleteError,  setDeleteError]  = useState('');
+
+  const handleDeleteAccount = async () => {
+    setDeleting(true);
+    setDeleteError('');
+    try {
+      await onDeleteAccount?.();
+    } catch (err) {
+      setDeleteError(err.message || 'Something went wrong. Please try again.');
+      setDeleting(false);
+    }
+  };
 
   return (
     <div>
@@ -125,8 +160,57 @@ export default function Collection({ expansions, onToggle, userId, isGuest = fal
         <span className="game-count">{owned.length} / {expansions.length}</span>
       </div>
 
-      <ExpansionGroup label="Full Expansions" expansions={full} onToggle={onToggle} canEdit={canEdit} />
-      <ExpansionGroup label="Mini Expansions" expansions={mini} onToggle={onToggle} canEdit={canEdit} />
+      <ExpansionGroup label="Full Expansions" expansions={full} onToggle={onToggle} canEdit={canEdit} completeSet={COMPLETE_SET} />
+      <ExpansionGroup label="Mini Expansions" expansions={mini} onToggle={onToggle} canEdit={canEdit} completeSet={COMPLETE_SET} />
+
+      {!isGuest && (
+        <div style={{ marginTop: '3rem', display: 'flex', justifyContent: 'center' }}>
+          <button
+            className="realm-trash-btn"
+            onClick={() => { setDeleteStep(1); setDeleteError(''); }}
+            style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--stone-gray)', fontSize: '0.82rem', fontFamily: 'Cinzel, serif', letterSpacing: '0.06em' }}
+          >
+            <TrashIcon /> Delete Account
+          </button>
+        </div>
+      )}
+
+      {/* Step 1 confirmation */}
+      {deleteStep === 1 && (
+        <div className="realm-modal-overlay" onClick={() => setDeleteStep(0)}>
+          <div className="realm-modal tile-card" onClick={e => e.stopPropagation()}>
+            <h3 style={{ color: 'var(--deep-red)', marginBottom: '0.5rem' }}>Delete Account?</h3>
+            <p style={{ fontSize: '0.95rem', marginBottom: '1.2rem', lineHeight: 1.5 }}>
+              This will delete your account and all associated groups, games, and player data.
+            </p>
+            <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'flex-end' }}>
+              <button className="btn btn-ghost btn-sm" onClick={() => setDeleteStep(0)}>Cancel</button>
+              <button className="btn btn-danger btn-sm" onClick={() => setDeleteStep(2)}>Continue</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Step 2 final confirmation */}
+      {deleteStep === 2 && (
+        <div className="realm-modal-overlay" onClick={() => !deleting && setDeleteStep(0)}>
+          <div className="realm-modal tile-card" onClick={e => e.stopPropagation()}>
+            <h3 style={{ color: 'var(--deep-red)', marginBottom: '0.5rem' }}>Are you sure?</h3>
+            <p style={{ fontSize: '0.95rem', marginBottom: '1.2rem', lineHeight: 1.5 }}>
+              Your data will be permanently deleted.
+            </p>
+            {deleteError && (
+              <p style={{ color: 'var(--deep-red)', fontSize: '0.85rem', marginBottom: '0.8rem' }}>{deleteError}</p>
+            )}
+            <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'flex-end' }}>
+              <button className="btn btn-ghost btn-sm" onClick={() => setDeleteStep(0)} disabled={deleting}>Cancel</button>
+              <button className="btn btn-danger btn-sm" onClick={handleDeleteAccount} disabled={deleting}>
+                {deleting ? 'Deleting…' : 'Delete Account'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

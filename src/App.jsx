@@ -12,6 +12,7 @@ import Landing       from './components/Landing';
 import { useGameData } from './hooks/useGameData';
 import { useAuth }     from './hooks/useAuth';
 import { resetBoard }  from './data/boardStorage';
+import { deleteAccount } from './data/storage';
 import { DEFAULT_EXPANSIONS } from './data/expansions';
 import { TABS, APP_CONFIG, EXPANSION_TYPES, PINNED_EXPANSIONS } from './constants';
 import { normalizeMeeples } from './utils/formatters';
@@ -399,7 +400,7 @@ export default function App() {
                 {session?.realm && <Statistics games={appData.games} realms={appData.realms} currentRealm={session?.realm || null} onRealmChange={handleRealmSelect} onDelete={handleRealmDelete} isGuest={isGuest} />}
               </>
             )}
-            {tab === 'collection' && <Collection expansions={appData.expansions} onToggle={appOperations.toggleExpansion} userId={user?.id} isGuest={isGuest} />}
+            {tab === 'collection' && <Collection expansions={appData.expansions} onToggle={appOperations.toggleExpansion} userId={user?.id} isGuest={isGuest} onDeleteAccount={async () => { await deleteAccount(user?.id); signOut(); }} />}
           </div>
           </div>
         </>

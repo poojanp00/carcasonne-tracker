@@ -224,6 +224,41 @@ export async function saveOwnedExpansions(ownedNames, userId, email) {
     .upsert(row, { onConflict: 'user_id' });
 }
 
+// ── Account deletion ──────────────────────────────────────────────────────────
+
+/**
+ * DELETE ACCOUNT (GDPR/CCPA right to be forgotten)
+ *
+ * Cascades: games → realms → user_expansions → auth user.
+ * The auth.users delete is handled by the delete_user() RPC (SECURITY DEFINER).
+ *
+ * @param {string} userId - Supabase auth user ID
+ */
+export async function deleteAccount(userId) {
+  if (!userId) throw new Error('deleteAccount called without userId');
+
+  // 1. Delete all games belonging to the user's realms
+  const { data: realms } = await supabase
+    .from('realms')
+    .select('id')
+    .eq('user_id', userId);
+
+  const realmIds = (realms || []).map(r => r.id);
+  if (realmIds.length > 0) {
+    await supabase.from('games').delete().in('realm_id', realmIds);
+  }
+
+  // 2. Delete all realms
+  await supabase.from('realms').delete().eq('user_id', userId);
+
+  // 3. Delete expansion ownership record
+  await supabase.from('user_expansions').delete().eq('user_id', userId);
+
+  // 4. Delete the auth user via SECURITY DEFINER RPC
+  const { error } = await supabase.rpc('delete_user');
+  if (error) throw new Error(error.message || 'Failed to delete account');
+}
+
 // ── localStorage migration (runs once on first load) ─────────────────────────
 /**
  * One-time migration from localStorage to Supabase database.

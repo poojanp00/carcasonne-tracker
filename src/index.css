@@ -1077,6 +1077,26 @@ h3 { font-size: 1.15rem; font-weight: 600; }
 }
 .expansion-item.unowned:hover { opacity: 0.8; }
 .expansion-item.read-only { cursor: default; pointer-events: none; }
+.expansion-item.dev-tooltip { pointer-events: auto; cursor: default; position: relative; }
+.expansion-item.dev-tooltip::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--charcoal);
+  color: var(--parchment);
+  font-family: 'Crimson Text', serif;
+  font-size: 0.8rem;
+  white-space: nowrap;
+  padding: 0.3rem 0.6rem;
+  border-radius: var(--radius-sm);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  z-index: 10;
+}
+.expansion-item.dev-tooltip:hover::after { opacity: 1; }
 
 .status-dot {
   width: 9px;
