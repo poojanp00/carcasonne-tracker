@@ -1340,9 +1340,11 @@ input[type="file"] { display: none; }
 }
 
 .landing-howto {
-  max-width: 620px;
-  margin: 0 auto 3rem;
-  padding: 0 1rem;
+  padding: 1.6rem 1.8rem;
+  background: var(--aged-paper);
+  border: var(--border-tile);
+  border-radius: var(--radius-tile);
+  box-shadow: var(--shadow-sm);
 }
 
 .landing-howto-heading {

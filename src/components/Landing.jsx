@@ -1,3 +1,4 @@
+
 const MeepleIcon = () => (
   <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor">
     <circle cx="12" cy="5" r="3" />

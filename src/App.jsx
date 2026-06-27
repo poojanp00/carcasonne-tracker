@@ -65,7 +65,7 @@ export default function App() {
   // Unified data - guest mode provides default data, user mode uses database
   const appData = {
     games: isGuest ? [] : games,
-    expansions: isGuest ? DEFAULT_EXPANSIONS.map(exp => ({ ...exp, owned: true })) : expansions,
+    expansions: isGuest ? DEFAULT_EXPANSIONS.map(exp => ({ ...exp, owned: exp.complete })) : expansions,
     realms: isGuest ? guestRealms : realms,
     loading: isGuest ? false : loading
   };
@@ -202,9 +202,16 @@ export default function App() {
 
   const handleRealmDelete = useCallback(async (realmId) => {
     await appOperations.removeRealm(realmId);
-    if (session?.realm?.id === realmId) setSession(null);
     const remaining = appData.realms.filter(r => r.id !== realmId);
-    if (remaining.length === 0) { setRealmPickerKey(k => k + 1); setTab('statistics'); }
+    if (session?.realm?.id === realmId) {
+      if (remaining.length > 0) {
+        setSession({ realm: remaining[0] });
+      } else {
+        setSession(null);
+        setRealmPickerKey(k => k + 1);
+        setTab('statistics');
+      }
+    }
     showToast('Group deleted.');
   }, [appOperations.removeRealm, session, appData.realms, showToast]);
 
