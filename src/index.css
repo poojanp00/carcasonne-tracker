@@ -404,6 +404,17 @@ h3 { font-size: 1.15rem; font-weight: 600; }
   gap: 0.45rem;
 }
 
+.expansion-chips-carousel {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0.45rem;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding-bottom: 2px;
+}
+.expansion-chips-carousel::-webkit-scrollbar { display: none; }
+
 .expansion-chip {
   font-family: 'Crimson Text', serif;
   font-size: 0.88rem;
@@ -416,6 +427,8 @@ h3 { font-size: 1.15rem; font-weight: 600; }
   transition: transform var(--transition-lift), box-shadow var(--transition-lift), background var(--transition-lift), color var(--transition-lift);
   user-select: none;
   box-shadow: 1px 2px 3px rgba(0,0,0,0.14);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 .expansion-chip:hover {
   transform: translateY(-1px);
@@ -1740,8 +1753,8 @@ input[type="file"] { display: none; }
 
   .collection-grid { grid-template-columns: 1fr 1fr; }
 
-  .meeple-option { width: 44px; height: 44px; padding: 4px; }
-  .meeple-options { gap: 0.4rem; }
+  .meeple-option { width: 38px; height: 38px; padding: 3px; }
+  .meeple-options { gap: 0.3rem; }
 
   .app-wrapper { padding: 0 0.9rem; }
 

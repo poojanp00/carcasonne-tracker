@@ -5,9 +5,9 @@
  * (realms, expansions, etc.) with a consistent UI pattern.
  */
 
-export default function ChipGroup({ items, selectedId, onSelect, className = '', displayOnly = false }) {
+export default function ChipGroup({ items, selectedId, onSelect, className = '', displayOnly = false, carousel = false }) {
   return (
-    <div className="expansion-chips">
+    <div className={carousel ? 'expansion-chips-carousel' : 'expansion-chips'}>
       {items.map((item) => (
         <button
           key={item.id}

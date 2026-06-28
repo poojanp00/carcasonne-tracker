@@ -384,6 +384,7 @@ export default function App() {
                             items={appData.realms}
                             selectedId={null}
                             onSelect={handleRealmSelect}
+                            carousel
                           />
                         </div>
                       )}

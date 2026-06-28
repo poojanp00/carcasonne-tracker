@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend, ResponsiveContainer } from 'recharts';
 import GameHighlights from './GameHighlights';
 import { SCORE_TYPE_ORDER, SCORE_TYPE_COLORS } from '../constants';
 import pigImg from '../../images/icons/pig.png';
@@ -11,56 +10,8 @@ function formatDate(dateStr) {
   });
 }
 
-// Custom label for bar segments
-function BarLabel(props) {
-  const { x, y, width, height, value, dataKey } = props;
-  if (value === undefined || value === null || value === 0) return null;
 
-  const label = dataKey.replace(/_/g, ' ').charAt(0).toUpperCase() + dataKey.slice(1).replace(/_/g, ' ');
-  const fontSize = 8;
-  const textWidth = label.length * 3;
-
-  // If bar is wide enough for horizontal text (need comfortable space)
-  if (width > 35) {
-    return (
-      <text
-        x={x + width / 2}
-        y={y + height / 2}
-        textAnchor="middle"
-        dominantBaseline="middle"
-        fill="#f5f5f5"
-        fontSize={fontSize}
-        fontWeight="600"
-        fontFamily="Cinzel, serif"
-      >
-        {label}
-      </text>
-    );
-  }
-
-  // If bar is at least 6px wide, write vertically
-  if (width >= 6) {
-    return (
-      <text
-        x={x + width / 2}
-        y={y + height / 2}
-        textAnchor="middle"
-        dominantBaseline="middle"
-        fill="#f5f5f5"
-        fontSize={fontSize}
-        fontWeight="600"
-        fontFamily="Cinzel, serif"
-        transform={`rotate(-90 ${x + width / 2} ${y + height / 2})`}
-      >
-        {label}
-      </text>
-    );
-  }
-
-  return null;
-}
-
-export default function Lightbox({ game, games = [], onNavigate, onClose }) {
+export default function Lightbox({ game, games = [], onNavigate, onClose, onDeleteRequest }) {
   const idx = games.findIndex(g => g.id === game.id);
   const [animKey, setAnimKey] = useState(0);
   const [animDir, setAnimDir] = useState(null);
@@ -126,8 +77,6 @@ export default function Lightbox({ game, games = [], onNavigate, onClose }) {
           {/* Player scores */}
           <div style={{ marginBottom: '1.2rem' }}>
             {sorted.map((p, i) => {
-              const bd = p.breakdown || {};
-              const bdEntries = SCORE_TYPE_ORDER.filter(t => (bd[t] ?? 0) > 0);
               const isWinner = topPlayers.includes(p.name);
               return (
                 <div
@@ -135,86 +84,115 @@ export default function Lightbox({ game, games = [], onNavigate, onClose }) {
                   style={{
                     padding: '0.5rem 0',
                     borderBottom: i < sorted.length - 1 ? '1px solid rgba(201,163,74,0.25)' : 'none',
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                   }}
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{
-                      fontFamily: 'Cinzel, serif',
-                      fontSize: '0.95rem',
-                      fontWeight: isWinner ? 700 : 400,
-                      color: isWinner ? 'var(--forest-green)' : 'var(--charcoal)',
-                    }}>
-                      {p.name}
-                    </span>
-                    <span style={{
-                      fontFamily: 'Cinzel, serif',
-                      fontSize: '1.05rem',
-                      fontWeight: isWinner ? 700 : 400,
-                      color: isWinner ? 'var(--forest-green)' : 'var(--stone-gray)',
-                    }}>
-                      {p.score}
-                    </span>
-                  </div>
-                  {bdEntries.length > 0 && (
-                    <p style={{
-                      fontFamily: 'Crimson Text, serif',
-                      fontStyle: 'italic',
-                      fontSize: '0.82rem',
-                      color: 'var(--stone-gray)',
-                      margin: '0.15rem 0 0',
-                      letterSpacing: '0.01em',
-                    }}>
-                      {bdEntries.map(t => `${bd[t]} ${t.charAt(0).toUpperCase() + t.slice(1)}`).join(' · ')}
-                    </p>
-                  )}
+                  <span style={{
+                    fontFamily: 'Cinzel, serif',
+                    fontSize: '0.95rem',
+                    fontWeight: isWinner ? 700 : 400,
+                    color: isWinner ? 'var(--forest-green)' : 'var(--charcoal)',
+                  }}>
+                    {p.name}
+                  </span>
+                  <span style={{
+                    fontFamily: 'Cinzel, serif',
+                    fontSize: '1.05rem',
+                    fontWeight: isWinner ? 700 : 400,
+                    color: isWinner ? 'var(--forest-green)' : 'var(--stone-gray)',
+                  }}>
+                    {p.score}
+                  </span>
                 </div>
               );
             })}
           </div>
 
-          {/* Points breakdown chart */}
+          {/* Points breakdown table */}
           {(() => {
-            // Find which scoring types were actually used in the game
             const usedTypes = new Set();
             game.players.forEach(p => {
-              const breakdown = p.breakdown || {};
-              Object.keys(breakdown).forEach(type => {
-                if (breakdown[type] > 0) usedTypes.add(type);
-              });
+              Object.entries(p.breakdown || {}).forEach(([t, v]) => { if (v > 0) usedTypes.add(t); });
             });
             const displayTypes = SCORE_TYPE_ORDER.filter(t => usedTypes.has(t));
+            if (displayTypes.length === 0) return null;
 
-            return displayTypes.length > 0 ? (
+            const TYPE_LABELS = {
+              road: 'Road', city: 'City', monastery: 'Mon.', field: 'Field',
+              abbot: 'Abbot', inn: 'Inn', cathedral: 'Cath.', wine: 'Wine',
+              grain: 'Grain', cloth: 'Cloth', pig: 'Pig', abbey: 'Abbey',
+              barn: 'Barn', princess: 'Prin.', fairy: 'Fairy',
+              largest_city: 'L.City', largest_road: 'L.Road', wagon: 'Wagon',
+            };
+
+            return (
               <div style={{ marginBottom: '1.5rem', marginTop: '1.2rem' }}>
-                <div style={{ fontSize: '0.75rem', fontFamily: 'Cinzel, serif', letterSpacing: '0.1em', color: 'var(--stone-gray)', marginBottom: '0.6rem' }}>
+                <div style={{ fontSize: '0.75rem', fontFamily: 'Cinzel, serif', letterSpacing: '0.1em', color: 'var(--stone-gray)', marginBottom: '1.2rem' }}>
                   POINTS BREAKDOWN
                 </div>
-                <ResponsiveContainer width="100%" height={250}>
-                  <BarChart
-                    data={sorted.map(p => ({
-                      name: p.name,
-                      ...p.breakdown || {},
-                    }))}
-                    layout="vertical"
-                    margin={{ top: 5, right: 20, left: 80, bottom: 5 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(201,163,74,0.2)" />
-                    <XAxis type="number" stroke="var(--stone-gray)" style={{ fontSize: '0.75rem' }} />
-                    <YAxis dataKey="name" type="category" stroke="var(--stone-gray)" width={75} style={{ fontSize: '0.8rem' }} />
-                    {displayTypes.map(type => (
-                      <Bar
-                        key={type}
-                        dataKey={type}
-                        stackId="a"
-                        fill={SCORE_TYPE_COLORS[type]}
-                        isAnimationActive={false}
-                        label={(props) => <BarLabel {...props} dataKey={type} />}
-                      />
-                    ))}
-                  </BarChart>
-                </ResponsiveContainer>
+                {/* Proportional bars — one per player */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', marginBottom: '1rem' }}>
+                  {sorted.map(p => {
+                    const bd = p.breakdown || {};
+                    const total = displayTypes.reduce((s, t) => s + (bd[t] || 0), 0);
+                    return (
+                      <div key={p.name} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                        <span style={{ fontFamily: 'Cinzel, serif', fontSize: '0.72rem', color: topPlayers.includes(p.name) ? 'var(--forest-green)' : 'var(--stone-gray)', fontWeight: topPlayers.includes(p.name) ? 700 : 400, minWidth: '64px', textAlign: 'right', flexShrink: 0 }}>
+                          {p.name}
+                        </span>
+                        <div style={{ flex: 1, display: 'flex', height: '10px', borderRadius: '4px', overflow: 'hidden' }}>
+                          {total === 0
+                            ? <div style={{ flex: 1, backgroundColor: 'var(--stone-gray)', opacity: 0.2 }} />
+                            : displayTypes.map(t => {
+                                const val = bd[t] || 0;
+                                if (val === 0) return null;
+                                return <div key={t} style={{ flex: val / total, backgroundColor: SCORE_TYPE_COLORS[t] }} title={`${TYPE_LABELS[t] ?? t}: ${val}`} />;
+                              })
+                          }
+                        </div>
+                        <span style={{ fontFamily: 'Cinzel, serif', fontSize: '0.72rem', color: 'var(--stone-gray)', minWidth: '24px', flexShrink: 0 }}>
+                          {p.score}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr>
+                        <th style={{ textAlign: 'left', padding: '0.3rem 0.5rem 0.3rem 0', fontFamily: 'Cinzel, serif', color: 'var(--stone-gray)', fontWeight: 400, fontSize: '0.68rem', whiteSpace: 'nowrap' }}>Player</th>
+                        {displayTypes.map(t => (
+                          <th key={t} style={{ padding: '0.25rem 0.3rem', fontFamily: 'Cinzel, serif', fontWeight: 600, fontSize: '0.62rem', textAlign: 'center', color: 'var(--stone-gray)', whiteSpace: 'nowrap' }}>
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', justifyContent: 'center' }}>
+                              <span style={{ width: '7px', height: '7px', borderRadius: '2px', backgroundColor: SCORE_TYPE_COLORS[t], display: 'inline-block', flexShrink: 0 }} />
+                              {TYPE_LABELS[t] ?? t}
+                            </span>
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sorted.map((p) => (
+                        <tr key={p.name} style={{ borderTop: '1px solid rgba(201,163,74,0.2)' }}>
+                          <td style={{ padding: '0.35rem 0.5rem 0.35rem 0', fontFamily: 'Cinzel, serif', fontSize: '0.78rem', color: topPlayers.includes(p.name) ? 'var(--forest-green)' : 'var(--charcoal)', fontWeight: topPlayers.includes(p.name) ? 700 : 400, whiteSpace: 'nowrap' }}>
+                            {p.name}
+                          </td>
+                          {displayTypes.map(t => {
+                            const val = (p.breakdown || {})[t] || 0;
+                            return (
+                              <td key={t} style={{ padding: '0.35rem 0.3rem', textAlign: 'center', fontFamily: 'Crimson Text, serif', fontSize: '0.88rem', color: val > 0 ? 'var(--charcoal)' : 'var(--stone-gray)', opacity: val > 0 ? 1 : 0.35 }}>
+                                {val > 0 ? val : '—'}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            ) : null;
+            );
           })()}
 
           {/* Game Highlights - achievements are stored in camelCase from database normalization */}
@@ -235,7 +213,16 @@ export default function Lightbox({ game, games = [], onNavigate, onClose }) {
             </span>
           )}
 
-          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <div style={{ display: 'flex', justifyContent: onDeleteRequest ? 'space-between' : 'flex-end' }}>
+            {onDeleteRequest && (
+              <button
+                className="btn btn-sm"
+                onClick={() => { onClose(); onDeleteRequest(); }}
+                style={{ background: 'var(--deep-red)', borderColor: 'var(--deep-red)', color: '#fff' }}
+              >
+                Delete
+              </button>
+            )}
             <button className="btn btn-ghost btn-sm" onClick={onClose} style={{ color: 'var(--deep-red)', borderColor: 'var(--deep-red)' }}>Close</button>
           </div>
         </div>
