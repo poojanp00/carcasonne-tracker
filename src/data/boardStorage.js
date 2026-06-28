@@ -93,12 +93,18 @@ function makeDefault(players = [], extraTypes = []) {
     scoreTotals[p] = { ...breakdown }; // Zero points in all categories
   }
 
+  const goodsTokens = {};
+  for (const p of players) {
+    goodsTokens[p] = { wine: 0, grain: 0, cloth: 0 };
+  }
+
   return {
     positions,
     laps,
     trackLength: 50,  // Standard Carcassonne scoring track length
     players,
     scoreTotals,
+    goodsTokens,
     maxFeatures: {},        // Track largest individual feature per category: {type: {amount, player}}
     startTime: Date.now(),  // Game start timestamp
     endTime: null,          // Game end timestamp (set when game finishes)
@@ -171,6 +177,7 @@ export async function getBoard(userId, players = [], isGuest = false) {
       trackLength:       data.track_length      || 50,
       players:           data.players           || [],
       scoreTotals,
+      goodsTokens:       data.goods_tokens      || Object.fromEntries((data.players || []).map(p => [p, { wine: 0, grain: 0, cloth: 0 }])),
       maxFeatures:       data.max_features      || {},
       startTime:         data.start_time        || Date.now(),
       endTime:           data.end_time          || null,
@@ -213,6 +220,7 @@ export function saveBoard(board, userId, isGuest = false) {
     track_length:         board.trackLength || 50,
     players:              board.players     || [],
     score_totals:         board.scoreTotals || {},
+    goods_tokens:         board.goodsTokens || {},
     max_features:         board.maxFeatures || {},
     start_time:           board.startTime   || Date.now(),
     end_time:             board.endTime     || null,
@@ -254,6 +262,7 @@ export async function resetBoard(userId, players = [], extraTypes = [], isGuest 
     track_length:         d.trackLength,
     players:              d.players,
     score_totals:         d.scoreTotals,
+    goods_tokens:         d.goodsTokens,
     max_features:         d.maxFeatures,
     start_time:           d.startTime,
     end_time:             d.endTime,

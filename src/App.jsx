@@ -34,6 +34,7 @@ export default function App() {
   const [gameKey,        setGameKey]        = useState(0);
   const [toast,          setToast]          = useState(null);
   const [realmPickerKey, setRealmPickerKey] = useState(0);
+  const [openGame,       setOpenGame]       = useState(null);
 
   // Check for recovery mode once on mount
   const [isRecoveryMode, setIsRecoveryMode] = useState(() => {
@@ -393,7 +394,7 @@ export default function App() {
                   )
             )}
             {tab === 'home' && <Landing />}
-            {tab === 'history' && <Logbook games={appData.games} realms={appData.realms} currentRealm={session?.realm || null} onRealmChange={handleRealmSelect} onDelete={handleDelete} isGuest={isGuest} />}
+            {tab === 'history' && <Logbook games={appData.games} realms={appData.realms} currentRealm={session?.realm || null} onRealmChange={handleRealmSelect} onDelete={handleDelete} isGuest={isGuest} openGame={openGame} onOpenGameClear={() => setOpenGame(null)} />}
             {tab === 'statistics' && (
               <>
                 <RealmPicker
@@ -404,7 +405,7 @@ export default function App() {
                   onCreate={handleRealmCreate}
                   isGuest={isGuest}
                 />
-                {session?.realm && <Statistics games={appData.games} realms={appData.realms} currentRealm={session?.realm || null} onRealmChange={handleRealmSelect} onDelete={handleRealmDelete} isGuest={isGuest} />}
+                {session?.realm && <Statistics games={appData.games} realms={appData.realms} currentRealm={session?.realm || null} onRealmChange={handleRealmSelect} onDelete={handleRealmDelete} isGuest={isGuest} onNavigateToGame={game => { setOpenGame(game); setTab('history'); }} />}
               </>
             )}
             {tab === 'collection' && <Collection expansions={appData.expansions} onToggle={appOperations.toggleExpansion} userId={user?.id} isGuest={isGuest} onDeleteAccount={async () => { await deleteAccount(user?.id); signOut(); }} />}

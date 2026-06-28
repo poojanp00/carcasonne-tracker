@@ -3,9 +3,16 @@ import Lightbox from './Lightbox';
 import { formatDate } from '../utils/formatters';
 import { TrashIcon } from './icons';
 
-export default function GameHistory({ games, realms = [], currentRealm = null, onRealmChange, onDelete, isGuest = false }) {
+export default function GameHistory({ games, realms = [], currentRealm = null, onRealmChange, onDelete, isGuest = false, openGame = null, onOpenGameClear }) {
   const [selectedGame,    setSelectedGame]    = useState(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+
+  useEffect(() => {
+    if (openGame) {
+      setSelectedGame(openGame);
+      onOpenGameClear?.();
+    }
+  }, [openGame]);
 
   useEffect(() => {
     const isOpen = !!confirmDeleteId || !!selectedGame;
@@ -98,6 +105,7 @@ export default function GameHistory({ games, realms = [], currentRealm = null, o
                 <th>Date</th>
                 <th>Winner</th>
                 <th>Margin</th>
+                <th>Duration</th>
                 <th />
               </tr>
             </thead>
@@ -108,6 +116,13 @@ export default function GameHistory({ games, realms = [], currentRealm = null, o
                 const topPlayers = game.winners || [];  // Use precomputed winners from database
                 const winner     = topPlayers.length === 1 ? game.players.find(p => topPlayers.includes(p.name)) : null;
                 const margin     = topPlayers.length === 1 ? maxScore - (scores[1] ?? 0) : 0;
+                const dur        = game.gameDuration || 0;
+                const durText    = dur > 0 ? (() => {
+                  const s = Math.floor(dur / 1000);
+                  const h = Math.floor(s / 3600);
+                  const m = Math.floor((s % 3600) / 60);
+                  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+                })() : '—';
                 return (
                   <tr key={game.id} onClick={() => setSelectedGame(game)} style={{ cursor: 'pointer' }}>
                     <td className="cell-date">{formatDate(game.date)}</td>
@@ -122,6 +137,10 @@ export default function GameHistory({ games, realms = [], currentRealm = null, o
                     </td>
 
                     <td className="cell-margin">{topPlayers.length === 1 ? `+${margin}` : '—'}</td>
+
+                    <td style={{ fontFamily: 'Crimson Text, serif', fontStyle: 'italic', color: 'var(--stone-gray)', whiteSpace: 'nowrap' }}>
+                      {durText}
+                    </td>
 
                     <td>
                       <button

@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect } from 'react';
-import { STATISTICS_CONFIG } from '../constants';
+import { STATISTICS_CONFIG, SCORE_TYPE_ORDER, SCORE_TYPE_COLORS } from '../constants';
 import ChipGroup from './ChipGroup';
 import { TrashIcon } from './icons';
 import crownImg from '../../images/icons/crown.png';
@@ -53,7 +53,7 @@ function calcStats(games, name) {
 
   // Initialize all tracking variables
   let wins = 0, losses = 0, highScore = 0, highScoreDate = null, farmWins = 0, netPtDiff = 0, totalPoints = 0;
-  let biggestBlowout = 0, biggestBlowoutDate = null, biggestBlowoutMyScore = 0, biggestBlowoutTheirScore = 0;
+  let biggestBlowout = 0, biggestBlowoutDate = null, biggestBlowoutMyScore = 0, biggestBlowoutTheirScore = 0, biggestBlowoutGame = null;
   let clutchWins = 0, clutchLosses = 0, clutchGames = 0;
 
   // Process each game to extract statistics
@@ -78,6 +78,7 @@ function calcStats(games, name) {
         biggestBlowoutDate      = g.date;
         biggestBlowoutMyScore   = my;
         biggestBlowoutTheirScore = maxOpp;
+        biggestBlowoutGame      = g;
       }
     } else {
       losses++;
@@ -126,10 +127,6 @@ function calcStats(games, name) {
   for (let i = 0; i < mine.length; i++) {
     const g   = mine[i]; // Current game (newest first)
     const me2 = g.players.find(p => p.name.toLowerCase() === low);
-    const opp = g.players.filter(p => p.name.toLowerCase() !== low);
-    const my2 = me2.score;
-    const mx  = opp.length > 0 ? Math.max(...opp.map(p => p.score)) : 0;
-
     // Initialize streak on first game
     if (winStreak === 0 && lossStreak === 0) {
       const isWinner2 = g.winners?.includes(me2.name) || false;
@@ -165,7 +162,7 @@ function calcStats(games, name) {
     // Advanced metrics
     farmWins, farm,                    // Farm-based victory analysis
     clutchFactor, clutchGames, clutchWins, // Performance under pressure
-    biggestBlowout, biggestBlowoutDate,     // Most dominant victory
+    biggestBlowout, biggestBlowoutDate, biggestBlowoutGame, // Most dominant victory
     biggestBlowoutMyScore, biggestBlowoutTheirScore,
   };
 }
@@ -207,20 +204,20 @@ function WinRateBadge({ rate }) {
 
 const PLAYER_COLOR_CLASSES = ['p1', 'p2', 'p3', 'p4', 'p5', 'p6'];
 
-const TYPE_ORDER_GROUP = ['road', 'city', 'monastery', 'field'];
 
 function calcGroupStats(games) {
-  let totalPoints = 0, farmWins = 0, clutchGames = 0;
+  let totalPoints = 0, farmWins = 0, clutchGames = 0, longestGame = 0, longestGameObj = null;
   const typePoints = {};
   for (const g of games) {
     totalPoints += g.players.reduce((s, p) => s + p.score, 0);
     if (g.farmWin) farmWins++;
     if (g.clutchWin) clutchGames++;
+    if ((g.gameDuration || 0) > longestGame) { longestGame = g.gameDuration || 0; longestGameObj = g; }
     for (const p of g.players)
       for (const [type, pts] of Object.entries(p.breakdown || {}))
         typePoints[type] = (typePoints[type] || 0) + pts;
   }
-  return { totalPoints, farmWins, clutchGames, typePoints };
+  return { totalPoints, farmWins, clutchGames, longestGame, longestGameObj, typePoints };
 }
 
 function calcPlayerRecords(games, players) {
@@ -244,20 +241,7 @@ const TYPE_LABELS = {
   abbey: 'Abbey', barn: 'Barn', abbot: 'Abbot', wagon: 'Wagon',
 };
 
-function PlayerCard({ name, stats, breakdown, colorClass, isLeader }) {
-  // Ordering by expansion grouping
-  const typeOrder = [
-    'road', 'city', 'monastery', 'field',           // Base game
-    'abbot',                                         // The Abbot
-    'inn', 'cathedral',                              // Inns & Cathedrals
-    'wine', 'grain', 'cloth', 'pig',                 // Traders & Builders
-    'abbey', 'barn',                                 // Abbey & Mayor
-    'princess', 'fairy',                             // The Princess & the Dragon
-    'largest_city', 'largest_road',                  // Count, King & Robber
-    'wagon',                                         // Other/wagon
-  ];
-  const displayTypes = typeOrder.filter(t => breakdown && breakdown[t] > 0);
-
+function PlayerCard({ name, stats, colorClass, isLeader, onNavigateToGame }) {
   return (
     <div className={`player-card ${colorClass}`}>
       {isLeader && <img src={crownImg} alt="Leader" title="Current leader" className="card-crown" />}
@@ -334,28 +318,30 @@ function PlayerCard({ name, stats, breakdown, colorClass, isLeader }) {
       </div>
       <div className="stat-row">
         <span className="stat-label">Biggest blowout <StatInfo>Largest winning margin in a single game.</StatInfo></span>
-        <ValInfo tip={stats.biggestBlowout > 0 ? `${stats.biggestBlowoutMyScore}–${stats.biggestBlowoutTheirScore}` : null}>
-          <span className="stat-value" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.1rem' }}>
-            {stats.biggestBlowout > 0 ? (
-              <>
-                <span>+{stats.biggestBlowout}</span>
-                <span style={{ fontSize: '0.75rem', color: 'var(--stone-gray)', fontStyle: 'italic' }}>
-                  {new Date(stats.biggestBlowoutDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                </span>
-              </>
-            ) : '—'}
-          </span>
-        </ValInfo>
+        {stats.biggestBlowout > 0 && stats.biggestBlowoutGame && onNavigateToGame ? (
+          <button
+            type="button"
+            onClick={() => onNavigateToGame(stats.biggestBlowoutGame)}
+            style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', font: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.1rem' }}
+          >
+            <span className="stat-value" style={{ color: 'var(--charcoal)', textDecoration: 'underline dotted' }}>+{stats.biggestBlowout}</span>
+          </button>
+        ) : (
+          <span className="stat-value">{stats.biggestBlowout > 0 ? `+${stats.biggestBlowout}` : '—'}</span>
+        )}
       </div>
+
 
     </div>
   );
 }
 
-export default function Stats({ games, realms = [], currentRealm = null, onRealmChange, onDelete, isGuest = false }) {
+export default function Stats({ games, realms = [], currentRealm = null, onRealmChange, onDelete, isGuest = false, onNavigateToGame }) {
   const realmGames = currentRealm ? games.filter(g => g.realmId === currentRealm.id) : [];
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [groupExpanded, setGroupExpanded] = useState(false);
+  const [cardExpanded, setCardExpanded] = useState(false);
+
+  useEffect(() => { setCardExpanded(false); }, [currentRealm?.id]);
 
   useEffect(() => {
     document.body.style.overflow = confirmDelete ? 'hidden' : '';
@@ -364,7 +350,7 @@ export default function Stats({ games, realms = [], currentRealm = null, onRealm
 
   const BASE_BREAKDOWN = { road: 0, city: 0, monastery: 0, field: 0 };
 
-  const { sorted, leader, typeLeaders } = useMemo(() => {
+  const { sorted, leader } = useMemo(() => {
     // Derive player names: from games if available, else from realm roster
     let names;
     if (realmGames.length > 0) {
@@ -399,16 +385,7 @@ export default function Stats({ games, realms = [], currentRealm = null, onRealm
     // Display order: most wins first; tiebreaker by win rate
     const s = [...allStats].sort((a, b) => b.wins - a.wins || b.winRate - a.winRate);
 
-    // Per-type leaders: only when there are actual points
-    const typeLeaders = {};
-    for (const ps of allStats) {
-      for (const [type, pts] of Object.entries(ps.breakdown)) {
-        if (pts > 0 && (typeLeaders[type] === undefined || pts > allStats.find(p => p.name === typeLeaders[type])?.breakdown[type])) {
-          typeLeaders[type] = ps.name;
-        }
-      }
-    }
-    return { sorted: s, leader: realmGames.length > 0 ? byWinRate[0]?.name : null, typeLeaders };
+    return { sorted: s, leader: realmGames.length > 0 ? byWinRate[0]?.name : null };
   }, [realmGames, currentRealm]);
 
   return (
@@ -453,80 +430,117 @@ export default function Stats({ games, realms = [], currentRealm = null, onRealm
           {(() => {
             const gs = calcGroupStats(realmGames);
             const records = calcPlayerRecords(realmGames, currentRealm.players);
-            const typeEntries = [
-              ...TYPE_ORDER_GROUP,
-              ...Object.keys(gs.typePoints).filter(t => !TYPE_ORDER_GROUP.includes(t)),
-            ];
+            const activeTypes = SCORE_TYPE_ORDER.filter(t => gs.typePoints[t] > 0);
+            const totalBreakdown = activeTypes.reduce((s, t) => s + gs.typePoints[t], 0);
+            const longestText = gs.longestGame > 0 ? (() => {
+              const s = Math.floor(gs.longestGame / 1000);
+              const h = Math.floor(s / 3600);
+              const m = Math.floor((s % 3600) / 60);
+              return h > 0 ? `${h}h ${m}m` : `${m}m`;
+            })() : '—';
             return (
-              <div className="tile-card" style={{ marginBottom: '1.2rem', borderTop: '4px solid var(--warm-gold)' }}>
-                {/* Always-visible summary row */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.9rem', flexWrap: 'wrap' }}>
-                    <span style={{ fontFamily: 'Cinzel, serif', fontSize: '1.1rem', fontWeight: 700, color: 'var(--earth-brown)' }}>
-                      {currentRealm.name}
-                    </span>
-                    <span style={{ fontFamily: 'Cinzel, serif', fontSize: '0.85rem' }}>
-                      {[...currentRealm.players]
-                        .sort((a, b) => (records[b.toLowerCase()]?.w || 0) - (records[a.toLowerCase()]?.w || 0))
-                        .map((name, i) => (
-                          <span key={name}>
-                            {i > 0 && <span style={{ color: 'var(--stone-gray)' }}> · </span>}
-                            <span style={{ color: 'var(--charcoal)' }}>{name}</span>
-                            {' '}
-                            <span style={{ color: 'var(--forest-green)', fontWeight: 600 }}>{records[name.toLowerCase()]?.w || 0}</span>
-                          </span>
+              <div className="stats-grid" style={{ gridTemplateColumns: sorted.length === 4 ? 'repeat(2, 1fr)' : sorted.length >= 3 ? 'repeat(3, 1fr)' : 'repeat(2, 1fr)', alignItems: 'start' }}>
+
+                {/* Wide combined card: group stats left, point totals right */}
+                <div className="tile-card" style={{ borderTop: '4px solid var(--warm-gold)', gridColumn: `span ${sorted.length >= 3 && sorted.length !== 4 ? 3 : 2}`, display: 'flex', gap: '1.5rem' }}>
+
+                  {/* Left: group info */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.9rem', flexWrap: 'wrap' }}>
+                        <span style={{ fontFamily: 'Cinzel, serif', fontSize: '1.1rem', fontWeight: 700, color: 'var(--earth-brown)' }}>
+                          {currentRealm.name}
+                        </span>
+                        <span style={{ fontFamily: 'Cinzel, serif', fontSize: '0.85rem' }}>
+                          {[...currentRealm.players]
+                            .sort((a, b) => (records[b.toLowerCase()]?.w || 0) - (records[a.toLowerCase()]?.w || 0))
+                            .map((name, i) => (
+                              <span key={name}>
+                                {i > 0 && <span style={{ color: 'var(--stone-gray)' }}> · </span>}
+                                <span style={{ color: 'var(--charcoal)' }}>{name}</span>
+                                {' '}
+                                <span style={{ color: 'var(--forest-green)', fontWeight: 600 }}>{records[name.toLowerCase()]?.w || 0}</span>
+                              </span>
+                            ))}
+                        </span>
+                      </div>
+                    </div>
+                    {cardExpanded && (
+                      <>
+                        <div className="stat-divider" style={{ margin: '0.8rem 0' }} />
+                        {[['Games', realmGames.length, null], ['Farm Wins', gs.farmWins, null], ['Clutch Games', gs.clutchGames, null], ['Longest Game', longestText, gs.longestGameObj]].map(([label, val, gameObj]) => (
+                          <div key={label} className="stat-row" style={{ margin: 0 }}>
+                            <span className="stat-label" style={{ fontSize: '0.82rem' }}>{label}</span>
+                            {gameObj && onNavigateToGame
+                              ? <button type="button" onClick={() => onNavigateToGame(gameObj)} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'Cinzel, serif', fontSize: '0.82rem', fontWeight: 600, color: 'var(--charcoal)', textDecoration: 'underline dotted' }}>{val}</button>
+                              : <span className="stat-value" style={{ fontSize: '0.82rem' }}>{val}</span>
+                            }
+                          </div>
                         ))}
-                    </span>
+                      </>
+                    )}
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setGroupExpanded(v => !v)}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'Cinzel, serif', fontSize: '0.7rem', letterSpacing: '0.08em', color: 'var(--stone-gray)', padding: 0, flexShrink: 0 }}
-                  >
-                    {groupExpanded ? 'less ▲' : 'more ▼'}
-                  </button>
+
+                  {/* Vertical divider */}
+                  <div style={{ width: '1px', background: 'var(--warm-gold)', opacity: 0.3, flexShrink: 0 }} />
+
+                  {/* Right: point totals */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <span style={{ fontFamily: 'Cinzel, serif', fontSize: '0.7rem', letterSpacing: '0.1em', color: 'var(--stone-gray)' }}>POINT TOTALS</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <span className="stat-value" style={{ fontSize: '0.82rem' }}>{gs.totalPoints}</span>
+                        <button
+                          type="button"
+                          onClick={() => setCardExpanded(v => !v)}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'Cinzel, serif', fontSize: '0.7rem', color: 'var(--stone-gray)', padding: 0 }}
+                        >
+                          {cardExpanded ? '▲' : '▼'}
+                        </button>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', width: '100%', height: '10px', borderRadius: '4px', overflow: 'hidden', margin: '0.5rem 0 0' }}>
+                      {activeTypes.length === 0
+                        ? <div style={{ flex: 1, backgroundColor: 'var(--stone-gray)', opacity: 0.25 }} />
+                        : activeTypes.map(t => (
+                            <div
+                              key={t}
+                              title={`${TYPE_LABELS[t] ?? t}: ${gs.typePoints[t]}`}
+                              style={{ flex: gs.typePoints[t] / totalBreakdown, backgroundColor: SCORE_TYPE_COLORS[t] }}
+                            />
+                          ))
+                      }
+                    </div>
+                    {cardExpanded && activeTypes.length > 0 && (
+                      <div style={{ marginTop: '0.8rem' }}>
+                        {activeTypes.map(t => (
+                          <div key={t} className="stat-row" style={{ margin: 0 }}>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                              <span style={{ width: '8px', height: '8px', borderRadius: '2px', backgroundColor: SCORE_TYPE_COLORS[t], flexShrink: 0, display: 'inline-block' }} />
+                              <span className="stat-label" style={{ fontSize: '0.82rem' }}>{TYPE_LABELS[t] ?? t.charAt(0).toUpperCase() + t.slice(1)}</span>
+                            </span>
+                            <span className="stat-value" style={{ fontSize: '0.82rem' }}>{gs.typePoints[t]}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
-                {/* Expandable detail */}
-                {groupExpanded && (
-                  <>
-                    <div className="stat-divider" style={{ margin: '0.8rem 0' }} />
-                    <div style={{ fontSize: '0.7rem', fontFamily: 'Cinzel, serif', letterSpacing: '0.1em', color: 'var(--stone-gray)', marginBottom: '0.5rem' }}>GROUP STATS</div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.3rem 1.2rem', marginBottom: '0.9rem' }}>
-                      {[['Games', realmGames.length], ['Total Pts', gs.totalPoints], ['Farm Wins', gs.farmWins], ['Clutch Games', gs.clutchGames]].map(([label, val]) => (
-                        <div key={label} className="stat-row" style={{ margin: 0 }}>
-                          <span className="stat-label" style={{ fontSize: '0.82rem' }}>{label}</span>
-                          <span className="stat-value" style={{ fontSize: '0.82rem' }}>{val}</span>
-                        </div>
-                      ))}
-                    </div>
-                    <div style={{ fontSize: '0.7rem', fontFamily: 'Cinzel, serif', letterSpacing: '0.1em', color: 'var(--stone-gray)', marginBottom: '0.5rem' }}>POINT TOTALS</div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.3rem 1.2rem' }}>
-                      {typeEntries.map(t => (
-                        <div key={t} className="stat-row" style={{ margin: 0 }}>
-                          <span className="stat-label" style={{ fontSize: '0.82rem' }}>{TYPE_LABELS[t] ?? t.charAt(0).toUpperCase() + t.slice(1)}</span>
-                          <span className="stat-value" style={{ fontSize: '0.82rem' }}>{gs.typePoints[t] || 0}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </>
-                )}
+                {/* Player cards */}
+                {sorted.map((ps, i) => (
+                  <PlayerCard
+                    key={ps.name}
+                    name={ps.name}
+                    stats={ps}
+                    colorClass={PLAYER_COLOR_CLASSES[i % PLAYER_COLOR_CLASSES.length]}
+                    isLeader={ps.name === leader}
+                    onNavigateToGame={onNavigateToGame}
+                  />
+                ))}
               </div>
             );
           })()}
-
-          <div className="stats-grid" style={{ gridTemplateColumns: sorted.length === 4 ? 'repeat(2, 1fr)' : sorted.length >= 3 ? 'repeat(3, 1fr)' : 'repeat(2, 1fr)' }}>
-            {sorted.map((ps, i) => (
-              <PlayerCard
-                key={ps.name}
-                name={ps.name}
-                stats={ps}
-                breakdown={ps.breakdown}
-                colorClass={PLAYER_COLOR_CLASSES[i % PLAYER_COLOR_CLASSES.length]}
-                isLeader={ps.name === leader}
-              />
-            ))}
-          </div>
 
           {sorted.some(p => Object.values(p.breakdown).some(v => v > 0)) && (
             <div style={{ marginTop: '3rem', display: 'flex', flexDirection: 'column', gap: '3rem' }}>

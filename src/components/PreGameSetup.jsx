@@ -19,6 +19,7 @@
 import { useState, useMemo } from 'react';
 import { MAX_GAME_PLAYERS, MAX_REALMS } from '../constants';
 import { formatPieceName } from '../utils/formatters';
+import { DEFAULT_EXPANSIONS } from '../data/expansions';
 
 /**
  * MEEPLE LOADING SYSTEM (STANDARD MEEPLES)
@@ -514,20 +515,36 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
           </div>
           {ownedExpansions.length === 0 ? (
             <p className="section-intro">No expansions owned — base game only.</p>
-          ) : (
-            <div className="expansion-chips">
-              {ownedExpansions.map(name => (
-                <button
-                  key={name}
-                  type="button"
-                  className={`expansion-chip ${selectedExp.includes(name) ? 'selected' : ''}`}
-                  onClick={() => toggleExpansion(name)}
-                >
-                  {name}
-                </button>
-              ))}
-            </div>
-          )}
+          ) : (() => {
+            const categoryOf = Object.fromEntries(DEFAULT_EXPANSIONS.map(e => [e.name, e.category]));
+            const full = ownedExpansions.filter(n => categoryOf[n] === 'major');
+            const mini = ownedExpansions.filter(n => categoryOf[n] === 'mini' || categoryOf[n] === 'base_mini');
+            const renderGroup = (label, names) => names.length === 0 ? null : (
+              <div style={{ marginBottom: '1rem' }}>
+                <div style={{ fontSize: '0.65rem', fontFamily: 'Cinzel, serif', letterSpacing: '0.08em', color: 'var(--stone-gray)', opacity: 0.7, marginTop: '0.5rem', marginBottom: '0.6rem' }}>
+                  {label}
+                </div>
+                <div className="expansion-chips">
+                  {names.map(name => (
+                    <button
+                      key={name}
+                      type="button"
+                      className={`expansion-chip ${selectedExp.includes(name) ? 'selected' : ''}`}
+                      onClick={() => toggleExpansion(name)}
+                    >
+                      {name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+            return (
+              <>
+                {renderGroup('FULL EXPANSIONS', full)}
+                {renderGroup('MINI EXPANSIONS', mini)}
+              </>
+            );
+          })()}
         </div>
 
         {/* Required Pieces Checklist */}
