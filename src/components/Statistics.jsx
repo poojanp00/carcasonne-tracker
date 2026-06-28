@@ -1,9 +1,28 @@
 import { useMemo, useState, useEffect } from 'react';
+
+const MEEPLE_MODULES = import.meta.glob('../../images/meeples/*.png',     { eager: true, import: 'default' });
+const FUN_MODULES    = import.meta.glob('../../images/meeples/fun/*.png', { eager: true, import: 'default' });
+const MEEPLE_IMGS = {
+  ...Object.fromEntries(Object.entries(MEEPLE_MODULES).map(([p, img]) => [p.split('/').pop(), img])),
+  ...Object.fromEntries(Object.entries(FUN_MODULES).map(([p, img]) => [`fun/${p.split('/').pop()}`, img])),
+};
 import { STATISTICS_CONFIG, SCORE_TYPE_ORDER, SCORE_TYPE_COLORS } from '../constants';
+import { DEFAULT_EXPANSIONS } from '../data/expansions';
 import ChipGroup from './ChipGroup';
 import { TrashIcon } from './icons';
 import crownImg from '../../images/icons/crown.png';
 import PointBreakdownChart from './PointBreakdownChart';
+
+function calcFavMeeple(games, name) {
+  const low = name.toLowerCase();
+  const counts = {};
+  for (const g of games) {
+    const me = g.players.find(p => p.name.toLowerCase() === low);
+    if (!me?.meeple) continue;
+    counts[me.meeple] = (counts[me.meeple] || 0) + 1;
+  }
+  return Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+}
 
 // Aggregate per-type score totals across all games for a player
 function calcBreakdown(games, name) {
@@ -241,13 +260,17 @@ const TYPE_LABELS = {
   abbey: 'Abbey', barn: 'Barn', abbot: 'Abbot', wagon: 'Wagon',
 };
 
-function PlayerCard({ name, stats, colorClass, isLeader, onNavigateToGame }) {
+function PlayerCard({ name, stats, favMeeple, colorClass, isLeader, onNavigateToGame }) {
+  const meepleImg = favMeeple ? (MEEPLE_IMGS[favMeeple] ?? null) : null;
   return (
     <div className={`player-card ${colorClass}`}>
       {isLeader && <img src={crownImg} alt="Leader" title="Current leader" className="card-crown" />}
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
-        <div className="player-card-name" style={{ margin: 0 }}>{name}</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+            {meepleImg && <img src={meepleImg} alt="Favorite meeple" title="Favorite meeple" style={{ height: '18px', width: 'auto', opacity: 0.85 }} />}
+            <div className="player-card-name" style={{ margin: 0 }}>{name}</div>
+          </div>
         {stats.total > 0 && (
           <span style={{
             fontFamily: 'Crimson Text, serif', fontSize: '0.85rem', fontStyle: 'italic',
@@ -377,6 +400,7 @@ export default function Stats({ games, realms = [], currentRealm = null, onRealm
       breakdown: realmGames.length > 0
         ? { ...Object.fromEntries([...allTypesInRealm].map(t => [t, 0])), ...calcBreakdown(realmGames, name) }
         : { ...BASE_BREAKDOWN },
+      favMeeple: calcFavMeeple(realmGames, name),
     }));
 
     // Crown leader: best win rate — only meaningful with games
@@ -432,6 +456,20 @@ export default function Stats({ games, realms = [], currentRealm = null, onRealm
             const records = calcPlayerRecords(realmGames, currentRealm.players);
             const activeTypes = SCORE_TYPE_ORDER.filter(t => gs.typePoints[t] > 0);
             const totalBreakdown = activeTypes.reduce((s, t) => s + gs.typePoints[t], 0);
+            const EXP_TYPE = Object.fromEntries(DEFAULT_EXPANSIONS.map(e => [e.name, e.type]));
+            const { favFull, favMini } = (() => {
+              const full = {}, mini = {};
+              for (const g of realmGames)
+                for (const exp of g.expansions || []) {
+                  if (EXP_TYPE[exp] === 'full') full[exp] = (full[exp] || 0) + 1;
+                  else if (EXP_TYPE[exp] === 'mini') mini[exp] = (mini[exp] || 0) + 1;
+                }
+              return {
+                favFull: Object.entries(full).sort((a, b) => b[1] - a[1])[0]?.[0] ?? '—',
+                favMini: Object.entries(mini).sort((a, b) => b[1] - a[1])[0]?.[0] ?? '—',
+              };
+            })();
+
             const longestText = gs.longestGame > 0 ? (() => {
               const s = Math.floor(gs.longestGame / 1000);
               const h = Math.floor(s / 3600);
@@ -477,6 +515,17 @@ export default function Stats({ games, realms = [], currentRealm = null, onRealm
                             }
                           </div>
                         ))}
+                        <div style={{ marginTop: '0.1rem' }}>
+                          <span className="stat-label" style={{ fontSize: '0.82rem' }}>Favorite Expansion</span>
+                          <div style={{ paddingLeft: '0.8rem', marginTop: '0.15rem', display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                            {[['Full', favFull], ['Mini', favMini]].map(([label, val]) => (
+                              <div key={label} className="stat-row" style={{ margin: 0 }}>
+                                <span className="stat-label" style={{ fontSize: '0.78rem', color: 'var(--stone-gray)' }}>{label}</span>
+                                <span className="stat-value" style={{ fontSize: '0.78rem' }}>{val}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
                       </>
                     )}
                   </div>
@@ -533,6 +582,7 @@ export default function Stats({ games, realms = [], currentRealm = null, onRealm
                     key={ps.name}
                     name={ps.name}
                     stats={ps}
+                    favMeeple={ps.favMeeple}
                     colorClass={PLAYER_COLOR_CLASSES[i % PLAYER_COLOR_CLASSES.length]}
                     isLeader={ps.name === leader}
                     onNavigateToGame={onNavigateToGame}
