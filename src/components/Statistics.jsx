@@ -423,7 +423,7 @@ export default function Stats({ games, realms = [], currentRealm = null, onRealm
       {/* Group chips */}
       {realms.length > 0 && (
         <div style={{ marginBottom: '1.3rem' }}>
-          <ChipGroup items={realms} selectedId={currentRealm?.id} onSelect={onRealmChange} />
+          <ChipGroup items={realms} selectedId={currentRealm?.id} onSelect={onRealmChange} carousel />
         </div>
       )}
 

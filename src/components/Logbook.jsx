@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import Lightbox from './Lightbox';
 import { formatDate } from '../utils/formatters';
-import { TrashIcon } from './icons';
 
 export default function GameHistory({ games, realms = [], currentRealm = null, onRealmChange, onDelete, isGuest = false, openGame = null, onOpenGameClear }) {
   const [selectedGame,    setSelectedGame]    = useState(null);
@@ -55,6 +54,7 @@ export default function GameHistory({ games, realms = [], currentRealm = null, o
           games={realmGames}
           onNavigate={setSelectedGame}
           onClose={() => setSelectedGame(null)}
+          onDeleteRequest={() => setConfirmDeleteId(selectedGame.id)}
         />
       )}
 
@@ -74,7 +74,7 @@ export default function GameHistory({ games, realms = [], currentRealm = null, o
           {/* Realm filter chips */}
       {realms.length > 0 && (
         <div style={{ marginBottom: '1.3rem' }}>
-          <div className="expansion-chips">
+          <div className="expansion-chips-carousel">
             {realms.map(r => (
               <button
                 key={r.id}
@@ -106,7 +106,6 @@ export default function GameHistory({ games, realms = [], currentRealm = null, o
                 <th>Winner</th>
                 <th>Margin</th>
                 <th>Duration</th>
-                <th />
               </tr>
             </thead>
             <tbody>
@@ -142,15 +141,6 @@ export default function GameHistory({ games, realms = [], currentRealm = null, o
                       {durText}
                     </td>
 
-                    <td>
-                      <button
-                        className="realm-trash-btn"
-                        onClick={e => { e.stopPropagation(); setConfirmDeleteId(game.id); }}
-                        title="Remove game"
-                      >
-                        <TrashIcon />
-                      </button>
-                    </td>
                   </tr>
                 );
               })}

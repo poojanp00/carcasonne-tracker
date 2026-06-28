@@ -329,7 +329,7 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
 
   const realmChips = realms.length > 0 && onRealmChange && (
     <div style={{ marginBottom: '1.3rem' }}>
-      <div className="expansion-chips">
+      <div className="expansion-chips-carousel">
         {realms.map(r => (
           <button
             key={r.id}
@@ -476,7 +476,12 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
         </div>
         )}
 
-        <div style={{ display: 'flex', gap: '0.7rem', flexWrap: 'wrap', alignItems: 'center', justifyContent: activePlayers.length === 0 ? 'center' : 'space-between' }}>
+        {meepleError && (
+          <p style={{ fontStyle: 'italic', color: 'var(--red, #DC2626)', fontSize: '0.88rem', marginBottom: '0.5rem' }}>
+            {meepleError}
+          </p>
+        )}
+        <div style={{ display: 'flex', gap: '0.7rem', alignItems: 'center', justifyContent: activePlayers.length === 0 ? 'center' : 'space-between' }}>
           <button
             type="button"
             className={activePlayers.length === 0 ? "btn" : "btn btn-ghost"}
@@ -485,14 +490,7 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
             Create New Group
           </button>
           {activePlayers.length > 0 && (
-            <>
-              {meepleError && (
-                <span style={{ fontStyle: 'italic', color: 'var(--red, #DC2626)', fontSize: '0.88rem' }}>
-                  {meepleError}
-                </span>
-              )}
-              <button type="button" className="btn" onClick={handleNextStep}>Next: Expansions →</button>
-            </>
+            <button type="button" className="btn" onClick={handleNextStep}>Next: Expansions →</button>
           )}
         </div>
       </div>
