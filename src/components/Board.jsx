@@ -32,11 +32,20 @@ const FUN_MODULES    = import.meta.glob('../../images/meeples/fun/*.png', { eage
 const MEEPLE_IMGS = {
   // Extract filename from path: '../../images/meeples/red.png' → 'red.png'
   ...Object.fromEntries(Object.entries(MEEPLE_MODULES).map(([path, img]) => [path.split('/').pop(), img])),
-  // Fun meeples get 'fun/' prefix: '../../images/meeples/fun/naruto.png' → 'fun/naruto.png'  
+  // Fun meeples get 'fun/' prefix: '../../images/meeples/fun/naruto.png' → 'fun/naruto.png'
   ...Object.fromEntries(Object.entries(FUN_MODULES).map(([path, img]) => [`fun/${path.split('/').pop()}`, img])),
 };
 // Safety fallback if specific meeple file is missing
 const FALLBACK_MEEPLE = Object.values(MEEPLE_IMGS)[0];
+
+const GOODS_MODULES = import.meta.glob('../../images/goods_tokens/*.png', { eager: true, import: 'default' });
+const GOODS_IMGS = Object.fromEntries(
+  Object.entries(GOODS_MODULES).map(([path, img]) => [path.split('/').pop().replace('.png', ''), img])
+);
+
+// Physical token supply counts for Traders & Builders
+const GOODS_SUPPLY = { wine: 9, grain: 6, cloth: 5 };
+const GOODS_LABELS = { wine: 'Wine', grain: 'Grain', cloth: 'Cloth' };
 
 /**
  * MEEPLE COLOR EXTRACTION SYSTEM
@@ -89,13 +98,13 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
   const meepleMap = session?.meeples  || {};
 
   const [board,       setBoard]       = useState(null);
+  const [now,         setNow]         = useState(Date.now());
   const [input,       setInput]       = useState(() => Object.fromEntries(players.map(p => [p, 0])));
   const [selectedPlayers, setSelectedPlayers] = useState(new Set()); // Track which players are selected for scoring
   const [finishStep,       setFinishStep]       = useState(0); // 0 = normal, 1 = awaiting field confirm
   const [leadersAtFinish,  setLeadersAtFinish]  = useState([]);
-  const [showTraders,          setShowTraders]          = useState(false);
-  const [traderSelections,     setTraderSelections]     = useState({ wine: [], grain: [], cloth: [] });
-  const [confirmFinish,        setConfirmFinish]        = useState(false); // Finish game confirmation
+  const [showTraders,   setShowTraders]   = useState(false);
+  const [confirmFinish, setConfirmFinish] = useState(false); // Finish game confirmation
   const [confirmReset,         setConfirmReset]         = useState(false); // Reset board confirmation
   const [warning,             setWarning]             = useState(null); // Warning toast for no players selected
   const logEndRef = useRef(null);
@@ -114,16 +123,20 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
           const move = board.moves[i];
           if (move) {
             // Add move entry
+            const isGoodsMove = move.type?.startsWith('goods_');
             entries.push({
-              type: 'move',
-              msg: `${move.player} scored +${move.amount} ${move.label}`,
+              type: isGoodsMove ? 'goods' : 'move',
+              msg: isGoodsMove
+                ? `${move.player} received ${move.label}`
+                : `${move.player} scored +${move.amount} ${move.label}`,
               player: move.player,
               time: new Date(move.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
               timestamp: move.timestamp,
               id: `move-${i}`,
             });
 
-            // Check if this move completed a lap by calculating position change
+            // Check if this move completed a lap (skip for goods token moves)
+            if (isGoodsMove) continue;
             const curPos = playerPositions[move.player] || 0;
             const curLaps = playerLaps[move.player] || 0;
             const sum = curPos + move.amount;
@@ -183,6 +196,11 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
     getBoard(userId, players, isGuest).then(b => setBoard(b));
   }, [userId, players, isGuest]);
 
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
   useEffect(() => { if (board) saveBoard(board, userId, isGuest); }, [board, userId, isGuest]);
   useEffect(() => { logEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [log]);
 
@@ -193,25 +211,33 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
     // Rebuild board state from moves[0..moveIndex]
     const rebuilt = {
       ...board,
-      positions: Object.fromEntries(players.map(p => [p, 0])),
-      laps: Object.fromEntries(players.map(p => [p, 0])),
+      positions:   Object.fromEntries(players.map(p => [p, 0])),
+      laps:        Object.fromEntries(players.map(p => [p, 0])),
       scoreTotals: Object.fromEntries(players.map(p => [p, { road: 0, city: 0, monastery: 0, field: 0 }])),
+      goodsTokens: Object.fromEntries(players.map(p => [p, { wine: 0, grain: 0, cloth: 0 }])),
     };
 
     for (let i = 0; i <= board.moveIndex; i++) {
       const move = board.moves[i];
       if (!move) continue;
 
-      const curPos = rebuilt.positions[move.player] || 0;
+      // Goods token moves carry no score — just update the token tally
+      if (move.type === 'goods_wine' || move.type === 'goods_grain' || move.type === 'goods_cloth') {
+        const good = move.type.replace('goods_', '');
+        rebuilt.goodsTokens[move.player][good] = (rebuilt.goodsTokens[move.player][good] || 0) + 1;
+        continue;
+      }
+
+      const curPos  = rebuilt.positions[move.player] || 0;
       const curLaps = rebuilt.laps[move.player] || 0;
-      const sum = curPos + move.amount;
-      const lapInc = Math.floor(sum / track);
-      const newPos = ((sum % track) + track) % track;
+      const sum     = curPos + move.amount;
+      const lapInc  = Math.floor(sum / track);
+      const newPos  = ((sum % track) + track) % track;
       const newLaps = curLaps + (lapInc > 0 ? lapInc : 0);
 
-      rebuilt.positions[move.player] = newPos;
-      rebuilt.laps[move.player] = newLaps;
-      rebuilt.scoreTotals[move.player][move.type] = (rebuilt.scoreTotals[move.player][move.type] || 0) + move.amount;
+      rebuilt.positions[move.player]                     = newPos;
+      rebuilt.laps[move.player]                          = newLaps;
+      rebuilt.scoreTotals[move.player][move.type]        = (rebuilt.scoreTotals[move.player][move.type] || 0) + move.amount;
     }
 
     setBoard(rebuilt);
@@ -219,11 +245,28 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
 
   if (!board) return null;
 
+  function formatElapsed(ms) {
+    const s = Math.floor(ms / 1000);
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = s % 60;
+    if (h > 0) return `${h}h ${m}m`;
+    return `${m}m ${String(sec).padStart(2, '0')}s`;
+  }
+  const elapsed = formatElapsed(now - (board.startTime || now));
+
   const track = board.trackLength || 50;
-  const hasTB  = (session?.expansions || []).includes('Traders & Builders');
-  const hasIC  = (session?.expansions || []).some(e => e === 'Inns & Cathedrals' || e === 'Bridges, Castles & Bazaars');
-  const hasAM  = (session?.expansions || []).includes('Abbey & Mayor');
+  const hasTB    = (session?.expansions || []).includes('Traders & Builders');
+  const hasIC    = (session?.expansions || []).some(e => e === 'Inns & Cathedrals' || e === 'Bridges, Castles & Bazaars');
+  const hasAM    = (session?.expansions || []).includes('Abbey & Mayor');
   const hasAbbot = (session?.expansions || []).includes('The Abbot');
+
+  const goodsRemaining = hasTB
+    ? Object.fromEntries(['wine', 'grain', 'cloth'].map(good => [
+        good,
+        GOODS_SUPPLY[good] - players.reduce((sum, p) => sum + (board.goodsTokens?.[p]?.[good] || 0), 0),
+      ]))
+    : {};
 
   /**
    * ADD MOVE TO HISTORY
@@ -441,17 +484,34 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
     onFinish(finalScores, scoreBreakdown, autoFarmWin, gameDuration, board.maxFeatures);
   }
 
-  function applyTraderBonuses() {
-    // Add each goods token bonus as a move to the history
-    // The useEffect will automatically rebuild positions, laps, and scoreTotals from the moves
+  function applyHarvestBonuses() {
     for (const good of ['wine', 'grain', 'cloth']) {
-      for (const p of traderSelections[good]) {
-        addMove(p, good, 10, good.charAt(0).toUpperCase() + good.slice(1));
+      const counts = players.map(p => ({ p, count: board.goodsTokens?.[p]?.[good] || 0 }));
+      const maxCount = Math.max(...counts.map(c => c.count));
+      if (maxCount === 0) continue;
+      const winners = counts.filter(c => c.count === maxCount).map(c => c.p);
+      for (const p of winners) {
+        addMove(p, good, 10, GOODS_LABELS[good]);
       }
     }
-    setTraderSelections({ wine: [], grain: [], cloth: [] });
     setShowTraders(false);
     setFinishStep(1);
+  }
+
+  function addGoodsToken(good) {
+    if (selectedPlayers.size === 0) {
+      setWarning('Select a player first');
+      setTimeout(() => setWarning(null), 2500);
+      return;
+    }
+    if (selectedPlayers.size > 1) {
+      setWarning('Select only one player');
+      setTimeout(() => setWarning(null), 2500);
+      return;
+    }
+    const [player] = selectedPlayers;
+    addMove(player, `goods_${good}`, 0, `${GOODS_LABELS[good]} Token`);
+    setSelectedPlayers(new Set());
   }
 
   // Lead text
@@ -513,43 +573,64 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
       {/* Reset board confirmation modal */}
       {resetModal}
 
-      {/* Traders & Builders modal */}
+      {/* Traders & Builders — Harvest dialog */}
       {showTraders && (
-        <div className="lightbox-overlay" onClick={() => setShowTraders(false)}>
-          <div className="lightbox-inner" onClick={e => e.stopPropagation()} style={{ maxWidth: '340px' }}>
+        <div className="lightbox-overlay">
+          <div className="lightbox-inner" onClick={e => e.stopPropagation()} style={{ maxWidth: '380px' }}>
             <div className="lightbox-meta">
-              <div className="tile-card-header" style={{ marginBottom: '0.5rem' }}>Traders & Builders</div>
+              <div className="tile-card-header" style={{ marginBottom: '0.25rem' }}>Traders &amp; Builders</div>
               <p style={{ fontFamily: 'Crimson Text, serif', fontStyle: 'italic', fontSize: '0.88rem', color: 'var(--stone-gray)', marginBottom: '1rem' }}>
-                Select who won the most of each good. Each winner receives 10 pts.
+                The top trader of each good earns 10 pts.
               </p>
-              {['wine', 'grain', 'cloth'].map(good => (
-                <div key={good} style={{ marginBottom: '0.9rem' }}>
-                  <div style={{ fontSize: '0.7rem', fontFamily: 'Cinzel, serif', letterSpacing: '0.1em', color: 'var(--stone-gray)', marginBottom: '0.35rem' }}>
-                    {good.toUpperCase()}
+              {['wine', 'grain', 'cloth'].map(good => {
+                const counts  = players.map(p => ({ p, count: board.goodsTokens?.[p]?.[good] || 0 }));
+                const maxCount = Math.max(...counts.map(c => c.count));
+                const winners  = maxCount > 0 ? counts.filter(c => c.count === maxCount).map(c => c.p) : [];
+                return (
+                  <div key={good} style={{ marginBottom: '0.9rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.6rem' }}>
+                      {GOODS_IMGS[good] && (
+                        <img src={GOODS_IMGS[good]} alt={good} style={{ height: 18, width: 'auto' }} />
+                      )}
+                      <span style={{ fontSize: '0.7rem', fontFamily: 'Cinzel, serif', letterSpacing: '0.1em', color: 'var(--stone-gray)' }}>
+                        {good.toUpperCase()}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+                      {players.map(p => {
+                        const count     = board.goodsTokens?.[p]?.[good] || 0;
+                        const isWinner  = winners.includes(p);
+                        return (
+                          <div
+                            key={p}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              padding: '0.25rem 0.6rem',
+                              borderRadius: 'var(--radius-tile)',
+                              fontSize: '0.8rem',
+                              fontFamily: 'Cinzel, serif',
+                              fontWeight: 600,
+                              userSelect: 'none',
+                              opacity: count === 0 ? 0.45 : 1,
+                              background: isWinner ? 'var(--warm-gold)' : 'transparent',
+                              border: isWinner ? '1.5px solid var(--warm-gold)' : 'var(--border-tile)',
+                              color: isWinner ? 'var(--earth-brown)' : 'var(--stone-gray)',
+                            }}
+                          >
+                            {p}
+                            {count > 0 && (
+                              <span style={{ marginLeft: '0.3rem', opacity: 0.75, fontSize: '0.75em' }}>×{count}</span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
-                    {players.map(p => {
-                      const selected = traderSelections[good].includes(p);
-                      return (
-                        <button
-                          key={p}
-                          type="button"
-                          className={`btn btn-sm${selected ? '' : ' btn-ghost'}`}
-                          style={{ justifyContent: 'center' }}
-                          onClick={() => setTraderSelections(prev => ({
-                            ...prev,
-                            [good]: selected ? prev[good].filter(x => x !== p) : [...prev[good], p],
-                          }))}
-                        >
-                          {p}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
-                <button className="btn" onClick={applyTraderBonuses}>OK</button>
+                <button className="btn" onClick={applyHarvestBonuses}>OK</button>
               </div>
             </div>
           </div>
@@ -582,7 +663,10 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
       <div className="board-ui">
         {/* Score log */}
         <div className="tile-card board-log">
-          <div className="tile-card-header" style={{ marginBottom: '0.6rem' }}>Score Log</div>
+          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', borderBottom: '1px solid var(--warm-gold)', paddingBottom: '0.5rem', marginBottom: '0.6rem' }}>
+            <div className="tile-card-header" style={{ border: 'none', padding: 0, margin: 0 }}>Score Log</div>
+            <span style={{ fontFamily: 'Crimson Text, serif', fontStyle: 'italic', fontSize: '0.82rem', color: 'var(--stone-gray)' }}>{elapsed}</span>
+          </div>
           {log.length === 0 ? (
             <p style={{ fontFamily: 'Crimson Text, serif', fontStyle: 'italic', color: 'var(--stone-gray)', fontSize: '0.9rem', margin: 0 }}>
               No moves yet.
@@ -683,7 +767,11 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
             <div style={{ fontSize: '0.7rem', fontFamily: 'Cinzel, serif', letterSpacing: '0.1em', color: 'var(--stone-gray)', marginBottom: '0.6rem' }}>
               PLAYERS
             </div>
-            <div style={{ display: 'flex', gap: '1rem 0.6rem', flexWrap: 'wrap' }}>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: `repeat(${players.length <= 3 ? players.length : players.length === 4 ? 2 : 3}, 1fr)`,
+              gap: '1rem 0.6rem',
+            }}>
               {players.map((name) => {
                 const color = getMeepleColor(meepleMap[name]);
                 const isSelected = selectedPlayers.has(name);
@@ -711,11 +799,28 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
                       background: isSelected ? `${color}15` : 'transparent',
                       cursor: 'pointer',
                       transition: 'all 0.2s ease',
-                      flex: '1 1 calc(33.333% - 0.4rem)',
                     }}
                   >
                     <img src={MEEPLE_IMGS[meepleMap[name]] || FALLBACK_MEEPLE} alt={name} style={{ height: 50, width: 'auto' }} />
                     <span style={{ fontSize: '0.7rem', fontFamily: 'Cinzel, serif', color, fontWeight: 600 }}>{name}</span>
+                    {hasTB && (() => {
+                      const pg = board.goodsTokens?.[name] || {};
+                      const held = ['wine', 'grain', 'cloth'].filter(g => (pg[g] || 0) > 0);
+                      if (held.length === 0) return null;
+                      return (
+                        <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap', justifyContent: 'center' }}>
+                          {held.map(g => (
+                            <span key={g} style={{ display: 'flex', alignItems: 'flex-start', gap: '1px' }}>
+                              {GOODS_IMGS[g]
+                                ? <img src={GOODS_IMGS[g]} alt={g} style={{ height: 13, width: 'auto' }} />
+                                : <span style={{ fontSize: '0.55rem' }}>{g[0].toUpperCase()}</span>
+                              }
+                              <span style={{ fontSize: '0.5rem', color: 'var(--stone-gray)', lineHeight: 1 }}>{pg[g]}</span>
+                            </span>
+                          ))}
+                        </div>
+                      );
+                    })()}
                   </button>
                 );
               })}
@@ -785,7 +890,7 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
               </div>
             )}
 
-            {hasIC && (
+            {hasIC && finishStep === 0 && (
               <div className="board-btn-row">
                 {[['inn', 'Inn'], ['cathedral', 'Cathedral']].map(([type, label]) => (
                   <button
@@ -855,6 +960,44 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
                   Field
                 </button>
               )
+            )}
+
+            {hasTB && finishStep === 0 && (
+              <div style={{ marginTop: '1.2rem' }}>
+                <div style={{ fontSize: '0.7rem', fontFamily: 'Cinzel, serif', letterSpacing: '0.1em', color: 'var(--stone-gray)', marginBottom: '0.35rem' }}>
+                  GOODS TOKENS
+                </div>
+                <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', padding: '0.25rem 0' }}>
+                  {['wine', 'grain', 'cloth'].map(good => {
+                    const remaining = goodsRemaining[good] ?? 0;
+                    return (
+                      <button
+                        key={good}
+                        type="button"
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          padding: '0',
+                          cursor: 'pointer',
+                          opacity: remaining <= 0 ? 0.35 : 1,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          gap: '0.2rem',
+                        }}
+                        onClick={() => addGoodsToken(good)}
+                        disabled={remaining <= 0}
+                      >
+                        {GOODS_IMGS[good]
+                          ? <img src={GOODS_IMGS[good]} alt={good} style={{ height: 44, width: 'auto', display: 'block' }} />
+                          : <span style={{ fontFamily: 'Cinzel, serif', fontSize: '0.8rem' }}>{GOODS_LABELS[good]}</span>
+                        }
+                        <span style={{ fontSize: '0.65rem', fontFamily: 'Cinzel, serif', color: 'var(--stone-gray)' }}>×{remaining}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             )}
           </div>
         </div>

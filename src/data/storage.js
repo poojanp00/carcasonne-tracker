@@ -137,6 +137,7 @@ export async function getGames() {
       clutchWin:     g.clutch_win || false, // Close game victory flag
       farmWin:       g.farm_win   || false, // Farm-dominant victory flag
       achievements,  // Live-tracked achievements in UI format
+      gameDuration:  g.duration || 0, // Game duration in milliseconds
     };
   });
 }
