@@ -71,6 +71,14 @@ body {
   z-index: 9000;
 }
 
+/* Projector mode — strip parchment theme for dark projection display */
+body.projector-mode {
+  background: #120d06;
+  background-image: none;
+  overflow: hidden;
+}
+body.projector-mode #root::after { display: none; }
+
 /* ── Typography ── */
 h1, h2, h3, h4 {
   font-family: 'Cinzel', serif;
@@ -252,7 +260,7 @@ h3 { font-size: 1.15rem; font-weight: 600; }
   display: flex;
   align-items: center;
   gap: 1rem;
-  margin-bottom: 1.6rem;
+  margin-bottom: 0.8rem;
 }
 .section-title h2 { white-space: nowrap; color: var(--earth-brown); }
 .section-title-line {
