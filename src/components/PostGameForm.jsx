@@ -1,10 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell, Legend, ResponsiveContainer } from 'recharts';
 import GameHighlights from './GameHighlights';
+import PointBreakdownChart from './PointBreakdownChart';
 import { transformMaxFeaturesToUI } from '../utils/achievements';
 import { getMeepleColor, getToday } from '../utils/formatters';
 import { computeWinners } from '../utils/scoring';
-import { SCORE_TYPE_ORDER, SCORE_TYPE_COLORS } from '../constants';
 import crownImg from '../../images/icons/crown.png';
 import pigImg   from '../../images/icons/pig.png';
 import cImg     from '../../images/icons/C.png';
@@ -18,71 +17,6 @@ const MEEPLE_IMGS = {
 };
 const FALLBACK_MEEPLE = Object.values(MEEPLE_IMGS)[0];
 
-// Custom label for bar segments
-function BarLabel(props) {
-  const { x, y, width, height, value, dataKey } = props;
-  if (value === undefined || value === null || value === 0) return null;
-
-  const label = dataKey.replace(/_/g, ' ').charAt(0).toUpperCase() + dataKey.slice(1).replace(/_/g, ' ');
-  const fontSize = 9;
-
-  // If bar is wide enough for horizontal text (need comfortable space)
-  if (width > 40) {
-    return (
-      <text
-        x={x + width / 2}
-        y={y + height / 2}
-        textAnchor="middle"
-        dominantBaseline="middle"
-        fill="#f5f5f5"
-        fontSize={fontSize}
-        fontWeight="600"
-        fontFamily="Cinzel, serif"
-      >
-        {label}
-      </text>
-    );
-  }
-
-  // If bar is at least 6px wide, write vertically
-  if (width >= 6) {
-    return (
-      <text
-        x={x + width / 2}
-        y={y + height / 2}
-        textAnchor="middle"
-        dominantBaseline="middle"
-        fill="#f5f5f5"
-        fontSize={fontSize}
-        fontWeight="600"
-        fontFamily="Cinzel, serif"
-        transform={`rotate(-90 ${x + width / 2} ${y + height / 2})`}
-      >
-        {label}
-      </text>
-    );
-  }
-
-  return null;
-}
-
-function CustomYAxisTick({ x, y, payload }) {
-  return (
-    <g transform={`translate(${x},${y})`}>
-      <text
-        x={-5}
-        y={0}
-        textAnchor="end"
-        dominantBaseline="middle"
-        fill="var(--stone-gray)"
-        fontSize="0.9rem"
-        fontFamily="Crimson Text, serif"
-      >
-        {payload.value}
-      </text>
-    </g>
-  );
-}
 
 export default function GameLogForm({ session, ownedExpansions, onSubmit, onCancel, onPlayAgain, isGuest = false }) {
   const { players = [], meeples = {}, expansions: prefillExp = [], finalScores = {}, scoreBreakdown = {}, farmWin: autoFarmWin = false, gameDuration = 0, maxFeatures = {} } = session || {};
@@ -162,8 +96,6 @@ export default function GameLogForm({ session, ownedExpansions, onSubmit, onCanc
           {sortedPlayers.map((name) => {
             const color    = getMeepleColor(meeples[name]);
             const isWinner = winners.includes(name);
-            const bd = scoreBreakdown[name] || {};
-            const bdEntries = SCORE_TYPE_ORDER.filter(t => (bd[t] ?? 0) > 0);
             return (
               <div key={name} className="postgame-player-card" style={{ borderLeft: `3px solid ${color}` }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -190,18 +122,6 @@ export default function GameLogForm({ session, ownedExpansions, onSubmit, onCanc
                     {finalScores[name] ?? 0}
                   </div>
                 </div>
-                {bdEntries.length > 0 && (
-                  <p style={{
-                    fontFamily: 'Crimson Text, serif',
-                    fontStyle: 'italic',
-                    fontSize: '0.82rem',
-                    color: 'var(--stone-gray)',
-                    margin: '0.4rem 0 0',
-                    letterSpacing: '0.01em',
-                  }}>
-                    {bdEntries.map(t => `${bd[t]} ${t.charAt(0).toUpperCase() + t.slice(1).replace(/_/g, ' ')}`).join(' · ')}
-                  </p>
-                )}
               </div>
             );
           })}
@@ -209,56 +129,14 @@ export default function GameLogForm({ session, ownedExpansions, onSubmit, onCanc
 
       </div>
 
+      {/* Points breakdown chart */}
+      <PointBreakdownChart
+        players={sortedPlayers.map(name => ({ name, breakdown: scoreBreakdown[name] || {} }))}
+      />
+
       {/* Game Highlights */}
-      <div className="tile-card" style={{ marginBottom: '1.4rem' }}>
+      <div className="tile-card" style={{ marginBottom: '1.4rem', marginTop: '1.4rem' }}>
         <GameHighlights achievements={transformMaxFeaturesToUI(maxFeatures)} />
-      </div>
-
-      {/* Points distribution chart */}
-      <div className="tile-card" style={{ marginBottom: '1.4rem' }}>
-        <div style={{ marginBottom: '1rem' }}>
-          <div style={{ fontSize: '0.7rem', fontFamily: 'Cinzel, serif', letterSpacing: '0.1em', color: 'var(--stone-gray)', marginBottom: '0.8rem' }}>
-            POINTS BREAKDOWN
-          </div>
-          {(() => {
-            // Find which scoring types were actually used in the game
-            const usedTypes = new Set();
-            sortedPlayers.forEach(name => {
-              const breakdown = scoreBreakdown[name] || {};
-              Object.keys(breakdown).forEach(type => {
-                if (breakdown[type] > 0) usedTypes.add(type);
-              });
-            });
-            const displayTypes = SCORE_TYPE_ORDER.filter(t => usedTypes.has(t));
-
-            return (
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart
-                  data={sortedPlayers.map(name => ({
-                    name,
-                    ...scoreBreakdown[name] || {},
-                  }))}
-                  layout="vertical"
-                  margin={{ top: 5, right: 30, left: 5, bottom: 5 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(201,163,74,0.2)" />
-                  <XAxis type="number" stroke="var(--stone-gray)" />
-                  <YAxis dataKey="name" type="category" stroke="var(--stone-gray)" width={95} tick={<CustomYAxisTick />} />
-                  {displayTypes.map(type => (
-                    <Bar
-                      key={type}
-                      dataKey={type}
-                      stackId="a"
-                      fill={SCORE_TYPE_COLORS[type]}
-                      isAnimationActive={false}
-                      label={(props) => <BarLabel {...props} dataKey={type} />}
-                    />
-                  ))}
-                </BarChart>
-              </ResponsiveContainer>
-            );
-          })()}
-        </div>
       </div>
 
       {/* Submit */}
