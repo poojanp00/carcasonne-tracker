@@ -107,7 +107,9 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
   const [confirmFinish, setConfirmFinish] = useState(false); // Finish game confirmation
   const [confirmReset,         setConfirmReset]         = useState(false); // Reset board confirmation
   const [warning,             setWarning]             = useState(null); // Warning toast for no players selected
-  const logEndRef = useRef(null);
+  const logContainerRef = useRef(null);
+  const projectorWinRef = useRef(null);
+  const projectorCh     = useRef(null);
 
   // Generate log from moves and undo events merged chronologically
   const log = board && board.moves
@@ -191,9 +193,66 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
       })()
     : [];
 
+  // Broadcast current board state to any open projector window
+  const boardRef    = useRef(board);
+  const sessionRef  = useRef(session);
+  const meepleMapRef = useRef(meepleMap);
+  boardRef.current    = board;
+  sessionRef.current  = session;
+  meepleMapRef.current = meepleMap;
+
+  function broadcastState(ch) {
+    if (!boardRef.current) return;
+    ch.postMessage({
+      type: 'STATE_UPDATE',
+      payload: {
+        board:     boardRef.current,
+        players,
+        meepleMap: meepleMapRef.current,
+        realmName: sessionRef.current?.realm?.name,
+      },
+    });
+  }
+
+  // BroadcastChannel for projector window
+  useEffect(() => {
+    const ch = new BroadcastChannel('carcasonne-projector');
+    projectorCh.current = ch;
+    ch.onmessage = (e) => {
+      if (e.data.type === 'REQUEST_STATE') broadcastState(ch);
+    };
+    return () => {
+      ch.close();
+      projectorCh.current = null;
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Open projector window on 'P' key press
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key !== 'p' && e.key !== 'P') return;
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      const url = `${window.location.origin}${window.location.pathname}?projector=true`;
+      if (!projectorWinRef.current || projectorWinRef.current.closed) {
+        projectorWinRef.current = window.open(url, 'carcasonne-projector', 'width=1400,height=900,menubar=no,toolbar=no,location=no');
+      } else {
+        projectorWinRef.current.focus();
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, []);
+
   useEffect(() => {
     setBoard(null); // Clear old board before loading new one
-    getBoard(userId, players, isGuest).then(b => setBoard(b));
+    getBoard(userId, players, isGuest).then(b => {
+      setBoard(b);
+      // Restore finishStep from persisted board state so navigating away and back
+      // doesn't require clicking Final Scoring again
+      if (b?.finalScoringIndex !== null && b?.finalScoringIndex !== undefined) {
+        setFinishStep(1);
+      }
+    });
   }, [userId, players, isGuest]);
 
   useEffect(() => {
@@ -202,7 +261,11 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
   }, []);
 
   useEffect(() => { if (board) saveBoard(board, userId, isGuest); }, [board, userId, isGuest]);
-  useEffect(() => { logEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [log]);
+  useEffect(() => { if (board && projectorCh.current) broadcastState(projectorCh.current); }, [board]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const el = logContainerRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [log]);
 
   // Recalculate board state from moves when moveIndex changes (for undo/redo)
   useEffect(() => {
@@ -479,7 +542,8 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
     const updatedBoard = { ...board, endTime };
     saveBoard(updatedBoard, userId, isGuest);
 
-    // Then reset for next game
+    // Signal projector to close itself (ref may be stale after remounts)
+    projectorCh.current?.postMessage({ type: 'GAME_OVER' });
     resetBoard(userId, players, [], isGuest);
     onFinish(finalScores, scoreBreakdown, autoFarmWin, gameDuration, board.maxFeatures);
   }
@@ -638,7 +702,48 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
       )}
 
       <div className="section-title">
-        <h2>score board</h2>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+          <h2 style={{ margin: 0 }}>score board</h2>
+          <div
+            style={{
+              position: 'relative',
+              display: 'flex',
+              alignItems: 'center',
+              color: 'var(--stone-gray)',
+              cursor: 'default',
+            }}
+            onMouseEnter={e => { e.currentTarget.querySelector('.projector-hint').style.opacity = '1'; }}
+            onMouseLeave={e => { e.currentTarget.querySelector('.projector-hint').style.opacity = '0'; }}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+              <circle cx="12" cy="12" r="3"/>
+            </svg>
+            <span
+              className="projector-hint"
+              style={{
+                position: 'absolute',
+                top: 'calc(100% + 0.4rem)',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                background: 'var(--charcoal)',
+                color: 'var(--parchment)',
+                padding: '0.22rem 0.6rem',
+                borderRadius: 'var(--radius-tile)',
+                fontFamily: 'Crimson Text, serif',
+                fontStyle: 'italic',
+                fontSize: '0.78rem',
+                whiteSpace: 'nowrap',
+                pointerEvents: 'none',
+                opacity: 0,
+                transition: 'opacity 0.2s ease',
+                zIndex: 50,
+              }}
+            >
+              Press P on the keyboard to shift into projector mode
+            </span>
+          </div>
+        </div>
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '0.7rem' }}>
           <div style={{ flex: 1, height: '1px', background: 'linear-gradient(90deg, var(--warm-gold), transparent)' }} />
           <span style={{
@@ -672,7 +777,7 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
               No moves yet.
             </p>
           ) : (
-            <div className="board-log-entries">
+            <div className="board-log-entries" ref={logContainerRef}>
               {log.map((entry) => {
                 const color = entry.player ? getMeepleColor(meepleMap[entry.player]) : 'var(--stone-gray)';
                 const isUndo = entry.type === 'undo';
@@ -694,7 +799,6 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
                   </div>
                 );
               })}
-              <div ref={logEndRef} />
             </div>
           )}
           <div style={{ display: 'flex', gap: '0.5rem', marginTop: 'auto', paddingTop: '0.9rem', flexWrap: 'wrap' }}>
