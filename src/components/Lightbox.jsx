@@ -4,6 +4,16 @@ import { SCORE_TYPE_ORDER, SCORE_TYPE_COLORS } from '../constants';
 import pigImg from '../../images/icons/pig.png';
 import cImg   from '../../images/icons/C.png';
 
+const SCORE_GROUPS = [
+  { label: 'Road + Inn',              types: ['road', 'inn'] },
+  { label: 'City + Cath.',            types: ['city', 'cathedral'] },
+  { label: 'Mon. + Abbot + Abbey',    types: ['monastery', 'abbot', 'abbey'] },
+  { label: 'Field + Pig + Barn',      types: ['field', 'pig', 'barn'] },
+  { label: 'Goods',                   types: ['wine', 'grain', 'cloth'] },
+];
+const TYPE_TO_GROUP = {};
+SCORE_GROUPS.forEach(g => g.types.forEach(t => { TYPE_TO_GROUP[t] = g; }));
+
 function formatDate(dateStr) {
   return new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', {
     weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
@@ -17,6 +27,7 @@ export default function Lightbox({ game, games = [], onNavigate, onClose, onDele
   const [animDir, setAnimDir] = useState(null);
   const [tooltip, setTooltip] = useState(null);
   const [showTable, setShowTable] = useState(false);
+  const [combined, setCombined] = useState(false);
   const barsRef = useRef(null);
 
   useEffect(() => {
@@ -128,10 +139,24 @@ export default function Lightbox({ game, games = [], onNavigate, onClose, onDele
               largest_city: 'L.City', largest_road: 'L.Road', wagon: 'Wagon',
             };
 
+            const orderedTypes = [
+              ...SCORE_GROUPS.flatMap(g => g.types.filter(t => displayTypes.includes(t))),
+              ...displayTypes.filter(t => !TYPE_TO_GROUP[t]),
+            ];
+
             return (
               <div style={{ marginBottom: '1.5rem', marginTop: '1.2rem' }}>
-                <div style={{ fontSize: '0.75rem', fontFamily: 'Cinzel, serif', letterSpacing: '0.1em', color: 'var(--stone-gray)', marginBottom: '1.2rem' }}>
-                  POINTS BREAKDOWN
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.2rem' }}>
+                  <div style={{ fontSize: '0.75rem', fontFamily: 'Cinzel, serif', letterSpacing: '0.1em', color: 'var(--stone-gray)' }}>
+                    POINTS BREAKDOWN
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => { setCombined(v => !v); setTooltip(null); }}
+                    style={{ background: 'none', border: '1px solid var(--warm-gold)', borderRadius: '4px', cursor: 'pointer', padding: '0.15rem 0.5rem', fontFamily: 'Cinzel, serif', fontSize: '0.62rem', color: combined ? 'var(--earth-brown)' : 'var(--stone-gray)', opacity: combined ? 1 : 0.7, letterSpacing: '0.05em' }}
+                  >
+                    {combined ? 'Split' : 'Combine'}
+                  </button>
                 </div>
                 {/* Proportional bars — one per player */}
                 <div
@@ -150,7 +175,7 @@ export default function Lightbox({ game, games = [], onNavigate, onClose, onDele
                         <div style={{ flex: 1, display: 'flex', height: '10px', borderRadius: '4px', overflow: 'hidden' }}>
                           {total === 0
                             ? <div style={{ flex: 1, backgroundColor: 'var(--stone-gray)', opacity: 0.2 }} />
-                            : displayTypes.map(t => {
+                            : orderedTypes.map(t => {
                                 const val = bd[t] || 0;
                                 if (val === 0) return null;
                                 return (
@@ -161,9 +186,13 @@ export default function Lightbox({ game, games = [], onNavigate, onClose, onDele
                                       if (!barsRef.current) return;
                                       const segRect = e.currentTarget.getBoundingClientRect();
                                       const containerRect = barsRef.current.getBoundingClientRect();
+                                      const group = combined ? TYPE_TO_GROUP[t] : null;
+                                      const groupValue = group ? group.types.reduce((s, gt) => s + (bd[gt] || 0), 0) : null;
                                       setTooltip({
                                         type: t,
                                         value: val,
+                                        groupLabel: group?.label ?? null,
+                                        groupValue,
                                         x: segRect.left + segRect.width / 2 - containerRect.left,
                                         y: segRect.top - containerRect.top,
                                       });
@@ -196,12 +225,25 @@ export default function Lightbox({ game, games = [], onNavigate, onClose, onDele
                       boxShadow: '0 3px 12px rgba(0,0,0,0.35)',
                       textAlign: 'center',
                     }}>
-                      <div style={{ fontFamily: "'Cinzel', serif", fontSize: '0.65rem', color: 'rgba(240,230,210,0.7)', marginBottom: '0.1rem' }}>
-                        {TYPE_LABELS[tooltip.type] ?? tooltip.type}
-                      </div>
-                      <div style={{ fontFamily: "'Cinzel', serif", fontWeight: 700, fontSize: '0.85rem' }}>
-                        {tooltip.value}
-                      </div>
+                      {combined && tooltip.groupLabel ? (
+                        <>
+                          <div style={{ fontFamily: "'Cinzel', serif", fontSize: '0.65rem', color: 'rgba(240,230,210,0.7)', marginBottom: '0.1rem' }}>
+                            {tooltip.groupLabel}
+                          </div>
+                          <div style={{ fontFamily: "'Cinzel', serif", fontWeight: 700, fontSize: '0.85rem' }}>
+                            {tooltip.groupValue}
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div style={{ fontFamily: "'Cinzel', serif", fontSize: '0.65rem', color: 'rgba(240,230,210,0.7)', marginBottom: '0.1rem' }}>
+                            {TYPE_LABELS[tooltip.type] ?? tooltip.type}
+                          </div>
+                          <div style={{ fontFamily: "'Cinzel', serif", fontWeight: 700, fontSize: '0.85rem' }}>
+                            {tooltip.value}
+                          </div>
+                        </>
+                      )}
                     </div>
                   )}
                 </div>
@@ -218,7 +260,7 @@ export default function Lightbox({ game, games = [], onNavigate, onClose, onDele
                     <thead>
                       <tr>
                         <th style={{ textAlign: 'left', padding: '0.3rem 0.5rem 0.3rem 0', fontFamily: 'Cinzel, serif', color: 'var(--stone-gray)', fontWeight: 400, fontSize: '0.68rem', whiteSpace: 'nowrap' }}>Player</th>
-                        {displayTypes.map(t => (
+                        {orderedTypes.map(t => (
                           <th key={t} style={{ padding: '0.25rem 0.3rem', fontFamily: 'Cinzel, serif', fontWeight: 600, fontSize: '0.62rem', textAlign: 'center', color: 'var(--stone-gray)', whiteSpace: 'nowrap' }}>
                             <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', justifyContent: 'center' }}>
                               <span style={{ width: '7px', height: '7px', borderRadius: '2px', backgroundColor: SCORE_TYPE_COLORS[t], display: 'inline-block', flexShrink: 0 }} />
@@ -234,7 +276,7 @@ export default function Lightbox({ game, games = [], onNavigate, onClose, onDele
                           <td style={{ padding: '0.35rem 0.5rem 0.35rem 0', fontFamily: 'Cinzel, serif', fontSize: '0.78rem', color: topPlayers.includes(p.name) ? 'var(--forest-green)' : 'var(--charcoal)', fontWeight: topPlayers.includes(p.name) ? 700 : 400, whiteSpace: 'nowrap' }}>
                             {p.name}
                           </td>
-                          {displayTypes.map(t => {
+                          {orderedTypes.map(t => {
                             const val = (p.breakdown || {})[t] || 0;
                             return (
                               <td key={t} style={{ padding: '0.35rem 0.3rem', textAlign: 'center', fontFamily: 'Crimson Text, serif', fontSize: '0.88rem', color: val > 0 ? 'var(--charcoal)' : 'var(--stone-gray)', opacity: val > 0 ? 1 : 0.35 }}>

@@ -262,6 +262,16 @@ const TYPE_LABELS = {
   abbey: 'Abbey', barn: 'Barn', abbot: 'Abbot', wagon: 'Wagon',
 };
 
+const SCORE_GROUPS = [
+  { label: 'Road + Inn',           types: ['road', 'inn'] },
+  { label: 'City + Cath.',         types: ['city', 'cathedral'] },
+  { label: 'Mon. + Abbot + Abbey', types: ['monastery', 'abbot', 'abbey'] },
+  { label: 'Field + Pig + Barn',   types: ['field', 'pig', 'barn'] },
+  { label: 'Goods',                types: ['wine', 'grain', 'cloth'] },
+];
+const TYPE_TO_GROUP = {};
+SCORE_GROUPS.forEach(g => g.types.forEach(t => { TYPE_TO_GROUP[t] = g; }));
+
 function PlayerCard({ name, stats, favMeeple, favMeepleCount, colorClass, isLeader, onNavigateToGame }) {
   const meepleImg = favMeeple ? (MEEPLE_IMGS[favMeeple] ?? null) : null;
   const [expanded, setExpanded] = useState(false);
@@ -493,6 +503,10 @@ export default function Stats({ games, realms = [], currentRealm = null, onRealm
             const gs = calcGroupStats(realmGames);
             const records = calcPlayerRecords(realmGames, currentRealm.players);
             const activeTypes = SCORE_TYPE_ORDER.filter(t => gs.typePoints[t] > 0);
+            const orderedBarTypes = [
+              ...SCORE_GROUPS.flatMap(g => g.types.filter(t => activeTypes.includes(t))),
+              ...activeTypes.filter(t => !TYPE_TO_GROUP[t]),
+            ];
             const totalBreakdown = activeTypes.reduce((s, t) => s + gs.typePoints[t], 0);
             const EXP_TYPE = Object.fromEntries(DEFAULT_EXPANSIONS.map(e => [e.name, e.type]));
             const { favFull, favFullCount, favMini, favMiniCount } = (() => {
@@ -550,7 +564,7 @@ export default function Stats({ games, realms = [], currentRealm = null, onRealm
 
                     <div style={{ width: '1px', background: 'var(--warm-gold)', opacity: 0.3, flexShrink: 0 }} />
 
-                    <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', paddingBottom: '0.6rem' }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <span style={{ fontFamily: 'Cinzel, serif', fontSize: '0.7rem', letterSpacing: '0.1em', color: 'var(--stone-gray)' }}>POINT TOTALS</span>
                         <span className="stat-value">{gs.totalPoints}</span>
@@ -561,9 +575,9 @@ export default function Stats({ games, realms = [], currentRealm = null, onRealm
                         onMouseLeave={() => setBarTooltip(null)}
                       >
                         <div style={{ display: 'flex', width: '100%', height: '10px', borderRadius: '4px', overflow: 'hidden' }}>
-                          {activeTypes.length === 0
+                          {orderedBarTypes.length === 0
                             ? <div style={{ flex: 1, backgroundColor: 'var(--stone-gray)', opacity: 0.25 }} />
-                            : activeTypes.map(t => (
+                            : orderedBarTypes.map(t => (
                                 <div
                                   key={t}
                                   style={{ flex: gs.typePoints[t] / totalBreakdown, backgroundColor: SCORE_TYPE_COLORS[t], cursor: 'default' }}
@@ -607,6 +621,7 @@ export default function Stats({ games, realms = [], currentRealm = null, onRealm
                           </div>
                         )}
                       </div>
+
                     </div>
                   </div>
 
