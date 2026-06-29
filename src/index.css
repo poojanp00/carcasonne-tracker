@@ -1812,3 +1812,423 @@ input[type="file"] { display: none; }
     min-height: 40px;
   }
 }
+
+/* ============================================================
+   PARTY MODE — Mode selection cards
+   ============================================================ */
+
+.mode-selection-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.2rem;
+  margin-bottom: 0.5rem;
+}
+
+@media (max-width: 520px) {
+  .mode-selection-grid { grid-template-columns: 1fr; }
+}
+
+.mode-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1.3rem 1rem;
+  background: var(--aged-paper);
+  border: 2px solid transparent;
+  border-radius: var(--radius-tile);
+  cursor: pointer;
+  text-align: center;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+  box-shadow: var(--shadow-sm);
+}
+
+.mode-card:hover {
+  border-color: var(--warm-gold);
+  box-shadow: var(--shadow-tile-hover);
+}
+
+.mode-card.selected {
+  border-color: var(--warm-gold);
+  background: rgba(201,163,74,0.12);
+  box-shadow: var(--shadow-tile);
+}
+
+.mode-card-icon {
+  font-size: 2.2rem;
+  line-height: 1;
+}
+
+.mode-card-title {
+  font-family: 'Cinzel', serif;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--earth-brown);
+  letter-spacing: 0.04em;
+}
+
+.mode-card-desc {
+  font-family: 'Crimson Text', serif;
+  font-size: 0.9rem;
+  color: var(--stone-gray);
+  line-height: 1.4;
+}
+
+/* ============================================================
+   PARTY MODE — Board code badge
+   ============================================================ */
+
+.party-code-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-family: 'Cinzel', serif;
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  color: var(--earth-brown);
+  background: rgba(201,163,74,0.18);
+  border: 1px solid var(--warm-gold);
+  border-radius: 999px;
+  padding: 0.2rem 0.75rem;
+  margin-bottom: 0.6rem;
+}
+
+/* ============================================================
+   PARTY MODE — Lobby overlay
+   ============================================================ */
+
+.lobby-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 12, 4, 0.72);
+  backdrop-filter: blur(3px);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.lobby-modal {
+  background: var(--parchment);
+  border-radius: var(--radius-tile);
+  border: var(--border-gold);
+  box-shadow: var(--shadow-deep);
+  max-width: 680px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.lobby-header {
+  padding: 1.5rem 1.8rem 1rem;
+  border-bottom: 1px solid rgba(201,163,74,0.3);
+  text-align: center;
+}
+
+.lobby-title {
+  font-family: 'Cinzel', serif;
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--earth-brown);
+  margin-bottom: 0.6rem;
+}
+
+.lobby-instruction {
+  font-family: 'Crimson Text', serif;
+  font-size: 1rem;
+  color: var(--stone-gray);
+  line-height: 1.4;
+}
+
+.lobby-body {
+  padding: 1.3rem 1.8rem;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 1.5rem;
+  align-items: start;
+}
+
+@media (max-width: 560px) {
+  .lobby-body {
+    grid-template-columns: 1fr;
+  }
+  .lobby-code-block {
+    flex-direction: column;
+    align-items: center;
+  }
+}
+
+.lobby-code-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.9rem;
+}
+
+.lobby-qr {
+  background: var(--parchment);
+  padding: 0.5rem;
+  border: var(--border-gold);
+  border-radius: var(--radius-tile);
+}
+
+.lobby-code-display {
+  text-align: center;
+}
+
+.lobby-code-label {
+  font-family: 'Cinzel', serif;
+  font-size: 0.68rem;
+  letter-spacing: 0.12em;
+  color: var(--stone-gray);
+  margin-bottom: 0.2rem;
+}
+
+.lobby-code-value {
+  font-family: 'Cinzel', serif;
+  font-size: 2.4rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  color: var(--earth-brown);
+  line-height: 1;
+}
+
+.lobby-code-url {
+  font-family: 'Crimson Text', serif;
+  font-size: 0.82rem;
+  color: var(--stone-gray);
+  margin-top: 0.3rem;
+  word-break: break-all;
+}
+
+.lobby-roster {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.lobby-roster-title {
+  font-family: 'Cinzel', serif;
+  font-size: 0.68rem;
+  letter-spacing: 0.12em;
+  color: var(--stone-gray);
+  margin-bottom: 0.3rem;
+}
+
+.lobby-roster-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.lobby-roster-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--aged-paper);
+  border-radius: var(--radius-tile);
+  border: 1.5px solid transparent;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.lobby-roster-row.joined {
+  border-color: var(--warm-gold);
+  background: rgba(201,163,74,0.1);
+}
+
+.lobby-roster-status {
+  font-size: 1.1rem;
+  min-width: 1.4rem;
+  text-align: center;
+}
+
+.lobby-roster-meeple {
+  height: 32px;
+  width: auto;
+}
+
+.lobby-roster-name {
+  font-family: 'Cinzel', serif;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--earth-brown);
+}
+
+.lobby-footer {
+  padding: 1rem 1.8rem 1.5rem;
+  border-top: 1px solid rgba(201,163,74,0.3);
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.lobby-footer-hint {
+  font-family: 'Crimson Text', serif;
+  font-style: italic;
+  font-size: 0.9rem;
+  color: var(--stone-gray);
+  text-align: center;
+}
+
+/* ============================================================
+   PARTY MODE — /play phone UI
+   ============================================================ */
+
+.play-shell {
+  min-height: 100vh;
+  background: var(--parchment);
+  background-image:
+    repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(139,94,60,0.018) 2px, rgba(139,94,60,0.018) 4px),
+    repeating-linear-gradient(90deg, transparent, transparent 3px, rgba(139,94,60,0.012) 3px, rgba(139,94,60,0.012) 6px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 1.5rem 1rem 3rem;
+  gap: 1rem;
+}
+
+.play-card {
+  background: var(--aged-paper);
+  border: var(--border-gold);
+  border-radius: var(--radius-tile);
+  box-shadow: var(--shadow-tile);
+  padding: 1.8rem 1.5rem;
+  width: 100%;
+  max-width: 400px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.play-title {
+  font-family: 'Cinzel', serif;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--earth-brown);
+  text-align: center;
+}
+
+.play-subtitle {
+  font-family: 'Crimson Text', serif;
+  font-size: 1rem;
+  color: var(--stone-gray);
+  text-align: center;
+  margin-bottom: 0.5rem;
+}
+
+/* Meeple grid on phone */
+.play-meeple-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+  gap: 0.5rem;
+  width: 100%;
+  margin-top: 0.4rem;
+}
+
+.play-meeple-option {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid transparent;
+  border-radius: var(--radius-tile);
+  background: var(--parchment);
+  cursor: pointer;
+  padding: 0.3rem;
+  transition: border-color 0.15s ease, opacity 0.15s ease;
+}
+
+.play-meeple-option img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.play-meeple-option:hover:not(.taken) {
+  border-color: var(--warm-gold);
+}
+
+.play-meeple-option.selected {
+  border-color: var(--warm-gold);
+  background: rgba(201,163,74,0.15);
+}
+
+.play-meeple-option.taken {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+/* Player header strip on controller */
+.play-player-header {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  background: var(--aged-paper);
+  border: var(--border-gold);
+  border-radius: var(--radius-tile);
+  padding: 0.7rem 1.2rem;
+  width: 100%;
+  max-width: 400px;
+  box-shadow: var(--shadow-sm);
+}
+
+.play-player-meeple {
+  height: 48px;
+  width: auto;
+}
+
+.play-player-name {
+  font-family: 'Cinzel', serif;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--earth-brown);
+}
+
+.play-controller-card {
+  max-width: 400px;
+  align-items: stretch;
+  padding: 1.2rem 1.2rem 1.5rem;
+}
+
+/* Score submit confirmation */
+.play-submit-confirm {
+  font-family: 'Cinzel', serif;
+  font-size: 0.82rem;
+  letter-spacing: 0.06em;
+  color: var(--forest-green);
+  text-align: center;
+  padding: 0.3rem 0.6rem;
+  background: rgba(58,125,68,0.1);
+  border: 1px solid var(--forest-green);
+  border-radius: var(--radius-sm);
+  margin-bottom: 0.5rem;
+  animation: fadeOut 2s ease forwards;
+}
+
+@keyframes fadeOut {
+  0%   { opacity: 1; }
+  70%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* ScoreCategoryButtons shared styles */
+.score-cat-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  width: 100%;
+}
+
+.score-cat-label {
+  font-family: 'Cinzel', serif;
+  font-size: 0.68rem;
+  letter-spacing: 0.1em;
+  color: var(--stone-gray);
+  margin-bottom: 0.2rem;
+}

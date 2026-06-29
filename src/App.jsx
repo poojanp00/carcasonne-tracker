@@ -4,6 +4,7 @@ import Logbook       from './components/Logbook';
 import Statistics    from './components/Statistics';
 import Collection    from './components/Collection';
 import Board         from './components/Board';
+import Lobby         from './components/Lobby';
 import RealmPicker   from './components/RealmPicker';
 import PreGameSetup  from './components/PreGameSetup';
 import Auth          from './components/Auth';
@@ -16,6 +17,7 @@ import { deleteAccount } from './data/storage';
 import { DEFAULT_EXPANSIONS } from './data/expansions';
 import { TABS, APP_CONFIG, EXPANSION_TYPES, PINNED_EXPANSIONS } from './constants';
 import { normalizeMeeples } from './utils/formatters';
+import { createSession } from './data/partySession';
 import crownImg from '../images/icons/crown.png';
 
 
@@ -148,7 +150,23 @@ export default function App() {
   const handleGameStart = useCallback(async (setup) => {
     const extraTypes = (setup.expansions || []).flatMap(e => EXPANSION_TYPES[e] || []);
     await resetBoard(userId, setup.players, extraTypes, isGuest);
-    setSession(prev => ({ ...prev, ...setup, finalScores: null }));
+
+    if (setup.mode === 'party' && userId && !isGuest) {
+      try {
+        const { id, code } = await createSession({
+          runnerUserId: userId,
+          roster: setup.players,
+          expansions: setup.expansions || [],
+        });
+        setSession(prev => ({ ...prev, ...setup, finalScores: null, partySessionId: id, partyCode: code, partyStarted: false }));
+      } catch (err) {
+        console.error('Failed to create party session:', err);
+        setSession(prev => ({ ...prev, ...setup, finalScores: null }));
+      }
+    } else {
+      setSession(prev => ({ ...prev, ...setup, finalScores: null }));
+    }
+
     setGameKey(k => k + 1);
   }, [userId, isGuest]);
 
@@ -158,6 +176,16 @@ export default function App() {
       lastMeeples:    normalizeMeeples(prev.meeples),
       lastExpansions: prev.expansions,
     }));
+  }, []);
+
+  const handleLobbyStart = useCallback(() => {
+    setSession(prev => ({ ...prev, partyStarted: true }));
+  }, []);
+
+  const handleClaimUpdate = useCallback((claims) => {
+    const meepleMap = {};
+    claims.forEach(c => { if (c.meeple) meepleMap[c.player_name] = c.meeple; });
+    setSession(prev => ({ ...prev, meeples: { ...(prev.meeples || {}), ...meepleMap } }));
   }, []);
 
   const handleFinishGame = useCallback((finalScores, scoreBreakdown, farmWin, gameDuration, maxFeatures) => {
@@ -328,7 +356,16 @@ export default function App() {
                       isGuest={isGuest}
                     />
                   : session.players
-                    ? <Board key={gameKey} userId={userId} isGuest={isGuest} session={session} onFinish={handleFinishGame} onReset={handleBoardReset} />
+                    ? <>
+                        <Board key={gameKey} userId={userId} isGuest={isGuest} session={session} onFinish={handleFinishGame} onReset={handleBoardReset} />
+                        {session.mode === 'party' && !session.partyStarted && session.partySessionId && (
+                          <Lobby
+                            session={session}
+                            onStart={handleLobbyStart}
+                            onClaimUpdate={handleClaimUpdate}
+                          />
+                        )}
+                      </>
                     : session?.showRealmCreation
                       ? <PreGameSetup
                           key="realm-creation"

@@ -112,7 +112,8 @@ function makeDefault(players = [], extraTypes = []) {
     moveIndex: -1,          // Current position in moves (-1 = start)
     finalScoringIndex: null, // Index when final scoring started (null = not in final scoring)
     finalScoringTime: null,  // Timestamp when final scoring was initiated
-    undoLog: []             // Track undo events with timestamps for display log
+    undoLog: [],            // Track undo events with timestamps for display log
+    lastEventSeq: 0,        // Party mode: highest score_events.seq consumed so far
   };
 }
 
@@ -186,6 +187,7 @@ export async function getBoard(userId, players = [], isGuest = false) {
       finalScoringIndex: data.final_scoring_index || null,
       finalScoringTime:  data.final_scoring_time || null,
       undoLog:           data.undo_log          || [],
+      lastEventSeq:      data.last_event_seq    || 0,
     };
   } catch {
     // Database error or corrupt data - fall back to clean state
@@ -229,6 +231,7 @@ export function saveBoard(board, userId, isGuest = false) {
     final_scoring_index:  board.finalScoringIndex || null,
     final_scoring_time:   board.finalScoringTime || null,
     undo_log:             board.undoLog     || [],
+    last_event_seq:       board.lastEventSeq || 0,
   }, { onConflict: 'user_id' }).then(({ error }) => {
     if (error) console.warn('Failed to save board:', error);
   });
@@ -271,6 +274,7 @@ export async function resetBoard(userId, players = [], extraTypes = [], isGuest 
     final_scoring_index:  d.finalScoringIndex,
     final_scoring_time:   d.finalScoringTime,
     undo_log:             d.undoLog,
+    last_event_seq:       0,
   }, { onConflict: 'user_id' });
   return d;
 }

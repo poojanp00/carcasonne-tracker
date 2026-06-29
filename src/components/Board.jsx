@@ -17,6 +17,7 @@ import { useEffect, useRef, useState } from 'react';
 import BOARD_PATH from '../data/boardCoords';
 import { getBoard, saveBoard, resetBoard } from '../data/boardStorage';
 import { computeWinners } from '../utils/scoring';
+import { fetchNewEvents, subscribeEvents, setPhase, endSession, unsubscribe } from '../data/partySession';
 import boardImg from '../../images/score-board.jpg';
 
 /**
@@ -306,6 +307,64 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
     setBoard(rebuilt);
   }, [board?.moveIndex, board?.moves.length]);
 
+  // ── Party mode: phone event consumer ─────────────────────────────────────
+  // Must live before the early return so hook order is stable across renders.
+  // Uses only functional setBoard so concurrent events compose correctly.
+
+  function addPhonePoints(player, delta, type) {
+    delta = Number(delta) || 0;
+    if (delta === 0) return;
+    const label = type.charAt(0).toUpperCase() + type.slice(1);
+    setBoard(prev => {
+      const trackLen = prev.trackLength || 50;
+      const newMoves = prev.moves.slice(0, prev.moveIndex + 1);
+      newMoves.push({ player, type, amount: delta, label, timestamp: Date.now(), inFinalScoring: prev.finalScoringIndex !== null });
+      const curPos  = prev.positions[player] || 0;
+      const curLaps = prev.laps[player] || 0;
+      const sum     = curPos + delta;
+      const lapInc  = Math.floor(sum / trackLen);
+      const newPos  = ((sum % trackLen) + trackLen) % trackLen;
+      const newLaps = curLaps + (lapInc > 0 ? lapInc : 0);
+      const prevBreakdown = prev.scoreTotals?.[player] || {};
+      return {
+        ...prev,
+        moves:       newMoves,
+        moveIndex:   newMoves.length - 1,
+        positions:   { ...prev.positions, [player]: newPos },
+        laps:        { ...prev.laps,      [player]: newLaps },
+        scoreTotals: { ...prev.scoreTotals, [player]: { ...prevBreakdown, [type]: (prevBreakdown[type] || 0) + delta } },
+      };
+    });
+  }
+
+  useEffect(() => {
+    const sessionId = session?.partySessionId;
+    if (!sessionId || session?.mode !== 'party') return;
+
+    let eventSub = null;
+
+    async function catchUp() {
+      const lastSeq = board?.lastEventSeq || 0;
+      const events = await fetchNewEvents(sessionId, lastSeq);
+      for (const ev of events) {
+        addPhonePoints(ev.player_name, ev.delta, ev.category);
+      }
+      if (events.length > 0) {
+        const maxSeq = events[events.length - 1].seq;
+        setBoard(prev => ({ ...prev, lastEventSeq: Math.max(prev.lastEventSeq || 0, maxSeq) }));
+      }
+
+      eventSub = subscribeEvents(sessionId, (ev) => {
+        addPhonePoints(ev.player_name, ev.delta, ev.category);
+        setBoard(prev => ({ ...prev, lastEventSeq: Math.max(prev.lastEventSeq || 0, ev.seq) }));
+      });
+    }
+
+    if (board) catchUp();
+
+    return () => { unsubscribe(eventSub); };
+  }, [board !== null, session?.partySessionId]); // eslint-disable-line react-hooks/exhaustive-deps
+
   if (!board) return null;
 
   function formatElapsed(ms) {
@@ -507,6 +566,7 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
 
   function confirmResetBoard() {
     setConfirmReset(false);
+    if (session?.partySessionId) endSession(session.partySessionId);
     resetBoard(userId, players, [], isGuest);
     onReset();
   }
@@ -517,8 +577,8 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
 
   function confirmInitialScoring() {
     setLeadersAtFinish(leaders);
-    // Mark when final scoring started (for undo logic and logging)
     setBoard(prev => ({ ...prev, finalScoringIndex: prev.moveIndex + 1, finalScoringTime: Date.now() }));
+    if (session?.partySessionId) setPhase(session.partySessionId, 'final_scoring');
     if (hasTB) setShowTraders(true);
     else setFinishStep(1);
   }
@@ -542,8 +602,8 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
     const updatedBoard = { ...board, endTime };
     saveBoard(updatedBoard, userId, isGuest);
 
-    // Signal projector to close itself (ref may be stale after remounts)
     projectorCh.current?.postMessage({ type: 'GAME_OVER' });
+    if (session?.partySessionId) endSession(session.partySessionId);
     resetBoard(userId, players, [], isGuest);
     onFinish(finalScores, scoreBreakdown, autoFarmWin, gameDuration, board.maxFeatures);
   }
@@ -698,6 +758,12 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {session?.partyCode && (
+        <div className="party-code-badge">
+          CODE: <strong>{session.partyCode}</strong>
         </div>
       )}
 
