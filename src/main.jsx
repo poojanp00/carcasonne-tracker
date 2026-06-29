@@ -2,6 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import './index.css';
 import App from './App.jsx';
+import ProjectorView from './components/ProjectorView.jsx';
 
 document.addEventListener('touchstart', (e) => {
   if (e.target.closest('button, [role="button"]')) {
@@ -9,8 +10,10 @@ document.addEventListener('touchstart', (e) => {
   }
 }, { passive: true });
 
+const isProjector = new URLSearchParams(window.location.search).has('projector');
+
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <App />
+    {isProjector ? <ProjectorView /> : <App />}
   </StrictMode>
 );
