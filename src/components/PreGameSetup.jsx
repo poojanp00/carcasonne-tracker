@@ -51,9 +51,10 @@ const FUN_MEEPLES = Object.entries(FUN_MODULES)
   }));
 
 export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeples, defaultExpansions, realms = [], currentRealm = null, onRealmChange, onRealmCreate, startAtRealmCreation = false, isGuest = false }) {
-  // Start at step 1 if requested, no realms exist, or no current realm - otherwise step 2 
+  // Steps: 1=Realm creation, 2=Mode selection, 3=Meeples (table only), 4=Expansions
   const initialStep = startAtRealmCreation || realms.length === 0 || !realm ? 1 : 2;
   const [step, setStep] = useState(initialStep);
+  const [mode, setMode] = useState('table'); // 'table' | 'party'
 
   // Realm creation state (step 1)
   const [realmName, setRealmName] = useState('');
@@ -108,9 +109,9 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
     setNameError('');
     if (onRealmCreate) {
       await onRealmCreate({ name: finalRealmName, players: names });
-      // Don't automatically navigate to step 2 - let the parent component handle the flow
+      // Don't automatically navigate - let the parent component handle the flow
     } else {
-      setStep(2); // Move to meeple selection only if handling internally
+      setStep(2); // Move to mode selection
     }
   };
 
@@ -190,7 +191,7 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
       return;
     }
     setMeepleError(null);
-    setStep(3); // Proceed to expansion selection
+    setStep(4); // Proceed to expansion selection
   };
 
   /**
@@ -324,7 +325,12 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
    * No mystery resolution needed since it happens during selection.
    */
   const handleStart = () => {
-    onStart({ players: activePlayers, meeples, expansions: selectedExp });
+    onStart({
+      players: activePlayers,
+      meeples: mode === 'party' ? {} : meeples,
+      expansions: selectedExp,
+      mode,
+    });
   };
 
   const realmChips = realms.length > 0 && onRealmChange && (
@@ -419,15 +425,70 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
             {realms.length > 0 && (
               <button type="button" className="btn btn-ghost" onClick={() => setStep(2)}>← Back</button>
             )}
-            <button type="submit" className="btn">Next: Choose Meeples →</button>
+            <button type="submit" className="btn">Next →</button>
           </div>
         </form>
       </div>
     );
   }
 
-  // ── Step 2: Meeples ──
+  // ── Step 2: Mode Selection ──
   if (step === 2) {
+    return (
+      <div className="pregame-screen">
+        <div className="section-title">
+          <h2>Choose Play Mode</h2>
+          <div className="section-title-line" />
+        </div>
+
+        <div className="mode-selection-grid">
+          <button
+            type="button"
+            className={`mode-card${mode === 'table' ? ' selected' : ''}`}
+            onClick={() => setMode('table')}
+          >
+            <div className="mode-card-icon">🎲</div>
+            <div className="mode-card-title">Table Mode</div>
+            <div className="mode-card-desc">
+              One device tracks all scores. Everyone plays at the table together.
+            </div>
+          </button>
+
+          <button
+            type="button"
+            className={`mode-card${mode === 'party' ? ' selected' : ''}`}
+            onClick={() => setMode('party')}
+          >
+            <div className="mode-card-icon">📱</div>
+            <div className="mode-card-title">Party Mode</div>
+            <div className="mode-card-desc">
+              Each player inputs their own scores from their phone. No shared device needed.
+            </div>
+          </button>
+        </div>
+
+        <div style={{ display: 'flex', gap: '0.7rem', alignItems: 'center', justifyContent: 'space-between', marginTop: '1.4rem' }}>
+          <button type="button" className="btn btn-ghost" onClick={() => setStep(1)}>← Back</button>
+          <button
+            type="button"
+            className="btn"
+            onClick={() => {
+              if (mode === 'table') {
+                setStep(3); // Table → meeples
+              } else {
+                setStep(4); // Party → skip meeples, go to expansions
+              }
+            }}
+          >
+            Next →
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Step 3: Meeples (table mode only) ──
+  if (step === 3) {
     return (
       <div className="pregame-screen">
         <div className="section-title">
@@ -484,10 +545,10 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
         <div style={{ display: 'flex', gap: '0.7rem', alignItems: 'center', justifyContent: activePlayers.length === 0 ? 'center' : 'space-between' }}>
           <button
             type="button"
-            className={activePlayers.length === 0 ? "btn" : "btn btn-ghost"}
-            onClick={() => setStep(1)}
+            className="btn btn-ghost"
+            onClick={() => setStep(2)}
           >
-            Create New Group
+            ← Back
           </button>
           {activePlayers.length > 0 && (
             <button type="button" className="btn" onClick={handleNextStep}>Next: Expansions →</button>
@@ -497,7 +558,7 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
     );
   }
 
-  // ── Step 3: Expansions + Start ──
+  // ── Step 4: Expansions + Start ──
   return (
     <div className="pregame-screen">
       <div className="section-title">
@@ -631,8 +692,10 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
       </div>
 
       <div style={{ display: 'flex', gap: '0.7rem', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
-        <button type="button" className="btn btn-ghost" onClick={() => setStep(2)}>← Back</button>
-        <button type="button" className="btn" onClick={handleStart}>Begin</button>
+        <button type="button" className="btn btn-ghost" onClick={() => setStep(mode === 'party' ? 2 : 3)}>← Back</button>
+        <button type="button" className="btn" onClick={handleStart}>
+          {mode === 'party' ? 'Begin (Party)' : 'Begin'}
+        </button>
       </div>
     </div>
   );
