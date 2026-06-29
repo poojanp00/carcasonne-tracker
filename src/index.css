@@ -307,7 +307,7 @@ h3 { font-size: 1.15rem; font-weight: 600; }
   box-shadow: 4px 5px 0 #5A3E08, inset 0 1px 0 rgba(255,255,255,0.28);
 }
 .btn:active {
-  transform: translateY(1px);
+  transform: scale(0.95);
   box-shadow: 1px 1px 0 #5A3E08;
 }
 
@@ -434,6 +434,7 @@ h3 { font-size: 1.15rem; font-weight: 600; }
   transform: translateY(-1px);
   box-shadow: 2px 4px 7px rgba(0,0,0,0.2);
 }
+.expansion-chip:active { transform: scale(0.93); }
 .expansion-chip.selected {
   background: var(--forest-green);
   border-color: #2A5E32;
@@ -1649,6 +1650,7 @@ input[type="file"] { display: none; }
   transform: translateY(-2px);
   box-shadow: 2px 5px 10px rgba(0,0,0,0.22);
 }
+.meeple-option:active { transform: scale(0.92); }
 
 .meeple-option.selected {
   border-color: var(--forest-green);
