@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import GameHighlights from './GameHighlights';
 import { SCORE_TYPE_ORDER, SCORE_TYPE_COLORS } from '../constants';
 import pigImg from '../../images/icons/pig.png';
@@ -15,6 +15,9 @@ export default function Lightbox({ game, games = [], onNavigate, onClose, onDele
   const idx = games.findIndex(g => g.id === game.id);
   const [animKey, setAnimKey] = useState(0);
   const [animDir, setAnimDir] = useState(null);
+  const [tooltip, setTooltip] = useState(null);
+  const [showTable, setShowTable] = useState(false);
+  const barsRef = useRef(null);
 
   useEffect(() => {
     const onKey = (e) => {
@@ -131,7 +134,11 @@ export default function Lightbox({ game, games = [], onNavigate, onClose, onDele
                   POINTS BREAKDOWN
                 </div>
                 {/* Proportional bars — one per player */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', marginBottom: '1rem' }}>
+                <div
+                  ref={barsRef}
+                  style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', marginBottom: '1rem', position: 'relative' }}
+                  onMouseLeave={() => setTooltip(null)}
+                >
                   {sorted.map(p => {
                     const bd = p.breakdown || {};
                     const total = displayTypes.reduce((s, t) => s + (bd[t] || 0), 0);
@@ -146,7 +153,23 @@ export default function Lightbox({ game, games = [], onNavigate, onClose, onDele
                             : displayTypes.map(t => {
                                 const val = bd[t] || 0;
                                 if (val === 0) return null;
-                                return <div key={t} style={{ flex: val / total, backgroundColor: SCORE_TYPE_COLORS[t] }} title={`${TYPE_LABELS[t] ?? t}: ${val}`} />;
+                                return (
+                                  <div
+                                    key={t}
+                                    style={{ flex: val / total, backgroundColor: SCORE_TYPE_COLORS[t], cursor: 'default' }}
+                                    onMouseEnter={(e) => {
+                                      if (!barsRef.current) return;
+                                      const segRect = e.currentTarget.getBoundingClientRect();
+                                      const containerRect = barsRef.current.getBoundingClientRect();
+                                      setTooltip({
+                                        type: t,
+                                        value: val,
+                                        x: segRect.left + segRect.width / 2 - containerRect.left,
+                                        y: segRect.top - containerRect.top,
+                                      });
+                                    }}
+                                  />
+                                );
                               })
                           }
                         </div>
@@ -156,8 +179,41 @@ export default function Lightbox({ game, games = [], onNavigate, onClose, onDele
                       </div>
                     );
                   })}
+
+                  {tooltip && (
+                    <div style={{
+                      position: 'absolute',
+                      left: tooltip.x,
+                      top: tooltip.y,
+                      transform: 'translate(-50%, calc(-100% - 6px))',
+                      background: 'var(--earth-brown)',
+                      color: 'var(--parchment)',
+                      padding: '0.3rem 0.55rem',
+                      borderRadius: '6px',
+                      zIndex: 100,
+                      whiteSpace: 'nowrap',
+                      pointerEvents: 'none',
+                      boxShadow: '0 3px 12px rgba(0,0,0,0.35)',
+                      textAlign: 'center',
+                    }}>
+                      <div style={{ fontFamily: "'Cinzel', serif", fontSize: '0.65rem', color: 'rgba(240,230,210,0.7)', marginBottom: '0.1rem' }}>
+                        {TYPE_LABELS[tooltip.type] ?? tooltip.type}
+                      </div>
+                      <div style={{ fontFamily: "'Cinzel', serif", fontWeight: 700, fontSize: '0.85rem' }}>
+                        {tooltip.value}
+                      </div>
+                    </div>
+                  )}
                 </div>
-                <div style={{ overflowX: 'auto' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowTable(v => !v)}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', background: 'none', border: 'none', cursor: 'pointer', padding: '0.25rem 0', color: 'var(--stone-gray)', fontSize: '0.65rem', fontFamily: 'Cinzel, serif', gap: '0.4rem', opacity: 0.6 }}
+                >
+                  {showTable ? '▲' : '▼'}
+                </button>
+
+                {showTable && <div style={{ overflowX: 'auto' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead>
                       <tr>
@@ -190,7 +246,7 @@ export default function Lightbox({ game, games = [], onNavigate, onClose, onDele
                       ))}
                     </tbody>
                   </table>
-                </div>
+                </div>}
               </div>
             );
           })()}

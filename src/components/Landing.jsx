@@ -88,7 +88,7 @@ export default function Landing() {
       {/* Hero */}
       <section className="landing-hero">
         <h2 className="landing-welcome">Welcome to Carcasscore</h2>
-        <p className="landing-tagline">The Ultimate Carcassonne Tracker</p>
+        <p className="landing-tagline">The Ultimate Carcassonne Score Tracker</p>
       </section>
 
       {/* Divider */}
