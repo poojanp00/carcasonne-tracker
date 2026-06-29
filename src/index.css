@@ -318,6 +318,12 @@ h3 { font-size: 1.15rem; font-weight: 600; }
   transform: scale(0.95);
   box-shadow: 1px 1px 0 #5A3E08;
 }
+.btn:disabled {
+  opacity: 0.42;
+  cursor: default;
+  transform: none !important;
+  box-shadow: 1px 2px 0 #5A3E08, inset 0 1px 0 rgba(255,255,255,0.15) !important;
+}
 
 .btn-danger {
   background: linear-gradient(160deg, #C44040 0%, #9E2A2B 55%, #7E1E1E 100%);
@@ -1447,7 +1453,7 @@ input[type="file"] { display: none; }
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.55);
-  z-index: 10000;
+  z-index: 10001;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1820,7 +1826,7 @@ input[type="file"] { display: none; }
 .mode-selection-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 1.2rem;
+  gap: 0.3rem;
   margin-bottom: 0.5rem;
 }
 
@@ -1833,45 +1839,88 @@ input[type="file"] { display: none; }
   flex-direction: column;
   align-items: center;
   gap: 0.5rem;
-  padding: 1.3rem 1rem;
-  background: var(--aged-paper);
-  border: 2px solid transparent;
-  border-radius: var(--radius-tile);
+  padding: 0.6rem 0.5rem;
+  background: none;
+  border: none;
+  box-shadow: none;
   cursor: pointer;
   text-align: center;
-  transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
-  box-shadow: var(--shadow-sm);
+  position: relative;
 }
 
-.mode-card:hover {
-  border-color: var(--warm-gold);
-  box-shadow: var(--shadow-tile-hover);
-}
+.mode-card:hover { background: none; box-shadow: none; }
 
-.mode-card.selected {
-  border-color: var(--warm-gold);
-  background: rgba(201,163,74,0.12);
-  box-shadow: var(--shadow-tile);
-}
+.mode-card.selected { background: none; box-shadow: none; }
 
 .mode-card-icon {
-  font-size: 2.2rem;
+  font-size: 12rem;
   line-height: 1;
+  border-radius: 12px;
+  padding: 0.3rem;
+  transition: opacity 0.15s ease, filter 0.15s ease;
+}
+
+.mode-card-icon img {
+  height: 12rem;
+  width: auto;
+}
+
+.mode-card:hover .mode-card-icon {
+  filter: brightness(1.1);
+}
+
+.mode-card.selected .mode-card-icon {
+  filter: drop-shadow(0 0 10px var(--warm-gold)) drop-shadow(0 0 20px rgba(201,163,74,0.5));
+  transform: scale(1.06);
+}
+
+.mode-card:not(.selected) .mode-card-icon {
+  opacity: 0.35;
+  filter: grayscale(0.4);
 }
 
 .mode-card-title {
   font-family: 'Cinzel', serif;
-  font-size: 1rem;
+  font-size: 1.2rem;
   font-weight: 600;
   color: var(--earth-brown);
   letter-spacing: 0.04em;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.mode-card-info-icon {
+  font-family: sans-serif;
+  font-size: 0.85rem;
+  font-weight: 400;
+  color: var(--stone-gray);
+  cursor: pointer;
+  opacity: 0.7;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.mode-card-info-icon:hover {
+  opacity: 1;
 }
 
 .mode-card-desc {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
   font-family: 'Crimson Text', serif;
-  font-size: 0.9rem;
+  font-size: 1.05rem;
   color: var(--stone-gray);
-  line-height: 1.4;
+  background: var(--aged-paper);
+  border: 1px solid var(--border-light);
+  line-height: 1.45;
+  width: 260px;
+  padding: 0.6rem 0.8rem;
+  border-radius: 8px;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.3);
+  z-index: 500;
+  pointer-events: none;
 }
 
 /* ============================================================
@@ -2088,7 +2137,7 @@ input[type="file"] { display: none; }
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 1.5rem 1rem 3rem;
+  padding: 0 1rem 3rem;
   gap: 1rem;
 }
 
@@ -2161,7 +2210,7 @@ input[type="file"] { display: none; }
 
 .play-meeple-option.taken {
   opacity: 0.3;
-  cursor: not-allowed;
+  cursor: default;
 }
 
 /* Player header strip on controller */
@@ -2183,11 +2232,50 @@ input[type="file"] { display: none; }
   width: auto;
 }
 
+.play-player-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  flex: 1;
+  min-width: 0;
+}
+
 .play-player-name {
   font-family: 'Cinzel', serif;
-  font-size: 1.1rem;
+  font-size: 1.4rem;
   font-weight: 700;
   color: var(--earth-brown);
+  text-align: center;
+}
+
+.play-player-tokens {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.play-token-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  font-family: 'Cinzel', serif;
+  font-size: 0.72rem;
+  color: var(--stone-gray);
+  letter-spacing: 0.02em;
+}
+
+.play-token-img {
+  height: 14px;
+  width: auto;
+}
+
+.play-player-score {
+  font-family: 'Cinzel', serif;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--warm-gold);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
 }
 
 .play-controller-card {
@@ -2196,7 +2284,53 @@ input[type="file"] { display: none; }
   padding: 1.2rem 1.2rem 1.5rem;
 }
 
-/* Score submit confirmation */
+/* Score submit confirmation — slot reserves space so buttons never shift */
+.play-submit-confirm-slot {
+  min-height: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 0.6rem;
+}
+
+.goods-token-btn {
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.3rem 0.5rem;
+  background: none;
+  border: none;
+  box-shadow: none;
+}
+
+.goods-token-btn:hover:not(:disabled) {
+  background: none;
+  box-shadow: none;
+  transform: scale(1.12);
+}
+
+.goods-token-btn:active:not(:disabled) {
+  transform: scale(1.04);
+}
+
+.goods-token-btn-img {
+  height: 48px;
+  width: auto;
+  display: block;
+}
+
+.goods-token-btn-count {
+  font-family: 'Cinzel', serif;
+  font-size: 0.7rem;
+  color: var(--stone-gray);
+  line-height: 1;
+}
+
+.goods-token-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
 .play-submit-confirm {
   font-family: 'Cinzel', serif;
   font-size: 0.82rem;
@@ -2207,7 +2341,6 @@ input[type="file"] { display: none; }
   background: rgba(58,125,68,0.1);
   border: 1px solid var(--forest-green);
   border-radius: var(--radius-sm);
-  margin-bottom: 0.5rem;
   animation: fadeOut 2s ease forwards;
 }
 

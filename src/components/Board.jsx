@@ -17,7 +17,7 @@ import { useEffect, useRef, useState } from 'react';
 import BOARD_PATH from '../data/boardCoords';
 import { getBoard, saveBoard, resetBoard } from '../data/boardStorage';
 import { computeWinners } from '../utils/scoring';
-import { fetchNewEvents, subscribeEvents, setPhase, endSession, unsubscribe } from '../data/partySession';
+import { fetchNewEvents, subscribeEvents, setPhase, endSession, deleteSession, unsubscribe, submitEvent } from '../data/partySession';
 import boardImg from '../../images/score-board.jpg';
 
 /**
@@ -108,9 +108,9 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
   const [confirmFinish, setConfirmFinish] = useState(false); // Finish game confirmation
   const [confirmReset,         setConfirmReset]         = useState(false); // Reset board confirmation
   const [warning,             setWarning]             = useState(null); // Warning toast for no players selected
-  const logContainerRef = useRef(null);
-  const projectorWinRef = useRef(null);
-  const projectorCh     = useRef(null);
+  const logContainerRef  = useRef(null);
+  const boardPopoutRef   = useRef(null);
+  const boardPopoutChRef = useRef(null);
 
   // Generate log from moves and undo events merged chronologically
   const log = board && board.moves
@@ -194,55 +194,6 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
       })()
     : [];
 
-  // Broadcast current board state to any open projector window
-  const boardRef    = useRef(board);
-  const sessionRef  = useRef(session);
-  const meepleMapRef = useRef(meepleMap);
-  boardRef.current    = board;
-  sessionRef.current  = session;
-  meepleMapRef.current = meepleMap;
-
-  function broadcastState(ch) {
-    if (!boardRef.current) return;
-    ch.postMessage({
-      type: 'STATE_UPDATE',
-      payload: {
-        board:     boardRef.current,
-        players,
-        meepleMap: meepleMapRef.current,
-        realmName: sessionRef.current?.realm?.name,
-      },
-    });
-  }
-
-  // BroadcastChannel for projector window
-  useEffect(() => {
-    const ch = new BroadcastChannel('carcasonne-projector');
-    projectorCh.current = ch;
-    ch.onmessage = (e) => {
-      if (e.data.type === 'REQUEST_STATE') broadcastState(ch);
-    };
-    return () => {
-      ch.close();
-      projectorCh.current = null;
-    };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Open projector window on 'P' key press
-  useEffect(() => {
-    const onKey = (e) => {
-      if (e.key !== 'p' && e.key !== 'P') return;
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-      const url = `${window.location.origin}${window.location.pathname}?projector=true`;
-      if (!projectorWinRef.current || projectorWinRef.current.closed) {
-        projectorWinRef.current = window.open(url, 'carcasonne-projector', 'width=1400,height=900,menubar=no,toolbar=no,location=no');
-      } else {
-        projectorWinRef.current.focus();
-      }
-    };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, []);
 
   useEffect(() => {
     setBoard(null); // Clear old board before loading new one
@@ -262,7 +213,21 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
   }, []);
 
   useEffect(() => { if (board) saveBoard(board, userId, isGuest); }, [board, userId, isGuest]);
-  useEffect(() => { if (board && projectorCh.current) broadcastState(projectorCh.current); }, [board]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Board pop-out channel
+  useEffect(() => {
+    const ch = new BroadcastChannel('carcasonne-board');
+    boardPopoutChRef.current = ch;
+    ch.onmessage = (e) => {
+      if (e.data.type === 'REQUEST_STATE') broadcastBoard(ch);
+    };
+    return () => { ch.close(); boardPopoutChRef.current = null; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (board && boardPopoutChRef.current) broadcastBoard(boardPopoutChRef.current);
+  }, [board]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     const el = logContainerRef.current;
     if (el) el.scrollTop = el.scrollHeight;
@@ -312,6 +277,24 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
   // Uses only functional setBoard so concurrent events compose correctly.
 
   function addPhonePoints(player, delta, type) {
+    // Goods token events carry no score — update goodsTokens tally instead.
+    if (type === 'goods_wine' || type === 'goods_grain' || type === 'goods_cloth') {
+      const good = type.replace('goods_', '');
+      setBoard(prev => {
+        const newMoves = prev.moves.slice(0, prev.moveIndex + 1);
+        newMoves.push({ player, type, amount: 0, label: GOODS_LABELS[good] + ' Token', timestamp: Date.now(), inFinalScoring: prev.finalScoringIndex !== null });
+        return {
+          ...prev,
+          moves:       newMoves,
+          moveIndex:   newMoves.length - 1,
+          goodsTokens: {
+            ...prev.goodsTokens,
+            [player]: { ...(prev.goodsTokens?.[player] || {}), [good]: (prev.goodsTokens?.[player]?.[good] || 0) + 1 },
+          },
+        };
+      });
+      return;
+    }
     delta = Number(delta) || 0;
     if (delta === 0) return;
     const label = type.charAt(0).toUpperCase() + type.slice(1);
@@ -326,6 +309,11 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
       const newPos  = ((sum % trackLen) + trackLen) % trackLen;
       const newLaps = curLaps + (lapInc > 0 ? lapInc : 0);
       const prevBreakdown = prev.scoreTotals?.[player] || {};
+      const maxFeatures = { ...prev.maxFeatures };
+      if (delta > 0) {
+        const currentMax = maxFeatures[type] || { amount: 0, player: null };
+        if (delta > currentMax.amount) maxFeatures[type] = { amount: delta, player };
+      }
       return {
         ...prev,
         moves:       newMoves,
@@ -333,6 +321,7 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
         positions:   { ...prev.positions, [player]: newPos },
         laps:        { ...prev.laps,      [player]: newLaps },
         scoreTotals: { ...prev.scoreTotals, [player]: { ...prevBreakdown, [type]: (prevBreakdown[type] || 0) + delta } },
+        maxFeatures,
       };
     });
   }
@@ -347,7 +336,7 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
       const lastSeq = board?.lastEventSeq || 0;
       const events = await fetchNewEvents(sessionId, lastSeq);
       for (const ev of events) {
-        addPhonePoints(ev.player_name, ev.delta, ev.category);
+        if (ev.source !== 'host') addPhonePoints(ev.player_name, ev.delta, ev.category);
       }
       if (events.length > 0) {
         const maxSeq = events[events.length - 1].seq;
@@ -355,7 +344,7 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
       }
 
       eventSub = subscribeEvents(sessionId, (ev) => {
-        addPhonePoints(ev.player_name, ev.delta, ev.category);
+        if (ev.source !== 'host') addPhonePoints(ev.player_name, ev.delta, ev.category);
         setBoard(prev => ({ ...prev, lastEventSeq: Math.max(prev.lastEventSeq || 0, ev.seq) }));
       });
     }
@@ -364,6 +353,12 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
 
     return () => { unsubscribe(eventSub); };
   }, [board !== null, session?.partySessionId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Stamp the real startTime the moment the host clicks Start Game, not at lobby creation.
+  useEffect(() => {
+    if (session?.mode !== 'party' || !session.partyStarted || !board) return;
+    setBoard(prev => ({ ...prev, startTime: Date.now() }));
+  }, [session?.partyStarted]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!board) return null;
 
@@ -375,7 +370,9 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
     if (h > 0) return `${h}h ${m}m`;
     return `${m}m ${String(sec).padStart(2, '0')}s`;
   }
-  const elapsed = formatElapsed(now - (board.startTime || now));
+  const elapsed = (session?.mode === 'party' && !session?.partyStarted)
+    ? '0m 00s'
+    : formatElapsed(now - (board.startTime || now));
 
   const track = board.trackLength || 50;
   const hasTB    = (session?.expansions || []).includes('Traders & Builders');
@@ -538,6 +535,11 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
         maxFeatures,
       };
     });
+
+    // Mirror to score_events so phones can track live breakdown (tagged 'host' to avoid re-applying on subscription)
+    if (session?.partySessionId && delta > 0) {
+      submitEvent({ sessionId: session.partySessionId, playerName: player, category: type, delta, source: 'host' }).catch(() => {});
+    }
   }
 
   // Apply points to all selected players and reset selection
@@ -566,7 +568,7 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
 
   function confirmResetBoard() {
     setConfirmReset(false);
-    if (session?.partySessionId) endSession(session.partySessionId);
+    if (session?.partySessionId) deleteSession(session.partySessionId);
     resetBoard(userId, players, [], isGuest);
     onReset();
   }
@@ -602,8 +604,17 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
     const updatedBoard = { ...board, endTime };
     saveBoard(updatedBoard, userId, isGuest);
 
-    projectorCh.current?.postMessage({ type: 'GAME_OVER' });
-    if (session?.partySessionId) endSession(session.partySessionId);
+    if (session?.partySessionId) endSession(session.partySessionId, {
+      finalScores,
+      scoreBreakdown,
+      maxFeatures: board.maxFeatures,
+      players,
+      meeples: session.meeples || {},
+      expansions: session.expansions || [],
+      farmWin: autoFarmWin,
+      gameDuration,
+    });
+    boardPopoutChRef.current?.postMessage({ type: 'GAME_OVER' });
     resetBoard(userId, players, [], isGuest);
     onFinish(finalScores, scoreBreakdown, autoFarmWin, gameDuration, board.maxFeatures);
   }
@@ -636,6 +647,11 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
     const [player] = selectedPlayers;
     addMove(player, `goods_${good}`, 0, `${GOODS_LABELS[good]} Token`);
     setSelectedPlayers(new Set());
+  }
+
+  function broadcastBoard(ch) {
+    if (!board) return;
+    ch.postMessage({ type: 'BOARD_UPDATE', payload: { board, players, meepleMap } });
   }
 
   // Lead text
@@ -768,47 +784,28 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
       )}
 
       <div className="section-title">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <h2 style={{ margin: 0 }}>score board</h2>
-          <div
-            style={{
-              position: 'relative',
-              display: 'flex',
-              alignItems: 'center',
-              color: 'var(--stone-gray)',
-              cursor: 'default',
-            }}
-            onMouseEnter={e => { e.currentTarget.querySelector('.projector-hint').style.opacity = '1'; }}
-            onMouseLeave={e => { e.currentTarget.querySelector('.projector-hint').style.opacity = '0'; }}
-          >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-              <circle cx="12" cy="12" r="3"/>
-            </svg>
-            <span
-              className="projector-hint"
-              style={{
-                position: 'absolute',
-                top: 'calc(100% + 0.4rem)',
-                left: '50%',
-                transform: 'translateX(-50%)',
-                background: 'var(--charcoal)',
-                color: 'var(--parchment)',
-                padding: '0.22rem 0.6rem',
-                borderRadius: 'var(--radius-tile)',
-                fontFamily: 'Crimson Text, serif',
-                fontStyle: 'italic',
-                fontSize: '0.78rem',
-                whiteSpace: 'nowrap',
-                pointerEvents: 'none',
-                opacity: 0,
-                transition: 'opacity 0.2s ease',
-                zIndex: 50,
+          <button
+              type="button"
+              title="Pop out board view"
+              onClick={() => {
+                const base = `${window.location.origin}${window.location.pathname}`;
+                if (!boardPopoutRef.current || boardPopoutRef.current.closed) {
+                  boardPopoutRef.current = window.open(`${base}?view=board`, 'carcasonne-board', 'popup,width=1000,height=700');
+                } else {
+                  boardPopoutRef.current.focus();
+                }
               }}
+              style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', color: 'var(--stone-gray)', opacity: 0.6 }}
             >
-              Press P on the keyboard to shift into projector mode
-            </span>
-          </div>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <polyline points="15 3 21 3 21 9"/>
+                <polyline points="9 21 3 21 3 15"/>
+                <line x1="21" y1="3" x2="14" y2="10"/>
+                <line x1="3" y1="21" x2="10" y2="14"/>
+              </svg>
+            </button>
         </div>
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '0.7rem' }}>
           <div style={{ flex: 1, height: '1px', background: 'linear-gradient(90deg, var(--warm-gold), transparent)' }} />

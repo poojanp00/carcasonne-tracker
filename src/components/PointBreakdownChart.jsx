@@ -44,6 +44,11 @@ export default function PointBreakdownChart({ players, showLegend = false }) {
     ...displayTypes.filter(t => !TYPE_TO_GROUP[t]),
   ];
 
+  const maxTotal = Math.max(1, ...players.map(player => {
+    const bd = player.breakdown || {};
+    return displayTypes.reduce((s, t) => s + (bd[t] || 0), 0);
+  }));
+
   function handleMouseEnter(e, type, val, bd) {
     if (!barsRef.current) return;
     const segRect = e.currentTarget.getBoundingClientRect();
@@ -98,21 +103,23 @@ export default function PointBreakdownChart({ players, showLegend = false }) {
                 <span style={{ fontFamily: 'Cinzel, serif', fontSize: '0.78rem', color: 'var(--stone-gray)', minWidth: '80px', textAlign: 'right', flexShrink: 0 }}>
                   {player.name}
                 </span>
-                <div style={{ flex: 1, display: 'flex', height: '12px', borderRadius: '4px', overflow: 'hidden' }}>
-                  {total === 0
-                    ? <div style={{ flex: 1, backgroundColor: 'var(--stone-gray)', opacity: 0.2 }} />
-                    : orderedTypes.map(t => {
-                        const val = bd[t] || 0;
-                        if (val === 0) return null;
-                        return (
-                          <div
-                            key={t}
-                            style={{ flex: val / total, backgroundColor: SCORE_TYPE_COLORS[t], cursor: 'default' }}
-                            onMouseEnter={(e) => handleMouseEnter(e, t, val, bd)}
-                          />
-                        );
-                      })
-                  }
+                <div style={{ flex: 1, height: '16px' }}>
+                  <div style={{ width: `${(total / maxTotal) * 100}%`, height: '16px', borderRadius: '6px', overflow: 'hidden', display: 'flex' }}>
+                    {total === 0
+                      ? <div style={{ flex: 1, backgroundColor: 'var(--stone-gray)', opacity: 0.2 }} />
+                      : orderedTypes.map(t => {
+                          const val = bd[t] || 0;
+                          if (val === 0) return null;
+                          return (
+                            <div
+                              key={t}
+                              style={{ flex: val / total, backgroundColor: SCORE_TYPE_COLORS[t], cursor: 'default' }}
+                              onMouseEnter={(e) => handleMouseEnter(e, t, val, bd)}
+                            />
+                          );
+                        })
+                    }
+                  </div>
                 </div>
                 <span style={{ fontFamily: 'Cinzel, serif', fontSize: '0.78rem', color: 'var(--stone-gray)', minWidth: '28px', flexShrink: 0 }}>
                   {total}

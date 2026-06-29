@@ -23,8 +23,8 @@ export default function GameHistory({ games, realms = [], currentRealm = null, o
     ? games.filter(g => g.realmId === currentRealm.id)
     : [];
 
-  const handleConfirmDelete = () => {
-    onDelete(confirmDeleteId);
+  const handleConfirmDelete = async () => {
+    await onDelete(confirmDeleteId);
     setConfirmDeleteId(null);
     setSelectedGame(null);
   };
