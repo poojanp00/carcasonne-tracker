@@ -702,46 +702,45 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
       )}
 
       <div className="section-title">
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
           <h2 style={{ margin: 0 }}>score board</h2>
           <div
             style={{
+              position: 'relative',
               display: 'flex',
               alignItems: 'center',
-              gap: '0.3rem',
               color: 'var(--stone-gray)',
               cursor: 'default',
-              overflow: 'hidden',
             }}
-            onMouseEnter={e => {
-              const hint = e.currentTarget.querySelector('.projector-hint');
-              hint.style.maxWidth = '260px';
-              hint.style.opacity = '1';
-            }}
-            onMouseLeave={e => {
-              const hint = e.currentTarget.querySelector('.projector-hint');
-              hint.style.maxWidth = '0';
-              hint.style.opacity = '0';
-            }}
+            onMouseEnter={e => { e.currentTarget.querySelector('.projector-hint').style.opacity = '1'; }}
+            onMouseLeave={e => { e.currentTarget.querySelector('.projector-hint').style.opacity = '0'; }}
           >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flexShrink: 0 }}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
               <circle cx="12" cy="12" r="3"/>
             </svg>
             <span
               className="projector-hint"
               style={{
+                position: 'absolute',
+                top: 'calc(100% + 0.4rem)',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                background: 'var(--charcoal)',
+                color: 'var(--parchment)',
+                padding: '0.22rem 0.6rem',
+                borderRadius: 'var(--radius-tile)',
                 fontFamily: 'Crimson Text, serif',
                 fontStyle: 'italic',
                 fontSize: '0.78rem',
                 whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                maxWidth: '0',
+                pointerEvents: 'none',
                 opacity: 0,
-                transition: 'max-width 0.25s ease, opacity 0.2s ease',
+                transition: 'opacity 0.2s ease',
+                zIndex: 50,
               }}
             >
-              Press P to open projector window.
+              Press P on the keyboard to shift into projector mode
             </span>
           </div>
         </div>
