@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 
 const MEEPLE_MODULES = import.meta.glob('../../images/meeples/*.png',     { eager: true, import: 'default' });
 const FUN_MODULES    = import.meta.glob('../../images/meeples/fun/*.png', { eager: true, import: 'default' });
@@ -12,6 +12,7 @@ import ChipGroup from './ChipGroup';
 import { TrashIcon } from './icons';
 import crownImg from '../../images/icons/crown.png';
 import PointBreakdownChart from './PointBreakdownChart';
+import Lightbox from './Lightbox';
 
 function calcFavMeeple(games, name) {
   const low = name.toLowerCase();
@@ -21,7 +22,8 @@ function calcFavMeeple(games, name) {
     if (!me?.meeple) continue;
     counts[me.meeple] = (counts[me.meeple] || 0) + 1;
   }
-  return Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+  const top = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+  return top ? { meeple: top[0], count: top[1] } : { meeple: null, count: 0 };
 }
 
 // Aggregate per-type score totals across all games for a player
@@ -71,7 +73,7 @@ function calcStats(games, name) {
   const mine = games.filter(g => g.players.some(p => p.name.toLowerCase() === low));
 
   // Initialize all tracking variables
-  let wins = 0, losses = 0, highScore = 0, highScoreDate = null, farmWins = 0, netPtDiff = 0, totalPoints = 0;
+  let wins = 0, losses = 0, highScore = 0, highScoreDate = null, highScoreGame = null, farmWins = 0, netPtDiff = 0, totalPoints = 0;
   let biggestBlowout = 0, biggestBlowoutDate = null, biggestBlowoutMyScore = 0, biggestBlowoutTheirScore = 0, biggestBlowoutGame = null;
   let clutchWins = 0, clutchLosses = 0, clutchGames = 0;
 
@@ -105,7 +107,7 @@ function calcStats(games, name) {
 
     // HIGH SCORE TRACKING
     // Personal best regardless of game outcome
-    if (my > highScore) { highScore = my; highScoreDate = g.date; }
+    if (my > highScore) { highScore = my; highScoreDate = g.date; highScoreGame = g; }
     
     // POINT DIFFERENTIAL ANALYSIS
     // Cumulative margin tracking for average dominance calculation
@@ -173,7 +175,7 @@ function calcStats(games, name) {
     wins, losses, winRate, total,
     
     // Scoring achievements  
-    highScore, highScoreDate, totalPoints, netPtDiff,
+    highScore, highScoreDate, highScoreGame, totalPoints, netPtDiff,
     
     // Streak tracking
     winStreak, lossStreak,
@@ -207,9 +209,9 @@ function StatInfo({ children }) {
  * Displays a clickable value with additional context in a tooltip.
  * Used for showing details like game dates, margin breakdowns, etc.
  */
-function ValInfo({ tip, children }) {
+function ValInfo({ tip, children, style }) {
   return (
-    <span className="val-info-wrap">
+    <span className="val-info-wrap" style={style}>
       {children}
       <span className="val-info-tooltip">{tip}</span>
     </span>
@@ -260,26 +262,20 @@ const TYPE_LABELS = {
   abbey: 'Abbey', barn: 'Barn', abbot: 'Abbot', wagon: 'Wagon',
 };
 
-function PlayerCard({ name, stats, favMeeple, colorClass, isLeader, onNavigateToGame }) {
+function PlayerCard({ name, stats, favMeeple, favMeepleCount, colorClass, isLeader, onNavigateToGame }) {
   const meepleImg = favMeeple ? (MEEPLE_IMGS[favMeeple] ?? null) : null;
+  const [expanded, setExpanded] = useState(false);
   return (
     <div className={`player-card ${colorClass}`}>
-      {isLeader && <img src={crownImg} alt="Leader" title="Current leader" className="card-crown" />}
+      {isLeader && <img src={crownImg} alt="Leader" className="card-crown" />}
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-            {meepleImg && <img src={meepleImg} alt="Favorite meeple" title="Favorite meeple" style={{ height: '18px', width: 'auto', opacity: 0.85 }} />}
-            <div className="player-card-name" style={{ margin: 0 }}>{name}</div>
-          </div>
-        {stats.total > 0 && (
-          <span style={{
-            fontFamily: 'Crimson Text, serif', fontSize: '0.85rem', fontStyle: 'italic',
-            color: stats.netPtDiff > 0 ? 'var(--forest-green)' : stats.netPtDiff < 0 ? 'var(--deep-red)' : 'var(--stone-gray)',
-            opacity: 0.85,
-          }}>
-            {stats.netPtDiff > 0 ? `+${stats.netPtDiff}` : stats.netPtDiff} pts
-          </span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.5rem' }}>
+        {meepleImg && (
+          <ValInfo tip={favMeepleCount ? `Used in ${favMeepleCount} ${favMeepleCount === 1 ? 'game' : 'games'}` : null}>
+            <img src={meepleImg} alt="Favorite meeple" style={{ height: '24px', width: 'auto', opacity: 0.85, position: 'relative', top: '-3px' }} />
+          </ValInfo>
         )}
+        <div className="player-card-name" style={{ margin: 0 }}>{name}</div>
       </div>
 
       <div className="stat-row">
@@ -292,21 +288,22 @@ function PlayerCard({ name, stats, favMeeple, colorClass, isLeader, onNavigateTo
       </div>
 
       <div className="stat-row">
-        <span className="stat-label">Games played <StatInfo>Total games recorded.</StatInfo></span>
-        <span className="stat-value">{stats.total}</span>
-      </div>
-
-      <div className="stat-divider" />
-
-      <div className="stat-row">
         <span className="stat-label">Win rate <StatInfo>Share of games won.</StatInfo></span>
         <ValInfo tip={`${stats.wins} won / ${stats.total} total`}><WinRateBadge rate={stats.winRate} /></ValInfo>
       </div>
       <div className="stat-row">
         <span className="stat-label">High score <StatInfo>Highest single-game score achieved.</StatInfo></span>
-        <ValInfo tip={stats.highScoreDate ? new Date(stats.highScoreDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : null}>
+        {stats.highScoreGame && onNavigateToGame ? (
+          <button
+            type="button"
+            onClick={() => onNavigateToGame(stats.highScoreGame)}
+            style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', font: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.1rem' }}
+          >
+            <span className="stat-value" style={{ color: 'var(--charcoal)', textDecoration: 'underline dotted' }}>{stats.highScore}</span>
+          </button>
+        ) : (
           <span className="stat-value">{stats.highScore}</span>
-        </ValInfo>
+        )}
       </div>
       <div className="stat-row">
         <span className="stat-label">Streak <StatInfo>Consecutive wins or losses.</StatInfo></span>
@@ -317,63 +314,86 @@ function PlayerCard({ name, stats, favMeeple, colorClass, isLeader, onNavigateTo
         </span>
       </div>
 
-      <div className="stat-divider" />
+      <button
+        type="button"
+        onClick={() => setExpanded(v => !v)}
+        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', background: 'none', border: 'none', cursor: 'pointer', padding: '0.25rem 0', color: 'var(--stone-gray)', fontSize: '0.65rem', fontFamily: 'Cinzel, serif', opacity: 0.6, marginTop: '0.3rem' }}
+      >
+        {expanded ? '▲' : '▼'}
+      </button>
 
-      <div className="stat-row">
-        <span className="stat-label">Farm <StatInfo>How often your wins came via farm.</StatInfo></span>
-        <ValInfo tip={stats.farm !== null ? `${stats.farmWins} farm win / ${stats.wins} total wins` : null}>
-          <span className="stat-value">{stats.farm !== null ? `${stats.farm}%` : '—'}</span>
-        </ValInfo>
-      </div>
-      <div className="stat-row">
-        <span className="stat-label">Clutch factor <StatInfo>Win rate in close games (margin &lt; 10% of total points).</StatInfo></span>
-        <ValInfo tip={stats.clutchFactor !== null ? `${stats.clutchWins} wins / ${stats.clutchGames} clutch games` : null}>
-          <span className="stat-value" style={{
-            color: stats.clutchFactor !== null && stats.clutchFactor >= 0.6
-              ? 'var(--forest-green)'
-              : stats.clutchFactor !== null && stats.clutchFactor <= 0.4
-              ? 'var(--deep-red)'
-              : 'inherit',
-          }}>
-            {stats.clutchFactor !== null ? stats.clutchFactor.toFixed(2) : '—'}
-          </span>
-        </ValInfo>
-      </div>
-      <div className="stat-row">
-        <span className="stat-label">Biggest blowout <StatInfo>Largest winning margin in a single game.</StatInfo></span>
-        {stats.biggestBlowout > 0 && stats.biggestBlowoutGame && onNavigateToGame ? (
-          <button
-            type="button"
-            onClick={() => onNavigateToGame(stats.biggestBlowoutGame)}
-            style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', font: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.1rem' }}
-          >
-            <span className="stat-value" style={{ color: 'var(--charcoal)', textDecoration: 'underline dotted' }}>+{stats.biggestBlowout}</span>
-          </button>
-        ) : (
-          <span className="stat-value">{stats.biggestBlowout > 0 ? `+${stats.biggestBlowout}` : '—'}</span>
-        )}
-      </div>
-
+      {expanded && (
+        <>
+          {stats.total > 0 && (
+            <div className="stat-row">
+              <span className="stat-label">Point differential <StatInfo>Net point difference across all games.</StatInfo></span>
+              <span className="stat-value" style={{ color: stats.netPtDiff > 0 ? 'var(--forest-green)' : stats.netPtDiff < 0 ? 'var(--deep-red)' : 'inherit' }}>
+                {stats.netPtDiff > 0 ? `+${stats.netPtDiff}` : stats.netPtDiff}
+              </span>
+            </div>
+          )}
+          <div className="stat-row">
+            <span className="stat-label">Farm <StatInfo>How often your wins came via farm.</StatInfo></span>
+            <ValInfo tip={stats.farm !== null ? `${stats.farmWins} farm win / ${stats.wins} total wins` : null}>
+              <span className="stat-value">{stats.farm !== null ? `${stats.farm}%` : '—'}</span>
+            </ValInfo>
+          </div>
+          <div className="stat-row">
+            <span className="stat-label">Clutch factor <StatInfo>Win rate in close games (margin &lt; 10% of total points).</StatInfo></span>
+            <ValInfo tip={stats.clutchFactor !== null ? `${stats.clutchWins} wins / ${stats.clutchGames} clutch games` : null}>
+              <span className="stat-value" style={{
+                color: stats.clutchFactor !== null && stats.clutchFactor >= 0.6
+                  ? 'var(--forest-green)'
+                  : stats.clutchFactor !== null && stats.clutchFactor <= 0.4
+                  ? 'var(--deep-red)'
+                  : 'inherit',
+              }}>
+                {stats.clutchFactor !== null ? stats.clutchFactor.toFixed(2) : '—'}
+              </span>
+            </ValInfo>
+          </div>
+          <div className="stat-row">
+            <span className="stat-label">Biggest blowout <StatInfo>Largest winning margin in a single game.</StatInfo></span>
+            {stats.biggestBlowout > 0 && stats.biggestBlowoutGame && onNavigateToGame ? (
+              <button
+                type="button"
+                onClick={() => onNavigateToGame(stats.biggestBlowoutGame)}
+                style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', font: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.1rem' }}
+              >
+                <span className="stat-value" style={{ color: 'var(--charcoal)', textDecoration: 'underline dotted' }}>+{stats.biggestBlowout}</span>
+              </button>
+            ) : (
+              <span className="stat-value">{stats.biggestBlowout > 0 ? `+${stats.biggestBlowout}` : '—'}</span>
+            )}
+          </div>
+        </>
+      )}
 
     </div>
   );
 }
 
-export default function Stats({ games, realms = [], currentRealm = null, onRealmChange, onDelete, isGuest = false, onNavigateToGame }) {
+export default function Stats({ games, realms = [], currentRealm = null, onRealmChange, onDelete, isGuest = false }) {
   const realmGames = currentRealm ? games.filter(g => g.realmId === currentRealm.id) : [];
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [cardExpanded, setCardExpanded] = useState(false);
+  const [barTooltip, setBarTooltip] = useState(null);
+  const [selectedGame, setSelectedGame] = useState(null);
+  const barRef = useRef(null);
+
+  const openGameLightbox = (game) => setSelectedGame(game);
 
   useEffect(() => { setCardExpanded(false); }, [currentRealm?.id]);
 
   useEffect(() => {
-    document.body.style.overflow = confirmDelete ? 'hidden' : '';
+    const isOpen = confirmDelete || !!selectedGame;
+    document.body.style.overflow = isOpen ? 'hidden' : '';
     return () => { document.body.style.overflow = ''; };
-  }, [confirmDelete]);
+  }, [confirmDelete, selectedGame]);
 
   const BASE_BREAKDOWN = { road: 0, city: 0, monastery: 0, field: 0 };
 
-  const { sorted, leader } = useMemo(() => {
+  const { sorted, leaders } = useMemo(() => {
     // Derive player names: from games if available, else from realm roster
     let names;
     if (realmGames.length > 0) {
@@ -400,16 +420,24 @@ export default function Stats({ games, realms = [], currentRealm = null, onRealm
       breakdown: realmGames.length > 0
         ? { ...Object.fromEntries([...allTypesInRealm].map(t => [t, 0])), ...calcBreakdown(realmGames, name) }
         : { ...BASE_BREAKDOWN },
-      favMeeple: calcFavMeeple(realmGames, name),
+      ...(() => { const { meeple, count } = calcFavMeeple(realmGames, name); return { favMeeple: meeple, favMeepleCount: count }; })(),
     }));
 
     // Crown leader: best win rate — only meaningful with games
-    const byWinRate = [...allStats].sort((a, b) => b.winRate - a.winRate || b.wins - a.wins);
+    const byWinRate = [...allStats].sort((a, b) => b.winRate - a.winRate || b.wins - a.wins || b.netPtDiff - a.netPtDiff || b.winStreak - a.winStreak);
 
-    // Display order: most wins first; tiebreaker by win rate
-    const s = [...allStats].sort((a, b) => b.wins - a.wins || b.winRate - a.winRate);
+    // Display order: same ranking as crown so leader always appears first
+    const s = [...allStats].sort((a, b) => b.winRate - a.winRate || b.wins - a.wins || b.netPtDiff - a.netPtDiff || b.winStreak - a.winStreak);
 
-    return { sorted: s, leader: realmGames.length > 0 ? byWinRate[0]?.name : null };
+    let leaders = new Set();
+    if (realmGames.length > 0 && byWinRate[0]) {
+      const top = byWinRate[0];
+      byWinRate.forEach(p => {
+        if (p.winRate === top.winRate && p.wins === top.wins && p.netPtDiff === top.netPtDiff && p.winStreak === top.winStreak)
+          leaders.add(p.name);
+      });
+    }
+    return { sorted: s, leaders };
   }, [realmGames, currentRealm]);
 
   return (
@@ -434,6 +462,16 @@ export default function Stats({ games, realms = [], currentRealm = null, onRealm
         <div className="empty-state">Select a group to view statistics.</div>
       ) : (
         <>
+          {/* Lightbox overlay for game links clicked from stats */}
+          {selectedGame && (
+            <Lightbox
+              game={selectedGame}
+              games={realmGames}
+              onNavigate={setSelectedGame}
+              onClose={() => setSelectedGame(null)}
+            />
+          )}
+
           {/* Delete confirmation modal */}
           {confirmDelete && (
             <div className="realm-modal-overlay" onClick={() => setConfirmDelete(false)}>
@@ -457,16 +495,20 @@ export default function Stats({ games, realms = [], currentRealm = null, onRealm
             const activeTypes = SCORE_TYPE_ORDER.filter(t => gs.typePoints[t] > 0);
             const totalBreakdown = activeTypes.reduce((s, t) => s + gs.typePoints[t], 0);
             const EXP_TYPE = Object.fromEntries(DEFAULT_EXPANSIONS.map(e => [e.name, e.type]));
-            const { favFull, favMini } = (() => {
+            const { favFull, favFullCount, favMini, favMiniCount } = (() => {
               const full = {}, mini = {};
               for (const g of realmGames)
                 for (const exp of g.expansions || []) {
                   if (EXP_TYPE[exp] === 'full') full[exp] = (full[exp] || 0) + 1;
                   else if (EXP_TYPE[exp] === 'mini') mini[exp] = (mini[exp] || 0) + 1;
                 }
+              const fullSorted = Object.entries(full).sort((a, b) => b[1] - a[1]);
+              const miniSorted = Object.entries(mini).sort((a, b) => b[1] - a[1]);
               return {
-                favFull: Object.entries(full).sort((a, b) => b[1] - a[1])[0]?.[0] ?? '—',
-                favMini: Object.entries(mini).sort((a, b) => b[1] - a[1])[0]?.[0] ?? '—',
+                favFull: fullSorted[0]?.[0] ?? '—',
+                favFullCount: fullSorted[0]?.[1] ?? null,
+                favMini: miniSorted[0]?.[0] ?? '—',
+                favMiniCount: miniSorted[0]?.[1] ?? null,
               };
             })();
 
@@ -480,100 +522,154 @@ export default function Stats({ games, realms = [], currentRealm = null, onRealm
               <div className="stats-grid" style={{ gridTemplateColumns: sorted.length === 4 ? 'repeat(2, 1fr)' : sorted.length >= 3 ? 'repeat(3, 1fr)' : 'repeat(2, 1fr)', alignItems: 'start' }}>
 
                 {/* Wide combined card: group stats left, point totals right */}
-                <div className="tile-card" style={{ borderTop: '4px solid var(--warm-gold)', gridColumn: `span ${sorted.length >= 3 && sorted.length !== 4 ? 3 : 2}`, display: 'flex', gap: '1.5rem' }}>
+                <div className="tile-card" style={{ borderTop: '4px solid var(--warm-gold)', gridColumn: `span ${sorted.length >= 3 && sorted.length !== 4 ? 3 : 2}` }}>
 
-                  {/* Left: group info */}
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                      <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.9rem', flexWrap: 'wrap' }}>
-                        <span style={{ fontFamily: 'Cinzel, serif', fontSize: '1.1rem', fontWeight: 700, color: 'var(--earth-brown)' }}>
-                          {currentRealm.name}
-                        </span>
-                        <span style={{ fontFamily: 'Cinzel, serif', fontSize: '0.85rem' }}>
-                          {[...currentRealm.players]
-                            .sort((a, b) => (records[b.toLowerCase()]?.w || 0) - (records[a.toLowerCase()]?.w || 0))
-                            .map((name, i) => (
-                              <span key={name}>
-                                {i > 0 && <span style={{ color: 'var(--stone-gray)' }}> · </span>}
-                                <span style={{ color: 'var(--charcoal)' }}>{name}</span>
-                                {' '}
-                                <span style={{ color: 'var(--forest-green)', fontWeight: 600 }}>{records[name.toLowerCase()]?.w || 0}</span>
-                              </span>
-                            ))}
-                        </span>
+                  {/* Always-visible: name/records + point totals bar */}
+                  <div style={{ display: 'flex', gap: '1.5rem' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.15rem' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
+                          <span style={{ fontFamily: 'Cinzel, serif', fontSize: '1.1rem', fontWeight: 700, color: 'var(--earth-brown)' }}>
+                            {currentRealm.name}
+                          </span>
+                          <span style={{ fontFamily: 'Cinzel, serif', fontSize: '0.85rem' }}>
+                            {[...currentRealm.players]
+                              .sort((a, b) => (records[b.toLowerCase()]?.w || 0) - (records[a.toLowerCase()]?.w || 0))
+                              .map((name, i) => (
+                                <span key={name}>
+                                  {i > 0 && <span style={{ color: 'var(--stone-gray)' }}> · </span>}
+                                  <span style={{ color: 'var(--charcoal)' }}>{name}</span>
+                                  {' '}
+                                  <span style={{ color: 'var(--forest-green)', fontWeight: 600 }}>{records[name.toLowerCase()]?.w || 0}</span>
+                                </span>
+                              ))}
+                          </span>
+                        </div>
                       </div>
                     </div>
-                    {cardExpanded && (
-                      <>
-                        <div className="stat-divider" style={{ margin: '0.8rem 0' }} />
-                        {[['Games', realmGames.length, null], ['Farm Wins', gs.farmWins, null], ['Clutch Games', gs.clutchGames, null], ['Longest Game', longestText, gs.longestGameObj]].map(([label, val, gameObj]) => (
+
+                    <div style={{ width: '1px', background: 'var(--warm-gold)', opacity: 0.3, flexShrink: 0 }} />
+
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <span style={{ fontFamily: 'Cinzel, serif', fontSize: '0.7rem', letterSpacing: '0.1em', color: 'var(--stone-gray)' }}>POINT TOTALS</span>
+                        <span className="stat-value">{gs.totalPoints}</span>
+                      </div>
+                      <div
+                        ref={barRef}
+                        style={{ position: 'relative', margin: '0.5rem 0 0' }}
+                        onMouseLeave={() => setBarTooltip(null)}
+                      >
+                        <div style={{ display: 'flex', width: '100%', height: '10px', borderRadius: '4px', overflow: 'hidden' }}>
+                          {activeTypes.length === 0
+                            ? <div style={{ flex: 1, backgroundColor: 'var(--stone-gray)', opacity: 0.25 }} />
+                            : activeTypes.map(t => (
+                                <div
+                                  key={t}
+                                  style={{ flex: gs.typePoints[t] / totalBreakdown, backgroundColor: SCORE_TYPE_COLORS[t], cursor: 'default' }}
+                                  onMouseEnter={(e) => {
+                                    if (!barRef.current) return;
+                                    const segRect = e.currentTarget.getBoundingClientRect();
+                                    const containerRect = barRef.current.getBoundingClientRect();
+                                    setBarTooltip({
+                                      type: t,
+                                      value: gs.typePoints[t],
+                                      x: segRect.left + segRect.width / 2 - containerRect.left,
+                                      y: segRect.bottom - containerRect.top,
+                                    });
+                                  }}
+                                />
+                              ))
+                          }
+                        </div>
+                        {barTooltip && (
+                          <div style={{
+                            position: 'absolute',
+                            left: barTooltip.x,
+                            top: barTooltip.y,
+                            transform: 'translate(-50%, 6px)',
+                            background: 'var(--earth-brown)',
+                            color: 'var(--parchment)',
+                            padding: '0.3rem 0.55rem',
+                            borderRadius: '6px',
+                            zIndex: 100,
+                            whiteSpace: 'nowrap',
+                            pointerEvents: 'none',
+                            boxShadow: '0 3px 12px rgba(0,0,0,0.35)',
+                            textAlign: 'center',
+                          }}>
+                            <div style={{ fontFamily: "'Cinzel', serif", fontSize: '0.65rem', color: 'rgba(240,230,210,0.7)', marginBottom: '0.1rem' }}>
+                              {TYPE_LABELS[barTooltip.type] ?? barTooltip.type}
+                            </div>
+                            <div style={{ fontFamily: "'Cinzel', serif", fontWeight: 700, fontSize: '0.85rem' }}>
+                              {barTooltip.value}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Arrow stays here — between fixed and expanding content */}
+                  <button
+                    type="button"
+                    onClick={() => setCardExpanded(v => !v)}
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', background: 'none', border: 'none', cursor: 'pointer', padding: '0.25rem 0', color: 'var(--stone-gray)', fontSize: '0.65rem', fontFamily: 'Cinzel, serif', opacity: 0.6, marginTop: '0.4rem' }}
+                  >
+                    {cardExpanded ? '▲' : '▼'}
+                  </button>
+
+                  {/* Expanded content — below arrow, same two-column layout */}
+                  {cardExpanded && (
+                    <div style={{ display: 'flex', gap: '1.5rem', marginTop: '0.2rem' }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        {[
+                          ['Games', realmGames.length, null, null],
+                          ['Farm Wins', gs.farmWins, null, 'Games won in final scoring stage.'],
+                          ['Clutch Games', gs.clutchGames, null, 'Games where winning margin was less than 10%.'],
+                          ['Longest Game', longestText, gs.longestGameObj, null],
+                        ].map(([label, val, gameObj, info]) => (
                           <div key={label} className="stat-row" style={{ margin: 0 }}>
-                            <span className="stat-label" style={{ fontSize: '0.82rem' }}>{label}</span>
-                            {gameObj && onNavigateToGame
-                              ? <button type="button" onClick={() => onNavigateToGame(gameObj)} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'Cinzel, serif', fontSize: '0.82rem', fontWeight: 600, color: 'var(--charcoal)', textDecoration: 'underline dotted' }}>{val}</button>
-                              : <span className="stat-value" style={{ fontSize: '0.82rem' }}>{val}</span>
+                            <span className="stat-label">
+                              {label}
+                              {info && <StatInfo>{info}</StatInfo>}
+                            </span>
+                            {gameObj
+                              ? <button type="button" onClick={() => openGameLightbox(gameObj)} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'Cinzel, serif', fontWeight: 600, color: 'var(--charcoal)', textDecoration: 'underline dotted' }}>{val}</button>
+                              : <span className="stat-value">{val}</span>
                             }
                           </div>
                         ))}
                         <div style={{ marginTop: '0.1rem' }}>
-                          <span className="stat-label" style={{ fontSize: '0.82rem' }}>Favorite Expansion</span>
+                          <span className="stat-label">Favorite Expansion</span>
                           <div style={{ paddingLeft: '0.8rem', marginTop: '0.15rem', display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
-                            {[['Full', favFull], ['Mini', favMini]].map(([label, val]) => (
+                            {[['Full', favFull, favFullCount], ['Mini', favMini, favMiniCount]].map(([label, val, count]) => (
                               <div key={label} className="stat-row" style={{ margin: 0 }}>
-                                <span className="stat-label" style={{ fontSize: '0.78rem', color: 'var(--stone-gray)' }}>{label}</span>
-                                <span className="stat-value" style={{ fontSize: '0.78rem' }}>{val}</span>
+                                <span className="stat-label" style={{ color: 'var(--stone-gray)' }}>{label}</span>
+                                <ValInfo tip={count !== null ? `Played in ${count} ${count === 1 ? 'game' : 'games'}` : null}>
+                                  <span className="stat-value">{val}</span>
+                                </ValInfo>
                               </div>
                             ))}
                           </div>
                         </div>
-                      </>
-                    )}
-                  </div>
-
-                  {/* Vertical divider */}
-                  <div style={{ width: '1px', background: 'var(--warm-gold)', opacity: 0.3, flexShrink: 0 }} />
-
-                  {/* Right: point totals */}
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <span style={{ fontFamily: 'Cinzel, serif', fontSize: '0.7rem', letterSpacing: '0.1em', color: 'var(--stone-gray)' }}>POINT TOTALS</span>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <span className="stat-value" style={{ fontSize: '0.82rem' }}>{gs.totalPoints}</span>
-                        <button
-                          type="button"
-                          onClick={() => setCardExpanded(v => !v)}
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'Cinzel, serif', fontSize: '0.7rem', color: 'var(--stone-gray)', padding: 0 }}
-                        >
-                          {cardExpanded ? '▲' : '▼'}
-                        </button>
                       </div>
-                    </div>
-                    <div style={{ display: 'flex', width: '100%', height: '10px', borderRadius: '4px', overflow: 'hidden', margin: '0.5rem 0 0' }}>
-                      {activeTypes.length === 0
-                        ? <div style={{ flex: 1, backgroundColor: 'var(--stone-gray)', opacity: 0.25 }} />
-                        : activeTypes.map(t => (
-                            <div
-                              key={t}
-                              title={`${TYPE_LABELS[t] ?? t}: ${gs.typePoints[t]}`}
-                              style={{ flex: gs.typePoints[t] / totalBreakdown, backgroundColor: SCORE_TYPE_COLORS[t] }}
-                            />
-                          ))
-                      }
-                    </div>
-                    {cardExpanded && activeTypes.length > 0 && (
-                      <div style={{ marginTop: '0.8rem' }}>
-                        {activeTypes.map(t => (
+
+                      <div style={{ width: '1px', background: 'var(--warm-gold)', opacity: 0.3, flexShrink: 0 }} />
+
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        {activeTypes.length > 0 && activeTypes.map(t => (
                           <div key={t} className="stat-row" style={{ margin: 0 }}>
                             <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                               <span style={{ width: '8px', height: '8px', borderRadius: '2px', backgroundColor: SCORE_TYPE_COLORS[t], flexShrink: 0, display: 'inline-block' }} />
-                              <span className="stat-label" style={{ fontSize: '0.82rem' }}>{TYPE_LABELS[t] ?? t.charAt(0).toUpperCase() + t.slice(1)}</span>
+                              <span className="stat-label">{TYPE_LABELS[t] ?? t.charAt(0).toUpperCase() + t.slice(1)}</span>
                             </span>
-                            <span className="stat-value" style={{ fontSize: '0.82rem' }}>{gs.typePoints[t]}</span>
+                            <span className="stat-value">{gs.typePoints[t]}</span>
                           </div>
                         ))}
                       </div>
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Player cards */}
@@ -583,9 +679,10 @@ export default function Stats({ games, realms = [], currentRealm = null, onRealm
                     name={ps.name}
                     stats={ps}
                     favMeeple={ps.favMeeple}
+                    favMeepleCount={ps.favMeepleCount}
                     colorClass={PLAYER_COLOR_CLASSES[i % PLAYER_COLOR_CLASSES.length]}
-                    isLeader={ps.name === leader}
-                    onNavigateToGame={onNavigateToGame}
+                    isLeader={leaders.has(ps.name)}
+                    onNavigateToGame={openGameLightbox}
                   />
                 ))}
               </div>
