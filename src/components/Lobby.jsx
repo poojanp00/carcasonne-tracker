@@ -1,17 +1,8 @@
-/**
- * LOBBY — Party mode popup overlay (runner side)
- *
- * Shown over the board immediately after a party game begins.
- * Players scan the QR or navigate to /play and enter the code.
- * Shows live join status per roster member.
- * "Start Game" opens the projector window and dismisses this overlay.
- */
-
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import QRCode from 'react-qr-code';
 import {
-  getClaimsForSession,
-  subscribeClaims,
+  getSessionById,
+  subscribeSession,
   setPhase,
   unsubscribe,
 } from '../data/partySession';
@@ -25,29 +16,35 @@ const MEEPLE_IMGS = {
 
 const FALLBACK = Object.values(MEEPLE_IMGS)[0];
 
-export default function Lobby({ session, onStart, onClaimUpdate }) {
+export default function Lobby({ session, onStart, onCancel, onClaimUpdate }) {
   const { partySessionId, partyCode, players = [] } = session;
-  const [claims, setClaims] = useState([]);
-  const projectorWinRef = useRef(null);
+  const [roster, setRoster] = useState([]);
 
   const playUrl = `${window.location.origin}/play`;
 
-  // ── Subscribe to claim changes ────────────────────────────────────────────
+  // ── Load roster + subscribe to roster changes ─────────────────────────────
 
   useEffect(() => {
     if (!partySessionId) return;
 
     let active = true;
 
-    async function refresh() {
-      const fresh = await getClaimsForSession(partySessionId);
-      if (!active) return;
-      setClaims(fresh);
-      onClaimUpdate?.(fresh);
+    async function init() {
+      const s = await getSessionById(partySessionId);
+      if (!active || !s) return;
+      const r = s.roster || [];
+      setRoster(r);
+      onClaimUpdate?.(r);
     }
 
-    refresh();
-    const sub = subscribeClaims(partySessionId, refresh);
+    init();
+
+    const sub = subscribeSession(partySessionId, (updated) => {
+      if (!active) return;
+      const r = updated.roster || [];
+      setRoster(r);
+      onClaimUpdate?.(r);
+    });
 
     return () => {
       active = false;
@@ -58,23 +55,14 @@ export default function Lobby({ session, onStart, onClaimUpdate }) {
   // ── Derive join state ─────────────────────────────────────────────────────
 
   const joinedMap = {};
-  claims.forEach(c => { joinedMap[c.player_name.toLowerCase()] = c; });
+  roster.forEach(r => { joinedMap[r.name_lower || r.name.toLowerCase()] = r; });
 
-  const allJoined = players.length > 0 && players.every(p => joinedMap[p.toLowerCase()]);
+  const allJoined = players.length > 0 && players.every(p => joinedMap[p.toLowerCase()]?.claimed);
 
   // ── Start game ────────────────────────────────────────────────────────────
 
   async function handleStart() {
     await setPhase(partySessionId, 'active');
-
-    // Open projector window
-    const url = `${window.location.origin}${window.location.pathname}?projector=true`;
-    if (!projectorWinRef.current || projectorWinRef.current.closed) {
-      projectorWinRef.current = window.open(url, 'carcasonne-projector', 'width=1400,height=900,menubar=no,toolbar=no,location=no');
-    } else {
-      projectorWinRef.current.focus();
-    }
-
     onStart();
   }
 
@@ -86,13 +74,6 @@ export default function Lobby({ session, onStart, onClaimUpdate }) {
         {/* Header */}
         <div className="lobby-header">
           <h2 className="lobby-title">Carcasscore Party Mode!</h2>
-          <p className="lobby-instruction">
-            Display this screen where everyone can see it.
-          </p>
-          <p className="lobby-instruction" style={{ marginTop: '0.25rem' }}>
-            Each player must scan the QR code or navigate to{' '}
-            <strong>{playUrl}</strong> and enter the code below.
-          </p>
         </div>
 
         <div className="lobby-body">
@@ -119,16 +100,17 @@ export default function Lobby({ session, onStart, onClaimUpdate }) {
             <div className="lobby-roster-title">PLAYERS</div>
             <div className="lobby-roster-list">
               {players.map(name => {
-                const claim = joinedMap[name.toLowerCase()];
+                const slot = joinedMap[name.toLowerCase()];
+                const joined = slot?.claimed;
                 return (
-                  <div key={name} className={`lobby-roster-row${claim ? ' joined' : ''}`}>
+                  <div key={name} className={`lobby-roster-row${joined ? ' joined' : ''}`}>
                     <span className="lobby-roster-status">
-                      {claim ? '✓' : '⏳'}
+                      {joined ? '✓' : '⏳'}
                     </span>
-                    {claim?.meeple && (
+                    {slot?.meeple && (
                       <img
-                        src={MEEPLE_IMGS[claim.meeple] || FALLBACK}
-                        alt={claim.meeple}
+                        src={MEEPLE_IMGS[slot.meeple] || FALLBACK}
+                        alt={slot.meeple}
                         className="lobby-roster-meeple"
                       />
                     )}
@@ -145,17 +127,27 @@ export default function Lobby({ session, onStart, onClaimUpdate }) {
           <p className="lobby-footer-hint">
             {allJoined
               ? 'All players have joined — ready to start!'
-              : `Waiting for ${players.filter(p => !joinedMap[p.toLowerCase()]).length} more player(s)…`}
+              : `Waiting for ${players.filter(p => !joinedMap[p.toLowerCase()]?.claimed).length} more player(s)…`}
           </p>
-          <button
-            type="button"
-            className="btn"
-            style={{ width: '100%', justifyContent: 'center', fontSize: '1.05rem', padding: '0.75rem 1rem' }}
-            onClick={handleStart}
-            disabled={!allJoined}
-          >
-            Start Game
-          </button>
+          <div style={{ display: 'flex', gap: '0.7rem' }}>
+            <button
+              type="button"
+              className="btn btn-ghost"
+              style={{ justifyContent: 'center' }}
+              onClick={onCancel}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="btn"
+              style={{ flex: 1, justifyContent: 'center', fontSize: '1.05rem', padding: '0.75rem 1rem' }}
+              onClick={handleStart}
+              disabled={!allJoined}
+            >
+              Start Game
+            </button>
+          </div>
         </div>
       </div>
     </div>

@@ -28,6 +28,9 @@ import { DEFAULT_EXPANSIONS } from '../data/expansions';
  * Creates sorted list with human-readable labels for the selection interface.
  * Vite's glob import bundles these at build time for performance.
  */
+import partyModeImg from '../../images/game_modes/party_mode.png';
+import tableModeImg from '../../images/game_modes/table_mode.png';
+
 const MEEPLE_MODULES = import.meta.glob('../../images/meeples/*.png', { eager: true, import: 'default' });
 const MEEPLES = Object.entries(MEEPLE_MODULES).map(([path, img]) => {
   const key   = path.split('/').pop();             // Extract filename: '1red.png'
@@ -51,10 +54,13 @@ const FUN_MEEPLES = Object.entries(FUN_MODULES)
   }));
 
 export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeples, defaultExpansions, realms = [], currentRealm = null, onRealmChange, onRealmCreate, startAtRealmCreation = false, isGuest = false }) {
-  // Steps: 1=Realm creation, 2=Mode selection, 3=Meeples (table only), 4=Expansions
-  const initialStep = startAtRealmCreation || realms.length === 0 || !realm ? 1 : 2;
+  // Steps: 0=Group selection, 1=Realm creation, 2=Mode selection, 3=Meeples (table only), 4=Expansions
+  const initialStep = startAtRealmCreation ? 1 : realms.length === 0 ? 1 : 0;
   const [step, setStep] = useState(initialStep);
   const [mode, setMode] = useState('table'); // 'table' | 'party'
+  const [modeInfoOpen, setModeInfoOpen] = useState(new Set());
+  const [modeInfoHover, setModeInfoHover] = useState(null);
+  const [partyGuestHover, setPartyGuestHover] = useState(null); // { x, y } | null
 
   // Realm creation state (step 1)
   const [realmName, setRealmName] = useState('');
@@ -333,22 +339,76 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
     });
   };
 
-  const realmChips = realms.length > 0 && onRealmChange && (
-    <div style={{ marginBottom: '1.3rem' }}>
-      <div className="expansion-chips-carousel">
-        {realms.map(r => (
+
+  // ── Step 0: Group Selection ──
+  if (step === 0) {
+    return (
+      <div className="pregame-screen">
+        <div className="section-title">
+          <h2>Choose Group</h2>
+          <div className="section-title-line" />
+        </div>
+
+        <div className="expansion-chips-carousel" style={{ marginBottom: '1.2rem' }}>
+          {realms.map(r => (
+            <button
+              key={r.id}
+              type="button"
+              className={`expansion-chip${currentRealm?.id === r.id ? ' selected' : ''}`}
+              onClick={() => onRealmChange(r)}
+            >
+              {r.name}
+            </button>
+          ))}
+        </div>
+
+        {currentRealm && (
+          <div className="tile-card" style={{ marginBottom: '1.2rem' }}>
+            <div style={{ fontFamily: 'Cinzel, serif', fontSize: '0.78rem', fontWeight: 600, color: 'var(--stone-gray)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '0.8rem' }}>Players</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
+              {(currentRealm.players || []).map((p, i) => (
+                <div key={p} style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.75rem',
+                  padding: '0.55rem 0',
+                  borderBottom: i < (currentRealm.players.length - 1) ? '1px solid var(--border-light)' : 'none',
+                }}>
+                  <span style={{
+                    fontFamily: 'Cinzel, serif',
+                    fontSize: '0.7rem',
+                    color: 'var(--stone-gray)',
+                    opacity: 0.5,
+                    minWidth: '1rem',
+                    textAlign: 'right',
+                  }}>{i + 1}</span>
+                  <span style={{
+                    fontFamily: 'Cinzel, serif',
+                    fontSize: '1rem',
+                    fontWeight: 600,
+                    color: 'var(--earth-brown)',
+                    letterSpacing: '0.02em',
+                  }}>{p}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div style={{ display: 'flex', gap: '0.7rem', alignItems: 'center', justifyContent: 'space-between', marginTop: '0.5rem' }}>
+          <button type="button" className="btn btn-ghost" onClick={() => setStep(1)}>+ New Group</button>
           <button
-            key={r.id}
             type="button"
-            className={`expansion-chip${currentRealm?.id === r.id ? ' selected' : ''}`}
-            onClick={() => onRealmChange(r)}
+            className="btn"
+            disabled={!currentRealm}
+            onClick={() => setStep(2)}
           >
-            {r.name}
+            Next →
           </button>
-        ))}
+        </div>
       </div>
-    </div>
-  );
+    );
+  }
 
   // ── Step 1: Create Realm ──
   if (step === 1) {
@@ -423,7 +483,7 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
           )}
           <div style={{ display: 'flex', gap: '0.7rem', flexWrap: 'wrap', alignItems: 'center', justifyContent: realms.length > 0 ? 'space-between' : 'flex-end' }}>
             {realms.length > 0 && (
-              <button type="button" className="btn btn-ghost" onClick={() => setStep(2)}>← Back</button>
+              <button type="button" className="btn btn-ghost" onClick={() => setStep(0)}>← Back</button>
             )}
             <button type="submit" className="btn">Next →</button>
           </div>
@@ -447,28 +507,54 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
             className={`mode-card${mode === 'table' ? ' selected' : ''}`}
             onClick={() => setMode('table')}
           >
-            <div className="mode-card-icon">🎲</div>
-            <div className="mode-card-title">Table Mode</div>
-            <div className="mode-card-desc">
-              One device tracks all scores. Everyone plays at the table together.
+            <div className="mode-card-icon"><img src={tableModeImg} alt="Table Mode" style={{ transform: 'scale(1.18)' }} /></div>
+            <div className="mode-card-title">
+              Table Mode
+              <span
+                className="mode-card-info-icon"
+                onClick={e => { e.stopPropagation(); setModeInfoOpen(prev => { const s = new Set(prev); s.has('table') ? s.delete('table') : s.add('table'); return s; }); }}
+                onMouseEnter={() => setModeInfoHover('table')}
+                onMouseLeave={() => setModeInfoHover(null)}
+              >ⓘ</span>
             </div>
+            {(modeInfoOpen.has('table') || modeInfoHover === 'table') && (
+              <div className="mode-card-desc">
+                One player acts as the host, recording scores and managing the game from a single device.
+              </div>
+            )}
           </button>
 
-          <button
-            type="button"
-            className={`mode-card${mode === 'party' ? ' selected' : ''}`}
-            onClick={() => setMode('party')}
+          <div
+            style={{ position: 'relative' }}
+            onMouseMove={e => setPartyGuestHover({ x: e.clientX, y: e.clientY })}
+            onMouseLeave={() => setPartyGuestHover(null)}
           >
-            <div className="mode-card-icon">📱</div>
-            <div className="mode-card-title">Party Mode</div>
-            <div className="mode-card-desc">
-              Each player inputs their own scores from their phone. No shared device needed.
-            </div>
-          </button>
+            <button
+              type="button"
+              className="mode-card"
+              disabled
+              style={{ opacity: 0.45 }}
+            >
+              <div className="mode-card-icon"><img src={partyModeImg} alt="Party Mode" /></div>
+              <div className="mode-card-title">Party Mode</div>
+            </button>
+            {partyGuestHover && (
+              <div style={{
+                position: 'fixed', left: partyGuestHover.x + 12, top: partyGuestHover.y + 12,
+                background: 'var(--earth-brown)', color: 'var(--parchment)',
+                padding: '0.45rem 0.75rem', borderRadius: '8px', zIndex: 9999,
+                whiteSpace: 'nowrap', boxShadow: '0 4px 14px rgba(0,0,0,0.35)',
+                fontFamily: 'Crimson Text, serif', fontSize: '0.9rem', fontStyle: 'italic',
+                pointerEvents: 'none',
+              }}>
+                Under development — check back later!
+              </div>
+            )}
+          </div>
         </div>
 
         <div style={{ display: 'flex', gap: '0.7rem', alignItems: 'center', justifyContent: 'space-between', marginTop: '1.4rem' }}>
-          <button type="button" className="btn btn-ghost" onClick={() => setStep(1)}>← Back</button>
+          <button type="button" className="btn btn-ghost" onClick={() => setStep(0)}>← Back</button>
           <button
             type="button"
             className="btn"
@@ -492,11 +578,14 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
     return (
       <div className="pregame-screen">
         <div className="section-title">
-          <h2>Choose Your Meeples</h2>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+            <h2>Choose Your Meeples</h2>
+            <span className="game-count">
+              {mode === 'party' ? 'Party Mode' : 'Table Mode'}
+            </span>
+          </div>
           <div className="section-title-line" />
         </div>
-
-        {realmChips}
 
         {activePlayers.length === 0 ? (
           <div className="tile-card" style={{ marginBottom: '1.4rem', textAlign: 'center' }}>
@@ -562,16 +651,18 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
   return (
     <div className="pregame-screen">
       <div className="section-title">
-        <h2>Expansions in Play</h2>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+          <h2>Expansions in Play</h2>
+          <span className="game-count">
+            {mode === 'party' ? 'Party Mode' : 'Table Mode'}
+          </span>
+        </div>
         <div className="section-title-line" />
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.4rem', marginBottom: '1.4rem' }}>
         {/* Expansions Selection */}
         <div className="tile-card">
-          <div style={{ fontSize: '0.7rem', fontFamily: 'Cinzel, serif', letterSpacing: '0.1em', color: 'var(--stone-gray)', marginBottom: '0.8rem' }}>
-            SELECT EXPANSIONS
-          </div>
           {ownedExpansions.length === 0 ? (
             <p className="section-intro">No expansions owned — base game only.</p>
           ) : (() => {
@@ -580,7 +671,7 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
             const mini = ownedExpansions.filter(n => categoryOf[n] === 'mini' || categoryOf[n] === 'base_mini');
             const renderGroup = (label, names) => names.length === 0 ? null : (
               <div style={{ marginBottom: '1rem' }}>
-                <div style={{ fontSize: '0.65rem', fontFamily: 'Cinzel, serif', letterSpacing: '0.08em', color: 'var(--stone-gray)', opacity: 0.7, marginTop: '0.5rem', marginBottom: '0.6rem' }}>
+                <div style={{ fontSize: '0.8rem', fontFamily: 'Cinzel, serif', fontWeight: 600, letterSpacing: '0.06em', color: 'var(--earth-brown)', marginBottom: '0.6rem' }}>
                   {label}
                 </div>
                 <div className="expansion-chips">
@@ -599,8 +690,8 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
             );
             return (
               <>
-                {renderGroup('FULL EXPANSIONS', full)}
-                {renderGroup('MINI EXPANSIONS', mini)}
+                {renderGroup('Full Expansions', full)}
+                {renderGroup('Mini Expansions', mini)}
               </>
             );
           })()}
@@ -694,7 +785,7 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
       <div style={{ display: 'flex', gap: '0.7rem', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
         <button type="button" className="btn btn-ghost" onClick={() => setStep(mode === 'party' ? 2 : 3)}>← Back</button>
         <button type="button" className="btn" onClick={handleStart}>
-          {mode === 'party' ? 'Begin (Party)' : 'Begin'}
+          {mode === 'party' ? 'Begin' : 'Begin'}
         </button>
       </div>
     </div>

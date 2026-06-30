@@ -574,7 +574,7 @@ export default function Stats({ games, realms = [], currentRealm = null, onRealm
                         style={{ position: 'relative', margin: '0.5rem 0 0' }}
                         onMouseLeave={() => setBarTooltip(null)}
                       >
-                        <div style={{ display: 'flex', width: '100%', height: '10px', borderRadius: '4px', overflow: 'hidden' }}>
+                        <div style={{ display: 'flex', width: '100%', height: '16px', borderRadius: '6px', overflow: 'hidden' }}>
                           {orderedBarTypes.length === 0
                             ? <div style={{ flex: 1, backgroundColor: 'var(--stone-gray)', opacity: 0.25 }} />
                             : orderedBarTypes.map(t => (

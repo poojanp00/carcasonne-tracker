@@ -17,7 +17,7 @@ import { deleteAccount } from './data/storage';
 import { DEFAULT_EXPANSIONS } from './data/expansions';
 import { TABS, APP_CONFIG, EXPANSION_TYPES, PINNED_EXPANSIONS } from './constants';
 import { normalizeMeeples } from './utils/formatters';
-import { createSession } from './data/partySession';
+import { createSession, endSession, deleteSession } from './data/partySession';
 import crownImg from '../images/icons/crown.png';
 
 
@@ -149,6 +149,11 @@ export default function App() {
 
   const handleGameStart = useCallback(async (setup) => {
     const extraTypes = (setup.expansions || []).flatMap(e => EXPANSION_TYPES[e] || []);
+
+    // Delete any lingering party session before starting fresh
+    const prevSessionId = session?.partySessionId;
+    if (prevSessionId) { try { await deleteSession(prevSessionId); } catch {} }
+
     await resetBoard(userId, setup.players, extraTypes, isGuest);
 
     if (setup.mode === 'party' && userId && !isGuest) {
@@ -168,7 +173,7 @@ export default function App() {
     }
 
     setGameKey(k => k + 1);
-  }, [userId, isGuest]);
+  }, [userId, isGuest, session?.partySessionId]);
 
   const handleBoardReset = useCallback(() => {
     setSession(prev => ({
@@ -182,9 +187,19 @@ export default function App() {
     setSession(prev => ({ ...prev, partyStarted: true }));
   }, []);
 
-  const handleClaimUpdate = useCallback((claims) => {
+  const handleLobbyCancel = useCallback(async () => {
+    const id = session?.partySessionId;
+    if (id) { try { await deleteSession(id); } catch {} }
+    setSession(prev => ({
+      realm: prev.realm,
+      lastMeeples:    normalizeMeeples(prev.meeples),
+      lastExpansions: prev.expansions,
+    }));
+  }, [session?.partySessionId]);
+
+  const handleClaimUpdate = useCallback((roster) => {
     const meepleMap = {};
-    claims.forEach(c => { if (c.meeple) meepleMap[c.player_name] = c.meeple; });
+    roster.forEach(r => { if (r.meeple) meepleMap[r.name] = r.meeple; });
     setSession(prev => ({ ...prev, meeples: { ...(prev.meeples || {}), ...meepleMap } }));
   }, []);
 
@@ -224,8 +239,8 @@ export default function App() {
     setTab('board');
   }, [session, resetBoard, userId, isGuest]);
 
-  const handleDelete = useCallback((id) => {
-    appOperations.deleteGame(id);
+  const handleDelete = useCallback(async (id) => {
+    await appOperations.deleteGame(id);
     showToast('Game removed.');
   }, [appOperations.deleteGame, showToast]);
 
@@ -362,6 +377,7 @@ export default function App() {
                           <Lobby
                             session={session}
                             onStart={handleLobbyStart}
+                            onCancel={handleLobbyCancel}
                             onClaimUpdate={handleClaimUpdate}
                           />
                         )}

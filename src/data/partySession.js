@@ -29,7 +29,13 @@ export async function createSession({ runnerUserId, roster, expansions }) {
       code,
       runner_user_id: runnerUserId,
       phase: 'lobby',
-      roster: roster.map(name => ({ name })),
+      roster: roster.map(name => ({
+        name,
+        name_lower: name.toLowerCase(),
+        meeple:    null,
+        device_id: null,
+        claimed:   false,
+      })),
       expansions,
     })
     .select('id, code')
@@ -46,10 +52,20 @@ export async function setPhase(sessionId, phase) {
     .eq('id', sessionId);
 }
 
-export async function endSession(sessionId) {
+export async function endSession(sessionId, finalData = null) {
+  const patch = { phase: 'ended', ended_at: new Date().toISOString() };
+  if (finalData) patch.final_data = finalData;
   return supabase
     .from('party_sessions')
-    .update({ phase: 'ended', ended_at: new Date().toISOString() })
+    .update(patch)
+    .eq('id', sessionId);
+}
+
+export async function deleteSession(sessionId) {
+  if (!sessionId) return;
+  return supabase
+    .from('party_sessions')
+    .delete()
     .eq('id', sessionId);
 }
 
@@ -66,50 +82,40 @@ export async function getSessionByCode(code) {
   return data || null;
 }
 
-// ── Claims ───────────────────────────────────────────────────────────────────
-
-export async function getClaimsForSession(sessionId) {
+export async function getSessionById(id) {
   const { data } = await supabase
-    .from('session_claims')
+    .from('party_sessions')
     .select('*')
-    .eq('session_id', sessionId);
-  return data || [];
-}
-
-export async function claimName(sessionId, playerName, deviceId, meeple) {
-  // Check if name already claimed
-  const { data: existing } = await supabase
-    .from('session_claims')
-    .select('id, device_id')
-    .eq('session_id', sessionId)
-    .ilike('player_name', playerName.trim())
+    .eq('id', id)
     .maybeSingle();
 
-  if (existing) {
-    if (existing.device_id === deviceId) {
-      // Same device rejoining — update meeple
-      await supabase
-        .from('session_claims')
-        .update({ meeple, last_seen_at: new Date().toISOString() })
-        .eq('id', existing.id);
-      return { ok: true, claimId: existing.id };
-    }
-    return { ok: false, reason: 'taken' };
-  }
+  return data || null;
+}
 
+// ── Roster-based claims (via SECURITY DEFINER RPCs) ──────────────────────────
+
+export async function claimRosterSlot(sessionId, nameLower, deviceId, meeple) {
   const { data, error } = await supabase
-    .from('session_claims')
-    .insert({ session_id: sessionId, player_name: playerName.trim(), meeple, device_id: deviceId })
-    .select('id')
-    .single();
-
+    .rpc('claim_roster_slot', {
+      p_session_id: sessionId,
+      p_name_lower: nameLower,
+      p_device_id:  deviceId,
+      p_meeple:     meeple,
+    });
   if (error) return { ok: false, reason: 'error' };
-  return { ok: true, claimId: data.id };
+  return data; // { ok, reason? }
+}
+
+export async function unclaimRosterSlot(sessionId, nameLower) {
+  await supabase.rpc('unclaim_roster_slot', {
+    p_session_id: sessionId,
+    p_name_lower: nameLower,
+  });
 }
 
 // ── Score events ─────────────────────────────────────────────────────────────
 
-export async function submitEvent({ sessionId, playerName, category, delta }) {
+export async function submitEvent({ sessionId, playerName, category, delta, source = 'phone' }) {
   const { error } = await supabase
     .from('score_events')
     .insert({
@@ -117,6 +123,7 @@ export async function submitEvent({ sessionId, playerName, category, delta }) {
       player_name: playerName,
       category,
       delta,
+      source,
       submitted_at: new Date().toISOString(),
     });
   if (error) throw error;
@@ -143,18 +150,6 @@ export function subscribeSession(sessionId, cb) {
       table: 'party_sessions',
       filter: `id=eq.${sessionId}`,
     }, payload => cb(payload.new))
-    .subscribe();
-}
-
-export function subscribeClaims(sessionId, cb) {
-  return supabase
-    .channel(`party-claims-${sessionId}`)
-    .on('postgres_changes', {
-      event: '*',
-      schema: 'public',
-      table: 'session_claims',
-      filter: `session_id=eq.${sessionId}`,
-    }, () => cb()) // caller re-fetches claims on any change
     .subscribe();
 }
 

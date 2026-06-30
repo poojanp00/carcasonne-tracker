@@ -144,6 +144,11 @@ export default function Lightbox({ game, games = [], onNavigate, onClose, onDele
               ...displayTypes.filter(t => !TYPE_TO_GROUP[t]),
             ];
 
+            const maxTotal = Math.max(1, ...sorted.map(p => {
+              const bd = p.breakdown || {};
+              return displayTypes.reduce((s, t) => s + (bd[t] || 0), 0);
+            }));
+
             return (
               <div style={{ marginBottom: '1.5rem', marginTop: '1.2rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.2rem' }}>
@@ -172,7 +177,8 @@ export default function Lightbox({ game, games = [], onNavigate, onClose, onDele
                         <span style={{ fontFamily: 'Cinzel, serif', fontSize: '0.72rem', color: topPlayers.includes(p.name) ? 'var(--forest-green)' : 'var(--stone-gray)', fontWeight: topPlayers.includes(p.name) ? 700 : 400, minWidth: '64px', textAlign: 'right', flexShrink: 0 }}>
                           {p.name}
                         </span>
-                        <div style={{ flex: 1, display: 'flex', height: '10px', borderRadius: '4px', overflow: 'hidden' }}>
+                        <div style={{ flex: 1, height: '16px' }}>
+                          <div style={{ width: `${(total / maxTotal) * 100}%`, height: '16px', borderRadius: '6px', overflow: 'hidden', display: 'flex' }}>
                           {total === 0
                             ? <div style={{ flex: 1, backgroundColor: 'var(--stone-gray)', opacity: 0.2 }} />
                             : orderedTypes.map(t => {
@@ -201,6 +207,7 @@ export default function Lightbox({ game, games = [], onNavigate, onClose, onDele
                                 );
                               })
                           }
+                          </div>
                         </div>
                         <span style={{ fontFamily: 'Cinzel, serif', fontSize: '0.72rem', color: 'var(--stone-gray)', minWidth: '24px', flexShrink: 0 }}>
                           {p.score}
@@ -315,7 +322,7 @@ export default function Lightbox({ game, games = [], onNavigate, onClose, onDele
             {onDeleteRequest && (
               <button
                 className="btn btn-sm"
-                onClick={() => { onClose(); onDeleteRequest(); }}
+                onClick={() => onDeleteRequest()}
                 style={{ background: 'var(--deep-red)', borderColor: 'var(--deep-red)', color: '#fff' }}
               >
                 Delete
