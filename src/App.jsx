@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect } from 'react';
 import PostGameForm  from './components/PostGameForm';
 import Logbook       from './components/Logbook';
 import Statistics    from './components/Statistics';
-import Collection    from './components/Collection';
+import Collection, { GUEST_ALLOWED_MINIS } from './components/Collection';
 import Board         from './components/Board';
 import Lobby         from './components/Lobby';
 import RealmPicker   from './components/RealmPicker';
@@ -66,11 +66,15 @@ export default function App() {
   // Guest mode state
   const [guestRealms,   setGuestRealms]   = useState([]);
   const [showDemoData,  setShowDemoData]  = useState(false);
+  const [guestExpansionOverrides, setGuestExpansionOverrides] = useState({});
 
   // Unified data - guest mode provides default data, user mode uses database
   const appData = {
     games: isGuest ? [] : games,
-    expansions: isGuest ? DEFAULT_EXPANSIONS.map(exp => ({ ...exp, owned: exp.complete })) : expansions,
+    expansions: isGuest ? DEFAULT_EXPANSIONS.map(exp => {
+      const defaultOwned = exp.type === 'mini' && exp.complete;
+      return { ...exp, owned: guestExpansionOverrides[exp.name] ?? defaultOwned };
+    }) : expansions,
     realms: isGuest ? guestRealms : realms,
     loading: isGuest ? false : loading
   };
@@ -79,7 +83,10 @@ export default function App() {
   const appOperations = {
     addGame: isGuest ? () => Promise.resolve('guest-game-id') : addGame,
     deleteGame: isGuest ? () => {} : deleteGame,
-    toggleExpansion: isGuest ? () => {} : toggleExpansion,
+    toggleExpansion: isGuest ? (name) => {
+      if (!GUEST_ALLOWED_MINIS.has(name)) return;
+      setGuestExpansionOverrides(prev => ({ ...prev, [name]: !(prev[name] ?? true) }));
+    } : toggleExpansion,
     addRealm: isGuest ? (data) => {
       const guestRealm = { 
         id: `guest-realm-${Date.now()}`, 
@@ -100,6 +107,7 @@ export default function App() {
   useEffect(() => {
     if (!isGuest) {
       setGuestRealms([]);
+      setGuestExpansionOverrides({});
       if (session && session.realm?.id?.includes('guest-realm')) {
         setSession(null);
       }
@@ -208,6 +216,7 @@ export default function App() {
   const handleFinishGame = useCallback((finalScores, scoreBreakdown, farmWin, gameDuration, maxFeatures) => {
     setSession(prev => ({ ...prev, finalScores, scoreBreakdown, farmWin, gameDuration, maxFeatures }));
     setTab('board');
+    window.scrollTo(0, 0);
   }, []);
 
   const handleRecordGame = useCallback((gameData) => {
