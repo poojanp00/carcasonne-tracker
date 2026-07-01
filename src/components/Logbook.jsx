@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import Lightbox from './Lightbox';
 import { formatDate } from '../utils/formatters';
 
-export default function GameHistory({ games, realms = [], currentRealm = null, onRealmChange, onDelete, isGuest = false, openGame = null, onOpenGameClear }) {
+export default function GameHistory({ games, realms = [], currentRealm = null, onRealmChange, onDelete, isGuest = false, showDemoData = false, onToggleDemoData = null, openGame = null, onOpenGameClear }) {
   const [selectedGame,    setSelectedGame]    = useState(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
 
@@ -62,10 +62,14 @@ export default function GameHistory({ games, realms = [], currentRealm = null, o
         <h2>Logbook</h2>
         <div className="section-title-line" />
         {currentRealm && <span className="game-count">{realmGames.length} {realmGames.length === 1 ? 'game' : 'games'}</span>}
+        {onToggleDemoData && (
+          <button type="button" className={`expansion-chip${showDemoData ? ' selected' : ''}`} onClick={onToggleDemoData} style={{ fontSize: '0.72rem', marginLeft: '0.5rem' }}>
+            {showDemoData ? '✦ Demo · click to exit' : 'Demo'}
+          </button>
+        )}
       </div>
 
-      {/* Guest mode - show blank state */}
-      {isGuest ? (
+      {isGuest && !showDemoData ? (
         <div className="empty-state">
           Sign in to access logbook and save your progress.
         </div>

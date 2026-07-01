@@ -244,6 +244,7 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
       laps:        Object.fromEntries(players.map(p => [p, 0])),
       scoreTotals: Object.fromEntries(players.map(p => [p, { road: 0, city: 0, monastery: 0, field: 0 }])),
       goodsTokens: Object.fromEntries(players.map(p => [p, { wine: 0, grain: 0, cloth: 0 }])),
+      maxFeatures: {},
     };
 
     for (let i = 0; i <= board.moveIndex; i++) {
@@ -267,6 +268,21 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
       rebuilt.positions[move.player]                     = newPos;
       rebuilt.laps[move.player]                          = newLaps;
       rebuilt.scoreTotals[move.player][move.type]        = (rebuilt.scoreTotals[move.player][move.type] || 0) + move.amount;
+
+      // Rebuild maxFeatures: skip monastery/abbot from generic path
+      if (move.amount > 0 && move.type !== 'monastery' && move.type !== 'abbot') {
+        const cur = rebuilt.maxFeatures[move.type] || { amount: 0, player: null };
+        if (move.amount > cur.amount) rebuilt.maxFeatures[move.type] = { amount: move.amount, player: move.player };
+      }
+      // Rebuild monastery completion count
+      if ((move.type === 'monastery' || move.type === 'abbot') && move.amount === 9) {
+        const counts = rebuilt.maxFeatures._monasteryCounts || {};
+        counts[move.player] = (counts[move.player] || 0) + 1;
+        rebuilt.maxFeatures._monasteryCounts = counts;
+        let topCount = 0, topPlayer = null;
+        Object.entries(counts).forEach(([p, c]) => { if (c > topCount) { topCount = c; topPlayer = p; } });
+        rebuilt.maxFeatures.monastery = { amount: topCount, player: topPlayer };
+      }
     }
 
     setBoard(rebuilt);
@@ -310,9 +326,17 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
       const newLaps = curLaps + (lapInc > 0 ? lapInc : 0);
       const prevBreakdown = prev.scoreTotals?.[player] || {};
       const maxFeatures = { ...prev.maxFeatures };
-      if (delta > 0) {
+      if (delta > 0 && type !== 'monastery' && type !== 'abbot') {
         const currentMax = maxFeatures[type] || { amount: 0, player: null };
         if (delta > currentMax.amount) maxFeatures[type] = { amount: delta, player };
+      }
+      if ((type === 'monastery' || type === 'abbot') && delta === 9) {
+        const counts = { ...(maxFeatures._monasteryCounts || {}) };
+        counts[player] = (counts[player] || 0) + 1;
+        maxFeatures._monasteryCounts = counts;
+        let topCount = 0, topPlayer = null;
+        Object.entries(counts).forEach(([p, c]) => { if (c > topCount) { topCount = c; topPlayer = p; } });
+        maxFeatures.monastery = { amount: topCount, player: topPlayer };
       }
       return {
         ...prev,
@@ -516,12 +540,22 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
       const prevBreakdown = b.scoreTotals?.[player] || { road: 0, city: 0, monastery: 0, field: 0 };
       const maxFeatures = { ...b.maxFeatures };
 
-      // Check if this feature is the largest of its type
-      if (delta > 0) {
+      // Check if this feature is the largest of its type (monastery/abbot tracked separately by count)
+      if (delta > 0 && type !== 'monastery' && type !== 'abbot') {
         const currentMaxFeature = maxFeatures[type] || { amount: 0, player: null };
         if (delta > currentMaxFeature.amount) {
           maxFeatures[type] = { amount: delta, player };
         }
+      }
+
+      // Count full monastery completions (monastery or abbot scoring exactly 9)
+      if ((type === 'monastery' || type === 'abbot') && delta === 9) {
+        const counts = { ...(maxFeatures._monasteryCounts || {}) };
+        counts[player] = (counts[player] || 0) + 1;
+        maxFeatures._monasteryCounts = counts;
+        let topCount = 0, topPlayer = null;
+        Object.entries(counts).forEach(([p, c]) => { if (c > topCount) { topCount = c; topPlayer = p; } });
+        maxFeatures.monastery = { amount: topCount, player: topPlayer };
       }
 
       return {
@@ -604,10 +638,29 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
     const updatedBoard = { ...board, endTime };
     saveBoard(updatedBoard, userId, isGuest);
 
+    // Compute Master Merchant: player who earned points in all 3 goods (tied-for-first counts)
+    const goodsTokens = board.goodsTokens || {};
+    const goodsWinnerSets = ['wine', 'grain', 'cloth'].map(good => {
+      const max = Math.max(...players.map(p => goodsTokens[p]?.[good] || 0));
+      if (max === 0) return new Set();
+      return new Set(players.filter(p => (goodsTokens[p]?.[good] || 0) >= max));
+    });
+    const merchantCandidates = players.filter(p => goodsWinnerSets.every(s => s.has(p)));
+    const finalMaxFeatures = { ...board.maxFeatures };
+    if (merchantCandidates.length > 0) {
+      const merchant = merchantCandidates.reduce((best, p) => {
+        const tot = ['wine', 'grain', 'cloth'].reduce((s, g) => s + (goodsTokens[p]?.[g] || 0), 0);
+        const bestTot = ['wine', 'grain', 'cloth'].reduce((s, g) => s + (goodsTokens[best]?.[g] || 0), 0);
+        return tot > bestTot ? p : best;
+      });
+      const total = ['wine', 'grain', 'cloth'].reduce((s, g) => s + (goodsTokens[merchant]?.[g] || 0), 0);
+      finalMaxFeatures.bestTrader = { amount: total, player: merchant };
+    }
+
     if (session?.partySessionId) endSession(session.partySessionId, {
       finalScores,
       scoreBreakdown,
-      maxFeatures: board.maxFeatures,
+      maxFeatures: finalMaxFeatures,
       players,
       meeples: session.meeples || {},
       expansions: session.expansions || [],
@@ -616,7 +669,7 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
     });
     boardPopoutChRef.current?.postMessage({ type: 'GAME_OVER' });
     resetBoard(userId, players, [], isGuest);
-    onFinish(finalScores, scoreBreakdown, autoFarmWin, gameDuration, board.maxFeatures);
+    onFinish(finalScores, scoreBreakdown, autoFarmWin, gameDuration, finalMaxFeatures);
   }
 
   function applyHarvestBonuses() {

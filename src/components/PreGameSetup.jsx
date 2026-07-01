@@ -83,31 +83,31 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
 
   const handleCreateRealm = async (e) => {
     e.preventDefault();
-    if (realms.length >= MAX_REALMS) {
+    if (!isGuest && realms.length >= MAX_REALMS) {
       setNameError(`Group limit reached. Delete an existing group to create a new one.`);
       return;
     }
-    
+
     // For guests and users: use defaults for empty player names
     const names = playerNames.map((name, i) => {
       const trimmed = name.trim();
       return trimmed || `Player ${i + 1}`;
     });
-    
+
     // For guests: auto-name realm "Guest"
     // For users: require realm name
     const finalRealmName = isGuest ? 'Guest' : realmName.trim();
-    
+
     if (!isGuest && !finalRealmName) return;
     if (names.length === 0) return;
-    
+
     const lower = names.map(n => n.toLowerCase());
     if (new Set(lower).size !== lower.length) {
       setNameError('Player names must be unique.');
       return;
     }
-    
-    if (realms.some(r => r.name.toLowerCase() === finalRealmName.toLowerCase())) {
+
+    if (!isGuest && realms.some(r => r.name.toLowerCase() === finalRealmName.toLowerCase())) {
       setNameError('A group with this name already exists.');
       return;
     }

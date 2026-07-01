@@ -632,11 +632,6 @@ h3 { font-size: 1.15rem; font-weight: 600; }
   width: 52px;
   height: auto;
   filter: drop-shadow(0 1px 2px rgba(0,0,0,0.25));
-  animation: crownFloat 3s ease-in-out infinite;
-}
-@keyframes crownFloat {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-3px); }
 }
 
 .player-card-name {
@@ -1287,8 +1282,8 @@ input[type="file"] { display: none; }
 
 .landing-hero {
   text-align: center;
-  padding: 0 1rem 0.8rem;
-  max-width: 600px;
+  padding: 1.5rem 1rem 1.5rem;
+  max-width: 860px;
   margin: 0 auto;
 }
 
@@ -1327,7 +1322,7 @@ input[type="file"] { display: none; }
 .landing-divider {
   height: 2px;
   background: linear-gradient(to right, transparent, var(--warm-gold), transparent);
-  margin: 0 auto 2.5rem;
+  margin: 2rem auto 4rem;
   max-width: 480px;
 }
 
@@ -1692,7 +1687,6 @@ input[type="file"] { display: none; }
   height: 26px;
   width: auto;
   filter: drop-shadow(0 2px 6px rgba(0,0,0,0.35));
-  animation: crownFloat 3s ease-in-out infinite;
   flex-shrink: 0;
 }
 
@@ -1700,7 +1694,6 @@ input[type="file"] { display: none; }
   height: 17px;
   width: auto;
   filter: drop-shadow(0 2px 6px rgba(0,0,0,0.35));
-  animation: crownFloat 3s ease-in-out infinite;
   flex-shrink: 0;
 }
 
@@ -2365,3 +2358,10 @@ input[type="file"] { display: none; }
   color: var(--stone-gray);
   margin-bottom: 0.2rem;
 }
+
+/* ── Game Highlights cards ── */
+@keyframes hl-pop {
+  from { opacity: 0; transform: translateY(5px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.hl-card { animation: hl-pop 0.32s ease both; }

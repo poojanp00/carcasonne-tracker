@@ -118,13 +118,15 @@ export async function getGames() {
   return (data || []).map(g => {
     // Transform database achievement columns back to UI format
     const achievements = {};
-    if (g.longest_road) achievements.longestRoad = g.longest_road;
-    if (g.largest_city) achievements.largestCity = g.largest_city;
-    if (g.largest_field) achievements.largestField = g.largest_field;
-    if (g.longest_inn) achievements.longestInn = g.longest_inn;
+    if (g.longest_road)    achievements.longestRoad    = g.longest_road;
+    if (g.largest_city)    achievements.largestCity    = g.largest_city;
+    if (g.largest_field)   achievements.largestField   = g.largest_field;
+    if (g.longest_inn)     achievements.longestInn     = g.longest_inn;
     if (g.largest_cathedral) achievements.largestCathedral = g.largest_cathedral;
-    if (g.biggest_pig) achievements.biggestPig = g.biggest_pig;
-    if (g.largest_barn) achievements.largestBarn = g.largest_barn;
+    if (g.biggest_pig)     achievements.biggestPig     = g.biggest_pig;
+    if (g.largest_barn)    achievements.largestBarn    = g.largest_barn;
+    if (g.most_monastery)  achievements.mostMonastery  = g.most_monastery;
+    if (g.best_trader)     achievements.bestTrader     = g.best_trader;
 
     return {
       id:            g.id,
@@ -167,13 +169,15 @@ export async function insertGame(game) {
     clutch_win:       game.clutchWin  || false, // Victory in close game
     farm_win:         game.farmWin    || false, // Victory via farm dominance
     duration:         game.gameDuration || 0, // Game duration in milliseconds
-    longest_road:     maxFeatures.road        || null,
-    largest_city:     maxFeatures.city        || null,
-    largest_field:    maxFeatures.field       || null,
-    longest_inn:      maxFeatures.inn         || null,
-    largest_cathedral: maxFeatures.cathedral  || null,
-    biggest_pig:      maxFeatures.pig         || null,
-    largest_barn:     maxFeatures.barn        || null,
+    longest_road:      maxFeatures.road        || null,
+    largest_city:      maxFeatures.city        || null,
+    largest_field:     maxFeatures.field       || null,
+    longest_inn:       maxFeatures.inn         || null,
+    largest_cathedral: maxFeatures.cathedral   || null,
+    biggest_pig:       maxFeatures.pig         || null,
+    largest_barn:      maxFeatures.barn        || null,
+    most_monastery:    maxFeatures.monastery   || null,
+    best_trader:       maxFeatures.bestTrader  || null,
   });
 }
 

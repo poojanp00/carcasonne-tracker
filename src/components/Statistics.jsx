@@ -383,7 +383,7 @@ function PlayerCard({ name, stats, favMeeple, favMeepleCount, colorClass, isLead
   );
 }
 
-export default function Stats({ games, realms = [], currentRealm = null, onRealmChange, onDelete, isGuest = false }) {
+export default function Stats({ games, realms = [], currentRealm = null, onRealmChange, onDelete, isGuest = false, showDemoData = false, onToggleDemoData = null }) {
   const realmGames = currentRealm ? games.filter(g => g.realmId === currentRealm.id) : [];
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [cardExpanded, setCardExpanded] = useState(false);
@@ -456,6 +456,11 @@ export default function Stats({ games, realms = [], currentRealm = null, onRealm
         <h2>Statistics</h2>
         <div className="section-title-line" />
         {currentRealm && <span className="game-count">{realmGames.length} {realmGames.length === 1 ? 'game' : 'games'}</span>}
+        {onToggleDemoData && (
+          <button type="button" className={`expansion-chip${showDemoData ? ' selected' : ''}`} onClick={onToggleDemoData} style={{ fontSize: '0.72rem', marginLeft: '0.5rem' }}>
+            {showDemoData ? '✦ Demo · click to exit' : 'Demo'}
+          </button>
+        )}
       </div>
 
       {/* Group chips */}
@@ -465,8 +470,7 @@ export default function Stats({ games, realms = [], currentRealm = null, onRealm
         </div>
       )}
 
-      {/* Guest mode */}
-      {isGuest ? (
+      {isGuest && !showDemoData ? (
         <div className="empty-state">Sign in to view statistics and track game history.</div>
       ) : !currentRealm ? (
         <div className="empty-state">Select a group to view statistics.</div>
@@ -710,16 +714,18 @@ export default function Stats({ games, realms = [], currentRealm = null, onRealm
             </div>
           )}
 
-          <div style={{ marginTop: '3rem', display: 'flex', justifyContent: 'center' }}>
-            <button
-              className="realm-trash-btn"
-              onClick={() => setConfirmDelete(true)}
-              title="Delete group"
-              style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--stone-gray)', fontSize: '0.82rem', fontFamily: 'Cinzel, serif', letterSpacing: '0.06em' }}
-            >
-              <TrashIcon /> Delete Group
-            </button>
-          </div>
+          {!showDemoData && (
+            <div style={{ marginTop: '3rem', display: 'flex', justifyContent: 'center' }}>
+              <button
+                className="realm-trash-btn"
+                onClick={() => setConfirmDelete(true)}
+                title="Delete group"
+                style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--stone-gray)', fontSize: '0.82rem', fontFamily: 'Cinzel, serif', letterSpacing: '0.06em' }}
+              >
+                <TrashIcon /> Delete Group
+              </button>
+            </div>
+          )}
         </>
       )}
     </div>
