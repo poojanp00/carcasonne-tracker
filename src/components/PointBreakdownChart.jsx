@@ -100,7 +100,7 @@ export default function PointBreakdownChart({ players, showLegend = false }) {
             const total = displayTypes.reduce((s, t) => s + (bd[t] || 0), 0);
             return (
               <div key={player.name} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <span style={{ fontFamily: 'Cinzel, serif', fontSize: '0.78rem', color: 'var(--stone-gray)', minWidth: '80px', textAlign: 'right', flexShrink: 0 }}>
+                <span style={{ fontFamily: 'Cinzel, serif', fontSize: 'clamp(0.6rem, 1.8vw, 0.78rem)', color: 'var(--stone-gray)', minWidth: 'clamp(48px, 12vw, 80px)', textAlign: 'right', flexShrink: 0 }}>
                   {player.name}
                 </span>
                 <div style={{ flex: 1, height: '16px' }}>
@@ -121,7 +121,7 @@ export default function PointBreakdownChart({ players, showLegend = false }) {
                     }
                   </div>
                 </div>
-                <span style={{ fontFamily: 'Cinzel, serif', fontSize: '0.78rem', color: 'var(--stone-gray)', minWidth: '28px', flexShrink: 0 }}>
+                <span style={{ fontFamily: 'Cinzel, serif', fontSize: 'clamp(0.6rem, 1.8vw, 0.78rem)', color: 'var(--stone-gray)', minWidth: '28px', flexShrink: 0 }}>
                   {total}
                 </span>
               </div>
@@ -179,9 +179,9 @@ export default function PointBreakdownChart({ players, showLegend = false }) {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr>
-                <th style={{ textAlign: 'left', padding: '0.3rem 0.5rem 0.3rem 0', fontFamily: 'Cinzel, serif', color: 'var(--stone-gray)', fontWeight: 400, fontSize: '0.7rem', whiteSpace: 'nowrap' }}>Player</th>
+                <th style={{ textAlign: 'left', padding: '0.3rem 0.5rem 0.3rem 0', fontFamily: 'Cinzel, serif', color: 'var(--stone-gray)', fontWeight: 400, fontSize: 'clamp(0.55rem, 1.5vw, 0.7rem)', whiteSpace: 'nowrap' }}>Player</th>
                 {orderedTypes.map(t => (
-                  <th key={t} style={{ padding: '0.25rem 0.4rem', fontFamily: 'Cinzel, serif', fontWeight: 600, fontSize: '0.65rem', textAlign: 'center', color: 'var(--stone-gray)', whiteSpace: 'nowrap' }}>
+                  <th key={t} style={{ padding: '0.25rem 0.4rem', fontFamily: 'Cinzel, serif', fontWeight: 600, fontSize: 'clamp(0.52rem, 1.4vw, 0.65rem)', textAlign: 'center', color: 'var(--stone-gray)', whiteSpace: 'nowrap' }}>
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', justifyContent: 'center' }}>
                       <span style={{ width: '7px', height: '7px', borderRadius: '2px', backgroundColor: SCORE_TYPE_COLORS[t], display: 'inline-block', flexShrink: 0 }} />
                       {TYPE_LABELS[t] ?? t}
@@ -195,13 +195,13 @@ export default function PointBreakdownChart({ players, showLegend = false }) {
                 const bd = player.breakdown || {};
                 return (
                   <tr key={player.name} style={{ borderTop: '1px solid rgba(201,163,74,0.2)' }}>
-                    <td style={{ padding: '0.35rem 0.5rem 0.35rem 0', fontFamily: 'Cinzel, serif', fontSize: '0.82rem', color: 'var(--charcoal)', whiteSpace: 'nowrap' }}>
+                    <td style={{ padding: '0.35rem 0.5rem 0.35rem 0', fontFamily: 'Cinzel, serif', fontSize: 'clamp(0.6rem, 1.8vw, 0.82rem)', color: 'var(--charcoal)', whiteSpace: 'nowrap' }}>
                       {player.name}
                     </td>
                     {orderedTypes.map(t => {
                       const val = bd[t] || 0;
                       return (
-                        <td key={t} style={{ padding: '0.35rem 0.4rem', textAlign: 'center', fontFamily: 'Crimson Text, serif', fontSize: '0.9rem', color: val > 0 ? 'var(--charcoal)' : 'var(--stone-gray)', opacity: val > 0 ? 1 : 0.35 }}>
+                        <td key={t} style={{ padding: '0.35rem 0.4rem', textAlign: 'center', fontFamily: 'Crimson Text, serif', fontSize: 'clamp(0.7rem, 1.8vw, 0.9rem)', color: val > 0 ? 'var(--charcoal)' : 'var(--stone-gray)', opacity: val > 0 ? 1 : 0.35 }}>
                           {val > 0 ? val : '—'}
                         </td>
                       );

@@ -279,7 +279,7 @@ function PlayerCard({ name, stats, favMeeple, favMeepleCount, colorClass, isLead
     <div className={`player-card ${colorClass}`}>
       {isLeader && <img src={crownImg} alt="Leader" className="card-crown" />}
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.5rem' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.5rem', paddingRight: isLeader ? '60px' : 0 }}>
         {meepleImg && (
           <ValInfo tip={favMeepleCount ? `Used in ${favMeepleCount} ${favMeepleCount === 1 ? 'game' : 'games'}` : null}>
             <img src={meepleImg} alt="Favorite meeple" style={{ height: '24px', width: 'auto', opacity: 0.85, position: 'relative', top: '-3px' }} />
@@ -457,7 +457,7 @@ export default function Stats({ games, realms = [], currentRealm = null, onRealm
         <div className="section-title-line" />
         {currentRealm && <span className="game-count">{realmGames.length} {realmGames.length === 1 ? 'game' : 'games'}</span>}
         {onToggleDemoData && (
-          <button type="button" className={`expansion-chip${showDemoData ? ' selected' : ''}`} onClick={onToggleDemoData} style={{ fontSize: '0.72rem', marginLeft: '0.5rem' }}>
+          <button type="button" className={`expansion-chip${showDemoData ? ' selected' : ''}`} onClick={onToggleDemoData} style={{ fontSize: 'clamp(0.55rem, 1.8vw, 0.72rem)', marginLeft: '0.5rem' }}>
             {showDemoData ? '✦ Demo · click to exit' : 'Demo'}
           </button>
         )}
@@ -537,31 +537,30 @@ export default function Stats({ games, realms = [], currentRealm = null, onRealm
               return h > 0 ? `${h}h ${m}m` : `${m}m`;
             })() : '—';
             return (
-              <div className="stats-grid" style={{ gridTemplateColumns: sorted.length === 4 ? 'repeat(2, 1fr)' : sorted.length >= 3 ? 'repeat(3, 1fr)' : 'repeat(2, 1fr)', alignItems: 'start' }}>
+              <div className={`stats-grid${(sorted.length === 2 || sorted.length === 4) ? ' stats-grid-2col' : ''}`} style={{ alignItems: 'start' }}>
 
                 {/* Wide combined card: group stats left, point totals right */}
-                <div className="tile-card" style={{ borderTop: '4px solid var(--warm-gold)', gridColumn: `span ${sorted.length >= 3 && sorted.length !== 4 ? 3 : 2}` }}>
+                <div className="tile-card" style={{ borderTop: '4px solid var(--warm-gold)', gridColumn: '1 / -1' }}>
 
                   {/* Always-visible: name/records + point totals bar */}
                   <div style={{ display: 'flex', gap: '1.5rem' }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.15rem' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
-                          <span style={{ fontFamily: 'Cinzel, serif', fontSize: '1.1rem', fontWeight: 700, color: 'var(--earth-brown)' }}>
+                          <span style={{ fontFamily: 'Cinzel, serif', fontSize: 'clamp(0.85rem, 2.5vw, 1.1rem)', fontWeight: 700, color: 'var(--earth-brown)' }}>
                             {currentRealm.name}
                           </span>
-                          <span style={{ fontFamily: 'Cinzel, serif', fontSize: '0.85rem' }}>
+                          <div style={{ fontFamily: 'Cinzel, serif', fontSize: 'clamp(0.7rem, 1.8vw, 0.85rem)', display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
                             {[...currentRealm.players]
                               .sort((a, b) => (records[b.toLowerCase()]?.w || 0) - (records[a.toLowerCase()]?.w || 0))
-                              .map((name, i) => (
-                                <span key={name}>
-                                  {i > 0 && <span style={{ color: 'var(--stone-gray)' }}> · </span>}
-                                  <span style={{ color: 'var(--charcoal)' }}>{name}</span>
+                              .map((name) => (
+                                <span key={name} style={{ whiteSpace: 'nowrap' }}>
+                                  <span style={{ color: 'var(--forest-green)', fontWeight: 600, minWidth: '1.2em', display: 'inline-block' }}>{records[name.toLowerCase()]?.w || 0}</span>
                                   {' '}
-                                  <span style={{ color: 'var(--forest-green)', fontWeight: 600 }}>{records[name.toLowerCase()]?.w || 0}</span>
+                                  <span style={{ color: 'var(--charcoal)' }}>{name}</span>
                                 </span>
                               ))}
-                          </span>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -570,7 +569,7 @@ export default function Stats({ games, realms = [], currentRealm = null, onRealm
 
                     <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', paddingBottom: '0.6rem' }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <span style={{ fontFamily: 'Cinzel, serif', fontSize: '0.7rem', letterSpacing: '0.1em', color: 'var(--stone-gray)' }}>POINT TOTALS</span>
+                        <span style={{ fontFamily: 'Cinzel, serif', fontSize: 'clamp(0.52rem, 1.5vw, 0.7rem)', letterSpacing: '0.1em', color: 'var(--stone-gray)' }}>POINT TOTALS</span>
                         <span className="stat-value">{gs.totalPoints}</span>
                       </div>
                       <div
@@ -666,7 +665,7 @@ export default function Stats({ games, realms = [], currentRealm = null, onRealm
                               <div key={label} className="stat-row" style={{ margin: 0 }}>
                                 <span className="stat-label" style={{ color: 'var(--stone-gray)' }}>{label}</span>
                                 <ValInfo tip={count !== null ? `Played in ${count} ${count === 1 ? 'game' : 'games'}` : null}>
-                                  <span className="stat-value">{val}</span>
+                                  <span className="stat-value" style={{ fontSize: 'clamp(0.6rem, 1.5vw, 0.78rem)', fontWeight: 500 }}>{val}</span>
                                 </ValInfo>
                               </div>
                             ))}
@@ -720,7 +719,7 @@ export default function Stats({ games, realms = [], currentRealm = null, onRealm
                 className="realm-trash-btn"
                 onClick={() => setConfirmDelete(true)}
                 title="Delete group"
-                style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--stone-gray)', fontSize: '0.82rem', fontFamily: 'Cinzel, serif', letterSpacing: '0.06em' }}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--stone-gray)', fontSize: 'clamp(0.68rem, 1.8vw, 0.82rem)', fontFamily: 'Cinzel, serif', letterSpacing: '0.06em' }}
               >
                 <TrashIcon /> Delete Group
               </button>

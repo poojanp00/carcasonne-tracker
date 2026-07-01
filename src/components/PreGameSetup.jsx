@@ -60,7 +60,7 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
   const [mode, setMode] = useState('table'); // 'table' | 'party'
   const [modeInfoOpen, setModeInfoOpen] = useState(new Set());
   const [modeInfoHover, setModeInfoHover] = useState(null);
-  const [partyGuestHover, setPartyGuestHover] = useState(null); // { x, y } | null
+  const [partyGuestHover, setPartyGuestHover] = useState(false);
 
   // Realm creation state (step 1)
   const [realmName, setRealmName] = useState('');
@@ -364,7 +364,7 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
 
         {currentRealm && (
           <div className="tile-card" style={{ marginBottom: '1.2rem' }}>
-            <div style={{ fontFamily: 'Cinzel, serif', fontSize: '0.78rem', fontWeight: 600, color: 'var(--stone-gray)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '0.8rem' }}>Players</div>
+            <div style={{ fontFamily: 'Cinzel, serif', fontSize: 'clamp(0.62rem, 1.8vw, 0.78rem)', fontWeight: 600, color: 'var(--stone-gray)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '0.8rem' }}>Players</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
               {(currentRealm.players || []).map((p, i) => (
                 <div key={p} style={{
@@ -444,7 +444,7 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
                   disabled={playerCount <= 2}
                   style={{ width: '2.2rem', justifyContent: 'center' }}
                 >−</button>
-                <span style={{ fontFamily: 'Cinzel, serif', fontSize: '1.2rem', fontWeight: 600, minWidth: '1.5rem', textAlign: 'center', color: 'var(--earth-brown)' }}>
+                <span style={{ fontFamily: 'Cinzel, serif', fontSize: 'clamp(0.9rem, 2.5vw, 1.2rem)', fontWeight: 600, minWidth: '1.5rem', textAlign: 'center', color: 'var(--earth-brown)' }}>
                   {playerCount}
                 </span>
                 <button
@@ -525,29 +525,32 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
           </button>
 
           <div
-            style={{ position: 'relative' }}
-            onMouseMove={e => setPartyGuestHover({ x: e.clientX, y: e.clientY })}
-            onMouseLeave={() => setPartyGuestHover(null)}
+            style={{ position: 'relative', width: '100%' }}
+            onMouseEnter={() => setPartyGuestHover(true)}
+            onMouseLeave={() => setPartyGuestHover(false)}
           >
             <button
               type="button"
               className="mode-card"
               disabled
-              style={{ opacity: 0.45 }}
+              style={{ opacity: 0.45, width: '100%' }}
             >
               <div className="mode-card-icon"><img src={partyModeImg} alt="Party Mode" /></div>
               <div className="mode-card-title">Party Mode</div>
             </button>
             {partyGuestHover && (
               <div style={{
-                position: 'fixed', left: partyGuestHover.x + 12, top: partyGuestHover.y + 12,
+                position: 'absolute', top: '50%', left: '50%',
+                transform: 'translate(-50%, -50%)',
                 background: 'var(--earth-brown)', color: 'var(--parchment)',
-                padding: '0.45rem 0.75rem', borderRadius: '8px', zIndex: 9999,
-                whiteSpace: 'nowrap', boxShadow: '0 4px 14px rgba(0,0,0,0.35)',
-                fontFamily: 'Crimson Text, serif', fontSize: '0.9rem', fontStyle: 'italic',
-                pointerEvents: 'none',
+                padding: '0.4rem 0.7rem', borderRadius: '8px',
+                zIndex: 9999, pointerEvents: 'none',
+                maxWidth: 'min(200px, 85%)', textAlign: 'center',
+                boxShadow: '0 4px 14px rgba(0,0,0,0.35)',
+                fontFamily: 'Crimson Text, serif', fontSize: '0.85rem', fontStyle: 'italic',
+                lineHeight: 1.4,
               }}>
-                Under development — check back later!
+                Under development. <br /> Please check back later!
               </div>
             )}
           </div>

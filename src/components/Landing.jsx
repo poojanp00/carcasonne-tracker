@@ -156,7 +156,7 @@ function PageTile({ icon, name, description, color, hovered, onHover, onLeave })
       </div>
       <span style={{
         fontFamily: 'Cinzel, serif',
-        fontSize: '0.7rem',
+        fontSize: 'clamp(0.55rem, 1.5vw, 0.7rem)',
         letterSpacing: '0.08em',
         textTransform: 'uppercase',
         color: hovered ? 'var(--stone-gray)' : color,
@@ -177,8 +177,8 @@ function PageTile({ icon, name, description, color, hovered, onHover, onLeave })
       }}>
         <p style={{
           fontFamily: "'Crimson Text', Georgia, serif",
-          fontSize: '1.1rem',
-          lineHeight: 1.65,
+          fontSize: '0.9rem',
+          lineHeight: 1.55,
           textAlign: 'center',
           color: 'var(--charcoal)',
           margin: 0,
@@ -201,9 +201,6 @@ export default function Landing() {
         <h2 className="landing-welcome">Carcasscore is the ultimate Carcassonne companion.</h2>
       </section>
 
-      {/* Divider */}
-      <div className="landing-divider" />
-
       {/* Page navigator icons */}
       <section style={{ display: 'flex', justifyContent: 'center', gap: '0', margin: '2rem auto 4rem', maxWidth: '760px' }}>
         {pages.map((p, i) => (
@@ -216,6 +213,9 @@ export default function Landing() {
           />
         ))}
       </section>
+
+      {/* Divider */}
+      <div className="landing-divider" />
 
       {/* Features */}
       <section className="landing-features">

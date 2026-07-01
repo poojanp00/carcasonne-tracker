@@ -69,7 +69,7 @@ export default function Lightbox({ game, games = [], onNavigate, onClose, onDele
     <div className="lightbox-overlay" onClick={onClose}>
       <div className="lightbox-inner" onClick={e => e.stopPropagation()}>
         <div key={animKey} className={`lightbox-meta ${slideClass}`}>
-          <p style={{ fontStyle: 'italic', color: 'var(--stone-gray)', fontSize: '0.88rem', marginBottom: '0.5rem' }}>
+          <p style={{ fontStyle: 'italic', color: 'var(--stone-gray)', fontSize: 'clamp(0.75rem, 2vw, 0.88rem)', marginBottom: '0.5rem' }}>
             {formatDate(game.date)}
           </p>
 
@@ -90,7 +90,7 @@ export default function Lightbox({ game, games = [], onNavigate, onClose, onDele
           </h3>
 
           {margin !== null && (
-            <p style={{ fontFamily: 'Crimson Text, serif', fontStyle: 'italic', fontSize: '0.9rem', color: 'var(--stone-gray)', marginBottom: '1rem' }}>
+            <p style={{ fontFamily: 'Crimson Text, serif', fontStyle: 'italic', fontSize: 'clamp(0.78rem, 2vw, 0.9rem)', color: 'var(--stone-gray)', marginBottom: '1rem' }}>
               +{margin} point margin
             </p>
           )}
@@ -110,7 +110,7 @@ export default function Lightbox({ game, games = [], onNavigate, onClose, onDele
                 >
                   <span style={{
                     fontFamily: 'Cinzel, serif',
-                    fontSize: '0.95rem',
+                    fontSize: 'clamp(0.8rem, 2.2vw, 0.95rem)',
                     fontWeight: isWinner ? 700 : 400,
                     color: isWinner ? 'var(--forest-green)' : 'var(--charcoal)',
                   }}>
@@ -118,7 +118,7 @@ export default function Lightbox({ game, games = [], onNavigate, onClose, onDele
                   </span>
                   <span style={{
                     fontFamily: 'Cinzel, serif',
-                    fontSize: '1.05rem',
+                    fontSize: 'clamp(0.88rem, 2.5vw, 1.05rem)',
                     fontWeight: isWinner ? 700 : 400,
                     color: isWinner ? 'var(--forest-green)' : 'var(--stone-gray)',
                   }}>
@@ -157,9 +157,9 @@ export default function Lightbox({ game, games = [], onNavigate, onClose, onDele
             }));
 
             return (
-              <div style={{ marginBottom: '1.5rem', marginTop: '1.2rem' }}>
+              <div style={{ marginBottom: '1.5rem', marginTop: '2rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.2rem' }}>
-                  <div style={{ fontSize: '0.75rem', fontFamily: 'Cinzel, serif', letterSpacing: '0.1em', color: 'var(--stone-gray)' }}>
+                  <div style={{ fontSize: 'clamp(0.6rem, 1.8vw, 0.75rem)', fontFamily: 'Cinzel, serif', letterSpacing: '0.1em', color: 'var(--stone-gray)' }}>
                     POINTS BREAKDOWN
                   </div>
                   <button
@@ -181,7 +181,7 @@ export default function Lightbox({ game, games = [], onNavigate, onClose, onDele
                     const total = displayTypes.reduce((s, t) => s + (bd[t] || 0), 0);
                     return (
                       <div key={p.name} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                        <span style={{ fontFamily: 'Cinzel, serif', fontSize: '0.72rem', color: topPlayers.includes(p.name) ? 'var(--forest-green)' : 'var(--stone-gray)', fontWeight: topPlayers.includes(p.name) ? 700 : 400, minWidth: '64px', textAlign: 'right', flexShrink: 0 }}>
+                        <span style={{ fontFamily: 'Cinzel, serif', fontSize: 'clamp(0.58rem, 1.6vw, 0.72rem)', color: topPlayers.includes(p.name) ? 'var(--forest-green)' : 'var(--stone-gray)', fontWeight: topPlayers.includes(p.name) ? 700 : 400, minWidth: '64px', textAlign: 'right', flexShrink: 0 }}>
                           {p.name}
                         </span>
                         <div style={{ flex: 1, height: '16px' }}>
@@ -273,9 +273,9 @@ export default function Lightbox({ game, games = [], onNavigate, onClose, onDele
                   <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead>
                       <tr>
-                        <th style={{ textAlign: 'left', padding: '0.3rem 0.5rem 0.3rem 0', fontFamily: 'Cinzel, serif', color: 'var(--stone-gray)', fontWeight: 400, fontSize: '0.68rem', whiteSpace: 'nowrap' }}>Player</th>
+                        <th style={{ textAlign: 'left', padding: '0.3rem 0.5rem 0.3rem 0', fontFamily: 'Cinzel, serif', color: 'var(--stone-gray)', fontWeight: 400, fontSize: 'clamp(0.55rem, 1.5vw, 0.68rem)', whiteSpace: 'nowrap' }}>Player</th>
                         {orderedTypes.map(t => (
-                          <th key={t} style={{ padding: '0.25rem 0.3rem', fontFamily: 'Cinzel, serif', fontWeight: 600, fontSize: '0.62rem', textAlign: 'center', color: 'var(--stone-gray)', whiteSpace: 'nowrap' }}>
+                          <th key={t} style={{ padding: '0.25rem 0.3rem', fontFamily: 'Cinzel, serif', fontWeight: 600, fontSize: 'clamp(0.5rem, 1.4vw, 0.62rem)', textAlign: 'center', color: 'var(--stone-gray)', whiteSpace: 'nowrap' }}>
                             <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', justifyContent: 'center' }}>
                               <span style={{ width: '7px', height: '7px', borderRadius: '2px', backgroundColor: SCORE_TYPE_COLORS[t], display: 'inline-block', flexShrink: 0 }} />
                               {TYPE_LABELS[t] ?? t}
@@ -287,13 +287,13 @@ export default function Lightbox({ game, games = [], onNavigate, onClose, onDele
                     <tbody>
                       {sorted.map((p) => (
                         <tr key={p.name} style={{ borderTop: '1px solid rgba(201,163,74,0.2)' }}>
-                          <td style={{ padding: '0.35rem 0.5rem 0.35rem 0', fontFamily: 'Cinzel, serif', fontSize: '0.78rem', color: topPlayers.includes(p.name) ? 'var(--forest-green)' : 'var(--charcoal)', fontWeight: topPlayers.includes(p.name) ? 700 : 400, whiteSpace: 'nowrap' }}>
+                          <td style={{ padding: '0.35rem 0.5rem 0.35rem 0', fontFamily: 'Cinzel, serif', fontSize: 'clamp(0.62rem, 1.8vw, 0.78rem)', color: topPlayers.includes(p.name) ? 'var(--forest-green)' : 'var(--charcoal)', fontWeight: topPlayers.includes(p.name) ? 700 : 400, whiteSpace: 'nowrap' }}>
                             {p.name}
                           </td>
                           {orderedTypes.map(t => {
                             const val = (p.breakdown || {})[t] || 0;
                             return (
-                              <td key={t} style={{ padding: '0.35rem 0.3rem', textAlign: 'center', fontFamily: 'Crimson Text, serif', fontSize: '0.88rem', color: val > 0 ? 'var(--charcoal)' : 'var(--stone-gray)', opacity: val > 0 ? 1 : 0.35 }}>
+                              <td key={t} style={{ padding: '0.35rem 0.3rem', textAlign: 'center', fontFamily: 'Crimson Text, serif', fontSize: 'clamp(0.72rem, 1.8vw, 0.88rem)', color: val > 0 ? 'var(--charcoal)' : 'var(--stone-gray)', opacity: val > 0 ? 1 : 0.35 }}>
                                 {val > 0 ? val : '—'}
                               </td>
                             );
@@ -309,7 +309,9 @@ export default function Lightbox({ game, games = [], onNavigate, onClose, onDele
 
           {/* Game Records */}
           {game.achievements && Object.keys(game.achievements).length > 0 && (
-            <GameHighlights achievements={game.achievements} />
+            <div style={{ marginTop: '2rem' }}>
+              <GameHighlights achievements={game.achievements} />
+            </div>
           )}
 
           {/* Expansions */}

@@ -70,7 +70,7 @@ function ExpansionGroup({ label, expansions, onToggle, canEdit, completeSet }) {
         onClick={() => setOpen((o) => !o)}
         style={{ borderBottom: open ? '1px solid var(--warm-gold)' : 'none', paddingBottom: open ? '0.5rem' : 0, cursor: 'pointer' }}
       >
-        <span>{label} <span style={{ fontFamily: 'Crimson Text, serif', fontWeight: 400, fontSize: '0.85rem', opacity: 0.7 }}>({owned.length}/{expansions.length})</span></span>
+        <span>{label} <span style={{ fontFamily: 'Crimson Text, serif', fontWeight: 400, fontSize: 'clamp(0.7rem, 2vw, 0.85rem)', opacity: 0.7 }}>({owned.length}/{expansions.length})</span></span>
         <span className={`collapsible-arrow ${open ? 'open' : ''}`} />
       </div>
 
@@ -168,7 +168,7 @@ export default function Collection({ expansions, onToggle, userId, isGuest = fal
           <button
             className="realm-trash-btn"
             onClick={() => { setDeleteStep(1); setDeleteError(''); }}
-            style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--stone-gray)', fontSize: '0.82rem', fontFamily: 'Cinzel, serif', letterSpacing: '0.06em' }}
+            style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--stone-gray)', fontSize: 'clamp(0.68rem, 2vw, 0.82rem)', fontFamily: 'Cinzel, serif', letterSpacing: '0.06em' }}
           >
             <TrashIcon /> Delete Account
           </button>

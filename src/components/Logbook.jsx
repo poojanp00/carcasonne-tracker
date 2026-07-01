@@ -54,7 +54,7 @@ export default function GameHistory({ games, realms = [], currentRealm = null, o
           games={realmGames}
           onNavigate={setSelectedGame}
           onClose={() => setSelectedGame(null)}
-          onDeleteRequest={() => setConfirmDeleteId(selectedGame.id)}
+          onDeleteRequest={isGuest && showDemoData ? null : () => setConfirmDeleteId(selectedGame.id)}
         />
       )}
 
@@ -63,7 +63,7 @@ export default function GameHistory({ games, realms = [], currentRealm = null, o
         <div className="section-title-line" />
         {currentRealm && <span className="game-count">{realmGames.length} {realmGames.length === 1 ? 'game' : 'games'}</span>}
         {onToggleDemoData && (
-          <button type="button" className={`expansion-chip${showDemoData ? ' selected' : ''}`} onClick={onToggleDemoData} style={{ fontSize: '0.72rem', marginLeft: '0.5rem' }}>
+          <button type="button" className={`expansion-chip${showDemoData ? ' selected' : ''}`} onClick={onToggleDemoData} style={{ fontSize: 'clamp(0.55rem, 1.8vw, 0.72rem)', marginLeft: '0.5rem' }}>
             {showDemoData ? '✦ Demo · click to exit' : 'Demo'}
           </button>
         )}
