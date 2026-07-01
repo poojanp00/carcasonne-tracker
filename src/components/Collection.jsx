@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { DEFAULT_EXPANSIONS } from '../data/expansions';
 
 const COMPLETE_SET = new Set(DEFAULT_EXPANSIONS.filter(e => e.complete).map(e => e.name));
+export const GUEST_ALLOWED_MINIS = new Set(['The River', 'The Abbot']);
 
 function TrashIcon() {
   return (
@@ -58,20 +59,29 @@ const EXPANSION_ICONS = {
   'Crop Circles':                iconCropCircles,
 };
 
-function ExpansionGroup({ label, expansions, onToggle, canEdit, completeSet }) {
-  const [open, setOpen] = useState(true);
+function ExpansionGroup({ label, expansions, onToggle, canEdit, isGuest, completeSet }) {
+  const [open, setOpen] = useState(false);
   const owned   = expansions.filter((e) => e.owned);
   const unowned = expansions.filter((e) => !e.owned);
+
+  const getItemState = (exp) => {
+    if (isGuest && !(exp.type === 'mini' && GUEST_ALLOWED_MINIS.has(exp.name))) {
+      return { editable: false, tooltip: 'Sign in to use expansions.' };
+    }
+    const isComplete = completeSet?.has(exp.name) ?? true;
+    if (!isComplete) {
+      return { editable: false, tooltip: 'Under development. Please check back later.' };
+    }
+    return { editable: isGuest ? true : canEdit, tooltip: undefined };
+  };
 
   return (
     <div className="tile-card" style={{ marginBottom: '1.2rem' }}>
       <div
-        className="collapsible-toggle tile-card-header"
-        onClick={() => setOpen((o) => !o)}
-        style={{ borderBottom: open ? '1px solid var(--warm-gold)' : 'none', paddingBottom: open ? '0.5rem' : 0, cursor: 'pointer' }}
+        className="tile-card-header"
+        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: open ? '1px solid var(--warm-gold)' : 'none', paddingBottom: open ? '0.5rem' : 0 }}
       >
         <span>{label} <span style={{ fontFamily: 'Crimson Text, serif', fontWeight: 400, fontSize: 'clamp(0.7rem, 2vw, 0.85rem)', opacity: 0.7 }}>({owned.length}/{expansions.length})</span></span>
-        <span className={`collapsible-arrow ${open ? 'open' : ''}`} />
       </div>
 
       {open && (
@@ -81,13 +91,13 @@ function ExpansionGroup({ label, expansions, onToggle, canEdit, completeSet }) {
               <div className="collection-group-label owned-label">In Your Possession</div>
               <div className="collection-grid" style={{ marginBottom: unowned.length > 0 ? '1.5rem' : 0 }}>
                 {owned.map((exp) => {
-                  const isComplete = completeSet?.has(exp.name) ?? true;
+                  const { editable, tooltip } = getItemState(exp);
                   return (
                     <div
                       key={exp.name}
-                      className={`expansion-item owned${canEdit && isComplete ? '' : ' read-only'}${!isComplete ? ' dev-tooltip' : ''}`}
-                      onClick={canEdit && isComplete ? () => onToggle(exp.name) : undefined}
-                      data-tooltip={!isComplete ? 'Under development. Please check back later.' : undefined}
+                      className={`expansion-item owned${editable ? '' : ' read-only'}${tooltip ? ' dev-tooltip' : ''}`}
+                      onClick={editable ? () => onToggle(exp.name) : undefined}
+                      data-tooltip={tooltip}
                     >
                       <div className="status-dot" />
                       {EXPANSION_ICONS[exp.name] && (
@@ -106,13 +116,13 @@ function ExpansionGroup({ label, expansions, onToggle, canEdit, completeSet }) {
               <div className="collection-group-label unowned-label">Not Yet Acquired</div>
               <div className="collection-grid">
                 {unowned.map((exp) => {
-                  const isComplete = completeSet?.has(exp.name) ?? true;
+                  const { editable, tooltip } = getItemState(exp);
                   return (
                     <div
                       key={exp.name}
-                      className={`expansion-item unowned${canEdit && isComplete ? '' : ' read-only'}${!isComplete ? ' dev-tooltip' : ''}`}
-                      onClick={canEdit && isComplete ? () => onToggle(exp.name) : undefined}
-                      data-tooltip={!isComplete ? 'Under development. Please check back later.' : undefined}
+                      className={`expansion-item unowned${editable ? '' : ' read-only'}${tooltip ? ' dev-tooltip' : ''}`}
+                      onClick={editable ? () => onToggle(exp.name) : undefined}
+                      data-tooltip={tooltip}
                     >
                       <div className="status-dot" />
                       {EXPANSION_ICONS[exp.name] && (
@@ -127,6 +137,14 @@ function ExpansionGroup({ label, expansions, onToggle, canEdit, completeSet }) {
           )}
         </div>
       )}
+
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', background: 'none', border: 'none', cursor: 'pointer', padding: '0.25rem 0', color: 'var(--stone-gray)', fontSize: '0.65rem', fontFamily: 'Cinzel, serif', opacity: 0.6, marginTop: '0.6rem' }}
+      >
+        {open ? '▲' : '▼'}
+      </button>
     </div>
   );
 }
@@ -160,8 +178,8 @@ export default function Collection({ expansions, onToggle, userId, isGuest = fal
         <span className="game-count">{owned.length} / {expansions.length}</span>
       </div>
 
-      <ExpansionGroup label="Full Expansions" expansions={full} onToggle={onToggle} canEdit={canEdit} completeSet={COMPLETE_SET} />
-      <ExpansionGroup label="Mini Expansions" expansions={mini} onToggle={onToggle} canEdit={canEdit} completeSet={COMPLETE_SET} />
+      <ExpansionGroup label="Full Expansions" expansions={full} onToggle={onToggle} canEdit={canEdit} isGuest={isGuest} completeSet={COMPLETE_SET} />
+      <ExpansionGroup label="Mini Expansions" expansions={mini} onToggle={onToggle} canEdit={canEdit} isGuest={isGuest} completeSet={COMPLETE_SET} />
 
       {!isGuest && (
         <div style={{ marginTop: '3rem', display: 'flex', justifyContent: 'center' }}>
