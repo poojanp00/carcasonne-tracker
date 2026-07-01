@@ -42,7 +42,7 @@ const ACHIEVEMENT_BADGE = {
 };
 
 const ACHIEVEMENT_LABEL_OVERRIDE = {
-  mostMonastery: 'Most Complete Monasteries',
+  mostMonastery: 'Most Monasteries',
   bestTrader:    'Master Merchant',
 };
 
@@ -66,7 +66,7 @@ export default function GameHighlights({ achievements = {} }) {
   return (
     <div>
       <div style={{
-        fontSize: '0.7rem',
+        fontSize: 'clamp(0.55rem, 1.5vw, 0.7rem)',
         fontFamily: 'Cinzel, serif',
         letterSpacing: '0.1em',
         color: 'var(--stone-gray)',
@@ -77,7 +77,7 @@ export default function GameHighlights({ achievements = {} }) {
 
       <div style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(4, 1fr)',
+        gridTemplateColumns: 'repeat(auto-fill, minmax(72px, 1fr))',
         gap: '1rem',
       }}>
         {displayAchievements.map(({ key, amount, player }, i) => {
@@ -99,7 +99,7 @@ export default function GameHighlights({ achievements = {} }) {
               {/* Player name */}
               <span style={{
                 fontFamily:    'Cinzel, serif',
-                fontSize:      '0.7rem',
+                fontSize:      'clamp(0.55rem, 1.5vw, 0.7rem)',
                 fontWeight:    700,
                 letterSpacing: '0.05em',
                 color:         'var(--charcoal)',
@@ -114,7 +114,7 @@ export default function GameHighlights({ achievements = {} }) {
                 <img src={badgeImg} alt={key} style={{ height: 90, width: 'auto', flexShrink: 0 }} />
               )}
 
-              {/* Achievement label */}
+              {/* Achievement label — always reserve 2 lines */}
               <div style={{
                 fontFamily:    'Cinzel, serif',
                 fontSize:      '0.57rem',
@@ -123,8 +123,11 @@ export default function GameHighlights({ achievements = {} }) {
                 color:         'var(--stone-gray)',
                 textAlign:     'center',
                 lineHeight:    1.2,
+                minHeight:     '2.4em',
                 display:       'flex',
                 alignItems:    'center',
+                flexWrap:      'wrap',
+                justifyContent:'center',
                 gap:           '0.25rem',
               }}>
                 {(ACHIEVEMENT_LABEL_OVERRIDE[key] || formatAchievementName(key)).toUpperCase()}
@@ -139,7 +142,7 @@ export default function GameHighlights({ achievements = {} }) {
               {/* Amount */}
               <span style={{
                 fontFamily: 'Cinzel, serif',
-                fontSize:   '0.82rem',
+                fontSize:   'clamp(0.65rem, 1.8vw, 0.82rem)',
                 fontWeight: 700,
                 color,
                 textAlign:  'center',

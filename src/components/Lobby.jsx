@@ -141,7 +141,7 @@ export default function Lobby({ session, onStart, onCancel, onClaimUpdate }) {
             <button
               type="button"
               className="btn"
-              style={{ flex: 1, justifyContent: 'center', fontSize: '1.05rem', padding: '0.75rem 1rem' }}
+              style={{ flex: 1, justifyContent: 'center', fontSize: 'clamp(0.82rem, 2.5vw, 1.05rem)', padding: '0.75rem 1rem' }}
               onClick={handleStart}
               disabled={!allJoined}
             >

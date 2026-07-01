@@ -77,15 +77,15 @@ export default function GameLogForm({ session, ownedExpansions, onSubmit, onCanc
 
       {/* Player scores */}
       <div style={{ marginBottom: '1.2rem', background: 'var(--aged-paper)', border: 'var(--border-tile)', borderRadius: 'var(--radius-tile)', padding: '0.45rem 1rem', display: 'flex', gap: '1.5rem', alignItems: 'center' }}>
-        <div style={{ fontFamily: "'Crimson Text', serif", fontSize: '0.95rem', color: 'var(--stone-gray)', fontStyle: 'italic' }}>
+        <div style={{ fontFamily: "'Crimson Text', serif", fontSize: 'clamp(0.8rem, 2.2vw, 0.95rem)', color: 'var(--stone-gray)', fontStyle: 'italic' }}>
           {new Date(date).toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}
         </div>
         <div style={{ width: '1px', height: '20px', background: 'var(--stone-gray)', opacity: 0.3 }} />
-        <div style={{ fontFamily: "'Crimson Text', serif", fontSize: '0.95rem', color: 'var(--stone-gray)', fontStyle: 'italic' }}>
+        <div style={{ fontFamily: "'Crimson Text', serif", fontSize: 'clamp(0.8rem, 2.2vw, 0.95rem)', color: 'var(--stone-gray)', fontStyle: 'italic' }}>
           {Math.floor(gameDuration / 60000)}m {Math.floor((gameDuration % 60000) / 1000)}s
         </div>
         <div style={{ width: '1px', height: '20px', background: 'var(--stone-gray)', opacity: 0.3 }} />
-        <div style={{ fontFamily: "'Crimson Text', serif", fontSize: '0.95rem', color: 'var(--stone-gray)', fontStyle: 'italic' }}>
+        <div style={{ fontFamily: "'Crimson Text', serif", fontSize: 'clamp(0.8rem, 2.2vw, 0.95rem)', color: 'var(--stone-gray)', fontStyle: 'italic' }}>
           {prefillExp.length === 0 ? 'Base Game' : prefillExp.join(' · ')}
         </div>
       </div>
@@ -100,7 +100,7 @@ export default function GameLogForm({ session, ownedExpansions, onSubmit, onCanc
               <div key={name} className="postgame-player-card" style={{ borderLeft: `3px solid ${color}` }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                   <img src={MEEPLE_IMGS[meeples[name]] || FALLBACK_MEEPLE} alt={name} style={{ height: 26, width: 'auto' }} />
-                  <span style={{ fontFamily: 'Cinzel, serif', color, fontWeight: 600, fontSize: '0.95rem', flex: 1 }}>
+                  <span style={{ fontFamily: 'Cinzel, serif', color, fontWeight: 600, fontSize: 'clamp(0.8rem, 2.2vw, 0.95rem)', flex: 1 }}>
                     {name}
                   </span>
                   {isWinner && (

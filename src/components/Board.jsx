@@ -838,7 +838,7 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
 
       <div className="section-title">
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <h2 style={{ margin: 0 }}>score board</h2>
+          <h2 style={{ margin: 0, fontSize: 'clamp(0.85rem, 3vw, 1.55rem)' }}>score board</h2>
           <button
               type="button"
               title="Pop out board view"
@@ -864,7 +864,7 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
           <div style={{ flex: 1, height: '1px', background: 'linear-gradient(90deg, var(--warm-gold), transparent)' }} />
           <span style={{
             fontFamily: 'Cinzel, serif',
-            fontSize: '0.75rem',
+            fontSize: 'clamp(0.55rem, 2vw, 0.75rem)',
             fontWeight: 600,
             letterSpacing: '0.06em',
             color: 'var(--earth-brown)',
@@ -878,7 +878,7 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
           </span>
           <div style={{ flex: 1, height: '1px', background: 'linear-gradient(90deg, transparent, var(--warm-gold))' }} />
         </div>
-        <span className="game-count" style={{ color: leadColor }}>{leadText}</span>
+        <span className="game-count" style={{ color: leadColor, fontSize: 'clamp(0.55rem, 2vw, 0.72rem)' }}>{leadText}</span>
       </div>
 
       <div className="board-ui">
@@ -886,10 +886,10 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
         <div className="tile-card board-log">
           <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', borderBottom: '1px solid var(--warm-gold)', paddingBottom: '0.5rem', marginBottom: '0.6rem' }}>
             <div className="tile-card-header" style={{ border: 'none', padding: 0, margin: 0 }}>Score Log</div>
-            <span style={{ fontFamily: 'Crimson Text, serif', fontStyle: 'italic', fontSize: '0.82rem', color: 'var(--stone-gray)' }}>{elapsed}</span>
+            <span style={{ fontFamily: 'Crimson Text, serif', fontStyle: 'italic', fontSize: 'clamp(0.65rem, 1.8vw, 0.82rem)', color: 'var(--stone-gray)' }}>{elapsed}</span>
           </div>
           {log.length === 0 ? (
-            <p style={{ fontFamily: 'Crimson Text, serif', fontStyle: 'italic', color: 'var(--stone-gray)', fontSize: '0.9rem', margin: 0 }}>
+            <p style={{ fontFamily: 'Crimson Text, serif', fontStyle: 'italic', color: 'var(--stone-gray)', fontSize: 'clamp(0.75rem, 2vw, 0.9rem)', margin: 0 }}>
               No moves yet.
             </p>
           ) : (
