@@ -15,6 +15,7 @@ import { useAuth }     from './hooks/useAuth';
 import { resetBoard }  from './data/boardStorage';
 import { deleteAccount } from './data/storage';
 import { DEFAULT_EXPANSIONS } from './data/expansions';
+import { DEMO_REALM, DEMO_GAMES } from './data/demoData';
 import { TABS, APP_CONFIG, EXPANSION_TYPES, PINNED_EXPANSIONS } from './constants';
 import { normalizeMeeples } from './utils/formatters';
 import { createSession, endSession, deleteSession } from './data/partySession';
@@ -63,7 +64,8 @@ export default function App() {
   const { games, expansions, realms, loading, addGame, deleteGame, toggleExpansion, addRealm, updateRealm, removeRealm } = useGameData(isGuest ? null : user, authLoading || (isGuest && false));
 
   // Guest mode state
-  const [guestRealms, setGuestRealms] = useState([]);
+  const [guestRealms,   setGuestRealms]   = useState([]);
+  const [showDemoData,  setShowDemoData]  = useState(false);
 
   // Unified data - guest mode provides default data, user mode uses database
   const appData = {
@@ -85,7 +87,7 @@ export default function App() {
         players: data.players || [],
         created_at: new Date().toISOString()
       };
-      setGuestRealms(prev => [...prev, guestRealm]);
+      setGuestRealms([guestRealm]);
       return Promise.resolve(guestRealm);
     } : addRealm,
     updateRealm: isGuest ? () => {} : updateRealm,
@@ -274,6 +276,13 @@ export default function App() {
     setTab(id);
   }, [session]);
 
+  // When demo mode is on for guests, swap in the demo dataset
+  const demoOn = isGuest && showDemoData;
+  const displayGames        = demoOn ? DEMO_GAMES        : appData.games;
+  const displayRealms       = demoOn ? [DEMO_REALM]      : appData.realms;
+  const displayCurrentRealm = demoOn ? DEMO_REALM        : (session?.realm || null);
+  const toggleDemo          = () => setShowDemoData(v => !v);
+
   // Carcassonne expansion priority: Always show River and Abbot first since they're
   // commonly used foundational expansions that integrate well with other expansions.
   // River provides starting tile placement variety, Abbot offers monastery alternatives.
@@ -448,18 +457,32 @@ export default function App() {
                   )
             )}
             {tab === 'home' && <Landing />}
-            {tab === 'history' && <Logbook games={appData.games} realms={appData.realms} currentRealm={session?.realm || null} onRealmChange={handleRealmSelect} onDelete={handleDelete} isGuest={isGuest} openGame={openGame} onOpenGameClear={() => setOpenGame(null)} />}
+            {tab === 'history' && <Logbook games={displayGames} realms={displayRealms} currentRealm={displayCurrentRealm} onRealmChange={handleRealmSelect} onDelete={handleDelete} isGuest={isGuest} showDemoData={showDemoData} onToggleDemoData={isGuest ? toggleDemo : null} openGame={openGame} onOpenGameClear={() => setOpenGame(null)} />}
             {tab === 'statistics' && (
               <>
-                <RealmPicker
-                  key={realmPickerKey}
-                  realms={appData.realms}
-                  currentRealm={session?.realm || null}
-                  onSelect={handleRealmSelect}
-                  onCreate={handleRealmCreate}
-                  isGuest={isGuest}
-                />
-                {session?.realm && <Statistics games={appData.games} realms={appData.realms} currentRealm={session?.realm || null} onRealmChange={handleRealmSelect} onDelete={handleRealmDelete} isGuest={isGuest} onNavigateToGame={game => { setOpenGame(game); setTab('history'); }} />}
+                {!demoOn && (
+                  <RealmPicker
+                    key={realmPickerKey}
+                    realms={appData.realms}
+                    currentRealm={session?.realm || null}
+                    onSelect={handleRealmSelect}
+                    onCreate={handleRealmCreate}
+                    isGuest={isGuest}
+                  />
+                )}
+                {(session?.realm || isGuest) && (
+                  <Statistics
+                    games={displayGames}
+                    realms={displayRealms}
+                    currentRealm={displayCurrentRealm}
+                    onRealmChange={handleRealmSelect}
+                    onDelete={handleRealmDelete}
+                    isGuest={isGuest}
+                    showDemoData={showDemoData}
+                    onToggleDemoData={isGuest ? toggleDemo : null}
+                    onNavigateToGame={game => { setOpenGame(game); setTab('history'); }}
+                  />
+                )}
               </>
             )}
             {tab === 'collection' && <Collection expansions={appData.expansions} onToggle={appOperations.toggleExpansion} userId={user?.id} isGuest={isGuest} onDeleteAccount={async () => { await deleteAccount(user?.id); signOut(); }} />}

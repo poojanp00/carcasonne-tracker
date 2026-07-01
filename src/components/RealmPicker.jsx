@@ -19,7 +19,7 @@ export default function RealmPicker({ realms, currentRealm = null, onSelect, onC
 
   const handleCreate = (e) => {
     e.preventDefault();
-    if (realms.length >= MAX_REALMS) {
+    if (!isGuest && realms.length >= MAX_REALMS) {
       setNameError(`Group limit reached. Delete an existing group to create a new one.`);
       return;
     }
@@ -32,7 +32,7 @@ export default function RealmPicker({ realms, currentRealm = null, onSelect, onC
       setNameError('Player names must be unique.');
       return;
     }
-    if (realms.some(r => r.name.toLowerCase() === finalRealmName.toLowerCase())) {
+    if (!isGuest && realms.some(r => r.name.toLowerCase() === finalRealmName.toLowerCase())) {
       setNameError('A group with this name already exists.');
       return;
     }
@@ -43,13 +43,5 @@ export default function RealmPicker({ realms, currentRealm = null, onSelect, onC
     setPlayerCount(2);
   };
 
-  return (
-    <div style={{ paddingTop: '0.5rem' }}>
-      {realms.length === 0 && (
-        <p style={{ marginBottom: '1rem', fontSize: '0.88rem', fontStyle: 'italic', color: 'var(--stone-gray)' }}>
-          No groups yet — create one to begin.
-        </p>
-      )}
-    </div>
-  );
+  return null;
 }

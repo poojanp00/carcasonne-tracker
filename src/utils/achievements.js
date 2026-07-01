@@ -24,23 +24,26 @@
  */
 
 const ACHIEVEMENT_MAP = {
-  road: 'longest_road',
-  city: 'largest_city',
-  field: 'largest_field',
-  inn: 'longest_inn',
+  road:      'longest_road',
+  city:      'largest_city',
+  field:     'largest_field',
+  inn:       'longest_inn',
   cathedral: 'largest_cathedral',
-  pig: 'biggest_pig',
-  barn: 'largest_barn',
+  pig:       'biggest_pig',
+  barn:      'largest_barn',
+  monastery: 'most_monastery',
 };
 
 const UI_ACHIEVEMENT_MAP = {
-  road: 'longestRoad',
-  city: 'largestCity',
-  field: 'largestField',
-  inn: 'longestInn',
-  cathedral: 'largestCathedral',
-  pig: 'biggestPig',
-  barn: 'largestBarn',
+  road:       'longestRoad',
+  city:       'largestCity',
+  field:      'largestField',
+  inn:        'longestInn',
+  cathedral:  'largestCathedral',
+  pig:        'biggestPig',
+  barn:       'largestBarn',
+  monastery:  'mostMonastery',
+  bestTrader: 'bestTrader',
 };
 
 /**

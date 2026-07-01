@@ -134,7 +134,7 @@ export default function GameLogForm({ session, ownedExpansions, onSubmit, onCanc
         players={sortedPlayers.map(name => ({ name, breakdown: scoreBreakdown[name] || {} }))}
       />
 
-      {/* Game Highlights */}
+      {/* Game Records */}
       <div className="tile-card" style={{ marginBottom: '1.4rem', marginTop: '1.4rem' }}>
         <GameHighlights achievements={transformMaxFeaturesToUI(maxFeatures)} />
       </div>

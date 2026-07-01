@@ -4,6 +4,13 @@ import { SCORE_TYPE_ORDER, SCORE_TYPE_COLORS } from '../constants';
 import pigImg from '../../images/icons/pig.png';
 import cImg   from '../../images/icons/C.png';
 
+const MEEPLE_MODULES = import.meta.glob('../../images/meeples/*.png',     { eager: true, import: 'default' });
+const FUN_MODULES    = import.meta.glob('../../images/meeples/fun/*.png', { eager: true, import: 'default' });
+const MEEPLE_IMGS = {
+  ...Object.fromEntries(Object.entries(MEEPLE_MODULES).map(([path, img]) => [path.split('/').pop(), img])),
+  ...Object.fromEntries(Object.entries(FUN_MODULES).map(([path, img]) => [`fun/${path.split('/').pop()}`, img])),
+};
+
 const SCORE_GROUPS = [
   { label: 'Road + Inn',              types: ['road', 'inn'] },
   { label: 'City + Cath.',            types: ['city', 'cathedral'] },
@@ -300,7 +307,7 @@ export default function Lightbox({ game, games = [], onNavigate, onClose, onDele
             );
           })()}
 
-          {/* Game Highlights - achievements are stored in camelCase from database normalization */}
+          {/* Game Records */}
           {game.achievements && Object.keys(game.achievements).length > 0 && (
             <GameHighlights achievements={game.achievements} />
           )}
