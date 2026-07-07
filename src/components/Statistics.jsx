@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 
 const MEEPLE_MODULES = import.meta.glob('../../images/meeples/*.png',     { eager: true, import: 'default' });
 const FUN_MODULES    = import.meta.glob('../../images/meeples/fun/*.png', { eager: true, import: 'default' });
@@ -8,6 +9,7 @@ const MEEPLE_IMGS = {
 };
 import { STATISTICS_CONFIG, SCORE_TYPE_ORDER, SCORE_TYPE_COLORS } from '../constants';
 import { DEFAULT_EXPANSIONS } from '../data/expansions';
+import { MILESTONE_CATEGORIES, badgeProgress, progressForTypes } from '../data/milestones';
 import ChipGroup from './ChipGroup';
 import { TrashIcon } from './icons';
 import crownImg from '../../images/icons/crown.png';
@@ -194,9 +196,9 @@ function calcStats(games, name) {
  * Provides contextual help for statistics that may not be immediately clear.
  * Shows info icon with hover tooltip containing detailed explanations.
  */
-function StatInfo({ children }) {
+function StatInfo({ children, className }) {
   return (
-    <span className="stat-info-wrap">
+    <span className={`stat-info-wrap${className ? ` ${className}` : ''}`}>
       <span className="stat-info-icon">ⓘ</span>
       <span className="stat-info-tooltip">{children}</span>
     </span>
@@ -272,11 +274,98 @@ const SCORE_GROUPS = [
 const TYPE_TO_GROUP = {};
 SCORE_GROUPS.forEach(g => g.types.forEach(t => { TYPE_TO_GROUP[t] = g; }));
 
-function PlayerCard({ name, stats, favMeeple, favMeepleCount, colorClass, isLeader, onNavigateToGame }) {
-  const meepleImg = favMeeple ? (MEEPLE_IMGS[favMeeple] ?? null) : null;
-  const [expanded, setExpanded] = useState(false);
+function MilestoneBadge({ badge, unit, unlocked, onSelect }) {
   return (
-    <div className={`player-card ${colorClass}`}>
+    <button
+      type="button"
+      onClick={unlocked ? onSelect : undefined}
+      className={`milestone-badge${unlocked ? '' : ' milestone-locked'}`}
+    >
+      <img src={badge.img} alt={badge.name} draggable={false} />
+      <span className="milestone-badge-name">{badge.name}</span>
+      <div className="milestone-tooltip">
+        <div className="milestone-tooltip-req">Earn {badge.threshold.toLocaleString()} {unit}</div>
+      </div>
+    </button>
+  );
+}
+
+// Rendered through a portal: a fixed overlay inside the flipped card would be
+// trapped by the ancestor's transform. Clicks are stopped from bubbling so the
+// React tree above (the card flip handler) doesn't see them.
+function MilestoneLightbox({ badge, unit, unlocked, onClose }) {
+  return createPortal(
+    <div className="realm-modal-overlay" onClick={(e) => { e.stopPropagation(); onClose(); }}>
+      <div className="milestone-lightbox tile-card" onClick={(e) => e.stopPropagation()}>
+        <div className="milestone-lightbox-header">
+          <span className="milestone-lightbox-title">{badge.name}</span>
+          <span className="milestone-lightbox-req">{badge.threshold.toLocaleString()} {unit}</span>
+        </div>
+        <div className={`milestone-lightbox-img${unlocked ? '' : ' milestone-locked'}`}>
+          <img src={badge.img} alt={badge.name} draggable={false} />
+        </div>
+        <p className="milestone-lightbox-desc">{badge.description}</p>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+function MilestonesBack({ name, breakdown }) {
+  const [selected, setSelected] = useState(null); // { badge, unit, unlocked }
+  return (
+    <>
+      <div className="player-card-name" style={{ margin: 0 }}>{name}</div>
+      <div className="milestones-subtitle">Milestones</div>
+      {MILESTONE_CATEGORIES.map(cat => (
+        <div key={cat.id} className="milestone-section">
+          <div className="milestone-section-header">
+            <span>{cat.label}</span>
+            <ValInfo tip={`${cat.types.map(t => TYPE_LABELS[t] ?? t).join(' + ')} points`}>
+              <span className="milestone-section-total">{progressForTypes(cat.types, breakdown).toLocaleString()}</span>
+            </ValInfo>
+          </div>
+          <div className="milestone-grid">
+            {cat.badges.map(b => {
+              const unlocked = badgeProgress(cat, b, breakdown) >= b.threshold;
+              const unit = b.unit ?? cat.unit;
+              return (
+                <MilestoneBadge
+                  key={b.name}
+                  badge={b}
+                  unit={unit}
+                  unlocked={unlocked}
+                  onSelect={() => setSelected({ badge: b, unit, unlocked })}
+                />
+              );
+            })}
+          </div>
+        </div>
+      ))}
+      {selected && (
+        <MilestoneLightbox
+          badge={selected.badge}
+          unit={selected.unit}
+          unlocked={selected.unlocked}
+          onClose={() => setSelected(null)}
+        />
+      )}
+    </>
+  );
+}
+
+function PlayerCard({ name, stats, breakdown, favMeeple, favMeepleCount, colorClass, isLeader, onNavigateToGame }) {
+  const meepleImg = favMeeple ? (MEEPLE_IMGS[favMeeple] ?? null) : null;
+  const [flipped, setFlipped] = useState(false);
+  // Flip on card click, but let the expand arrow and game-link buttons work normally
+  const handleFlip = (e) => {
+    if (e.target.closest('button')) return;
+    setFlipped(v => !v);
+  };
+  return (
+    <div className={`player-card-flip${flipped ? ' flipped' : ''}`}>
+      <div className="player-card-flip-inner">
+        <div className={`player-card player-card-front ${colorClass}`} onClick={handleFlip}>
       {isLeader && <img src={crownImg} alt="Leader" className="card-crown" />}
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.5rem', paddingRight: isLeader ? '60px' : 0 }}>
@@ -286,23 +375,24 @@ function PlayerCard({ name, stats, favMeeple, favMeepleCount, colorClass, isLead
           </ValInfo>
         )}
         <div className="player-card-name" style={{ margin: 0 }}>{name}</div>
+        <StatInfo className="compact-info">Click card to view milestones.</StatInfo>
       </div>
 
       <div className="stat-row">
-        <span className="stat-label">Victories <StatInfo>Total games won.</StatInfo></span>
+        <span className="stat-label">Victories</span>
         <span className="stat-value" style={{ color: 'var(--forest-green)' }}>{stats.wins}</span>
       </div>
       <div className="stat-row">
-        <span className="stat-label">Defeats <StatInfo>Total games lost.</StatInfo></span>
+        <span className="stat-label">Defeats</span>
         <span className="stat-value" style={{ color: 'var(--deep-red)' }}>{stats.losses}</span>
       </div>
 
       <div className="stat-row">
-        <span className="stat-label">Win rate <StatInfo>Share of games won.</StatInfo></span>
+        <span className="stat-label">Win rate</span>
         <ValInfo tip={`${stats.wins} won / ${stats.total} total`}><WinRateBadge rate={stats.winRate} /></ValInfo>
       </div>
       <div className="stat-row">
-        <span className="stat-label">High score <StatInfo>Highest single-game score achieved.</StatInfo></span>
+        <span className="stat-label">High score</span>
         {stats.highScoreGame && onNavigateToGame ? (
           <button
             type="button"
@@ -316,7 +406,7 @@ function PlayerCard({ name, stats, favMeeple, favMeepleCount, colorClass, isLead
         )}
       </div>
       <div className="stat-row">
-        <span className="stat-label">Streak <StatInfo>Consecutive wins or losses.</StatInfo></span>
+        <span className="stat-label">Streak</span>
         <span className="stat-value" style={{
           color: stats.winStreak > 0 ? 'var(--forest-green)' : stats.lossStreak > 0 ? 'var(--deep-red)' : 'inherit',
         }}>
@@ -324,61 +414,55 @@ function PlayerCard({ name, stats, favMeeple, favMeepleCount, colorClass, isLead
         </span>
       </div>
 
-      <button
-        type="button"
-        onClick={() => setExpanded(v => !v)}
-        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', background: 'none', border: 'none', cursor: 'pointer', padding: '0.25rem 0', color: 'var(--stone-gray)', fontSize: '0.65rem', fontFamily: 'Cinzel, serif', opacity: 0.6, marginTop: '0.3rem' }}
-      >
-        {expanded ? '▲' : '▼'}
-      </button>
-
-      {expanded && (
-        <>
-          {stats.total > 0 && (
-            <div className="stat-row">
-              <span className="stat-label">Point differential <StatInfo>Net point difference across all games.</StatInfo></span>
-              <span className="stat-value" style={{ color: stats.netPtDiff > 0 ? 'var(--forest-green)' : stats.netPtDiff < 0 ? 'var(--deep-red)' : 'inherit' }}>
-                {stats.netPtDiff > 0 ? `+${stats.netPtDiff}` : stats.netPtDiff}
-              </span>
-            </div>
-          )}
-          <div className="stat-row">
-            <span className="stat-label">Farm <StatInfo>How often your wins came via farm.</StatInfo></span>
-            <ValInfo tip={stats.farm !== null ? `${stats.farmWins} farm win / ${stats.wins} total wins` : null}>
-              <span className="stat-value">{stats.farm !== null ? `${stats.farm}%` : '—'}</span>
-            </ValInfo>
-          </div>
-          <div className="stat-row">
-            <span className="stat-label">Clutch factor <StatInfo>Win rate in close games (margin &lt; 10% of total points).</StatInfo></span>
-            <ValInfo tip={stats.clutchFactor !== null ? `${stats.clutchWins} wins / ${stats.clutchGames} clutch games` : null}>
-              <span className="stat-value" style={{
-                color: stats.clutchFactor !== null && stats.clutchFactor >= 0.6
-                  ? 'var(--forest-green)'
-                  : stats.clutchFactor !== null && stats.clutchFactor <= 0.4
-                  ? 'var(--deep-red)'
-                  : 'inherit',
-              }}>
-                {stats.clutchFactor !== null ? stats.clutchFactor.toFixed(2) : '—'}
-              </span>
-            </ValInfo>
-          </div>
-          <div className="stat-row">
-            <span className="stat-label">Biggest blowout <StatInfo>Largest winning margin in a single game.</StatInfo></span>
-            {stats.biggestBlowout > 0 && stats.biggestBlowoutGame && onNavigateToGame ? (
-              <button
-                type="button"
-                onClick={() => onNavigateToGame(stats.biggestBlowoutGame)}
-                style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', font: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.1rem' }}
-              >
-                <span className="stat-value" style={{ color: 'var(--charcoal)', textDecoration: 'underline dotted' }}>+{stats.biggestBlowout}</span>
-              </button>
-            ) : (
-              <span className="stat-value">{stats.biggestBlowout > 0 ? `+${stats.biggestBlowout}` : '—'}</span>
-            )}
-          </div>
-        </>
+      {stats.total > 0 && (
+        <div className="stat-row">
+          <span className="stat-label">Point differential <StatInfo>Net point difference across all games.</StatInfo></span>
+          <span className="stat-value" style={{ color: stats.netPtDiff > 0 ? 'var(--forest-green)' : stats.netPtDiff < 0 ? 'var(--deep-red)' : 'inherit' }}>
+            {stats.netPtDiff > 0 ? `+${stats.netPtDiff}` : stats.netPtDiff}
+          </span>
+        </div>
       )}
+      <div className="stat-row">
+        <span className="stat-label">Farm <StatInfo>How often your wins came via farm.</StatInfo></span>
+        <ValInfo tip={stats.farm !== null ? `${stats.farmWins} farm win / ${stats.wins} total wins` : null}>
+          <span className="stat-value">{stats.farm !== null ? `${stats.farm}%` : '—'}</span>
+        </ValInfo>
+      </div>
+      <div className="stat-row">
+        <span className="stat-label">Clutch factor <StatInfo>Win rate in close games (margin &lt; 10% of total points).</StatInfo></span>
+        <ValInfo tip={stats.clutchFactor !== null ? `${stats.clutchWins} wins / ${stats.clutchGames} clutch games` : null}>
+          <span className="stat-value" style={{
+            color: stats.clutchFactor !== null && stats.clutchFactor >= 0.6
+              ? 'var(--forest-green)'
+              : stats.clutchFactor !== null && stats.clutchFactor <= 0.4
+              ? 'var(--deep-red)'
+              : 'inherit',
+          }}>
+            {stats.clutchFactor !== null ? stats.clutchFactor.toFixed(2) : '—'}
+          </span>
+        </ValInfo>
+      </div>
+      <div className="stat-row">
+        <span className="stat-label">Biggest blowout <StatInfo>Largest winning margin in a single game.</StatInfo></span>
+        {stats.biggestBlowout > 0 && stats.biggestBlowoutGame && onNavigateToGame ? (
+          <button
+            type="button"
+            onClick={() => onNavigateToGame(stats.biggestBlowoutGame)}
+            style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', font: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.1rem' }}
+          >
+            <span className="stat-value" style={{ color: 'var(--charcoal)', textDecoration: 'underline dotted' }}>+{stats.biggestBlowout}</span>
+          </button>
+        ) : (
+          <span className="stat-value">{stats.biggestBlowout > 0 ? `+${stats.biggestBlowout}` : '—'}</span>
+        )}
+      </div>
 
+        </div>
+
+        <div className={`player-card player-card-back ${colorClass}`} onClick={handleFlip}>
+          <MilestonesBack name={name} breakdown={breakdown} />
+        </div>
+      </div>
     </div>
   );
 }
@@ -567,17 +651,17 @@ export default function Stats({ games, realms = [], currentRealm = null, onRealm
 
                     <div style={{ width: '1px', background: 'var(--warm-gold)', opacity: 0.3, flexShrink: 0 }} />
 
-                    <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', paddingBottom: '0.6rem' }}>
+                    <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', paddingBottom: '0.6rem' }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <span style={{ fontFamily: 'Cinzel, serif', fontSize: 'clamp(0.52rem, 1.5vw, 0.7rem)', letterSpacing: '0.1em', color: 'var(--stone-gray)' }}>POINT TOTALS</span>
                         <span className="stat-value">{gs.totalPoints}</span>
                       </div>
                       <div
                         ref={barRef}
-                        style={{ position: 'relative', margin: '0.5rem 0 0' }}
+                        style={{ position: 'relative', margin: '0.5rem 0 0', flex: 1, minHeight: '16px', display: 'flex' }}
                         onMouseLeave={() => setBarTooltip(null)}
                       >
-                        <div style={{ display: 'flex', width: '100%', height: '16px', borderRadius: '6px', overflow: 'hidden' }}>
+                        <div style={{ display: 'flex', width: '100%', height: '100%', minHeight: '16px', borderRadius: '6px', overflow: 'hidden' }}>
                           {orderedBarTypes.length === 0
                             ? <div style={{ flex: 1, backgroundColor: 'var(--stone-gray)', opacity: 0.25 }} />
                             : orderedBarTypes.map(t => (
@@ -696,6 +780,7 @@ export default function Stats({ games, realms = [], currentRealm = null, onRealm
                     key={ps.name}
                     name={ps.name}
                     stats={ps}
+                    breakdown={ps.breakdown}
                     favMeeple={ps.favMeeple}
                     favMeepleCount={ps.favMeepleCount}
                     colorClass={PLAYER_COLOR_CLASSES[i % PLAYER_COLOR_CLASSES.length]}

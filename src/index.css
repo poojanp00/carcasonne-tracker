@@ -649,6 +649,187 @@ h3 { font-size: clamp(0.9rem, 2.5vw, 1.15rem); font-weight: 600; }
 .p1 .player-card-name { color: var(--deep-red); }
 .p2 .player-card-name { color: var(--royal-blue); }
 
+/* ── Player card flip (milestones on back) ── */
+.player-card-flip {
+  perspective: 1200px;
+  transition: transform var(--transition-lift);
+}
+.player-card-flip:hover { transform: translateY(-3px); }
+.player-card-flip-inner {
+  display: grid;
+  position: relative;
+  transform-style: preserve-3d;
+  transition: transform 0.6s cubic-bezier(0.4, 0.2, 0.2, 1);
+}
+/* Only the visible face drives card height — pin the hidden face so a tall
+   back (badge grid) doesn't stretch the front */
+.player-card-flip:not(.flipped) .player-card-back,
+.player-card-flip.flipped .player-card-front {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+.player-card-flip.flipped .player-card-flip-inner { transform: rotateY(180deg); }
+.player-card-flip .player-card {
+  grid-area: 1 / 1;
+  cursor: pointer;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+/* Faces own their transforms — the card's generic hover lift lives on the wrapper instead */
+.player-card-flip .player-card-front,
+.player-card-flip .player-card-front:hover { transform: none; }
+.player-card-flip .player-card-back,
+.player-card-flip .player-card-back:hover { transform: rotateY(180deg); }
+/* The hidden face must not swallow clicks or hovers */
+.player-card-flip:not(.flipped) .player-card-back { pointer-events: none; }
+.player-card-flip.flipped .player-card-front { pointer-events: none; }
+
+/* ── Milestones (card back) ── */
+.milestones-subtitle {
+  font-family: 'Cinzel', serif;
+  font-size: 0.62rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--stone-gray);
+  margin: 0.15rem 0 0.7rem;
+}
+.milestone-section { margin-bottom: 0.9rem; }
+.milestone-section:last-child { margin-bottom: 0.2rem; }
+.milestone-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: 'Cinzel', serif;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--earth-brown);
+  border-bottom: 1px solid rgba(139,94,60,0.25);
+  padding-bottom: 0.25rem;
+  margin-bottom: 0.55rem;
+}
+.milestone-section-total {
+  font-family: 'Cinzel', serif;
+  font-weight: 700;
+  font-size: 0.72rem;
+  letter-spacing: 0.02em;
+  color: var(--charcoal);
+}
+.milestone-grid {
+  display: flex;
+  justify-content: space-evenly;
+  align-items: flex-start;
+  gap: 0.65rem;
+}
+.milestone-badge {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  flex: 0 1 88px;
+  min-width: 0;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+/* Badge name beneath the artwork; locked names are dimmed like their silhouette */
+.milestone-badge.milestone-locked .milestone-badge-name { opacity: 0.45; }
+.milestone-badge-name {
+  font-family: 'Cinzel', serif;
+  font-size: 0.6rem;
+  font-weight: 1000;
+  letter-spacing: 0.04em;
+  line-height: 1.25;
+  text-align: center;
+  color: var(--earth-brown);
+  margin-top: 0.35rem;
+}
+.milestone-badge img {
+  width: 100%;
+  max-width: 88px;
+  height: auto;
+  display: block;
+  filter: drop-shadow(0 2px 3px rgba(0,0,0,0.25));
+  transition: transform 0.15s ease;
+}
+.milestone-badge:hover img { transform: scale(1.08); }
+/* Locked badges aren't clickable — no lightbox until earned */
+.milestone-badge.milestone-locked { cursor: default; }
+.milestone-badge.milestone-locked:hover img { transform: none; }
+/* Locked badges render as dark silhouettes */
+.milestone-badge.milestone-locked img,
+.milestone-lightbox-img.milestone-locked img {
+  filter: grayscale(1) brightness(0.22) contrast(0.85);
+  opacity: 0.45;
+}
+
+/* Badge lightbox (opened by clicking a badge) */
+.milestone-lightbox {
+  width: min(340px, 92vw);
+  text-align: center;
+}
+.milestone-lightbox-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  margin-bottom: 0.9rem;
+}
+.milestone-lightbox-title {
+  font-family: 'Cinzel', serif;
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--earth-brown);
+  text-align: left;
+}
+.milestone-lightbox-req {
+  font-family: 'Cinzel', serif;
+  font-weight: 600;
+  font-size: 0.78rem;
+  color: var(--stone-gray);
+  white-space: nowrap;
+}
+.milestone-lightbox-img img {
+  width: min(200px, 60vw);
+  height: auto;
+  filter: drop-shadow(0 4px 10px rgba(0,0,0,0.3));
+}
+.milestone-lightbox-desc {
+  font-family: 'Crimson Text', serif;
+  font-style: italic;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: var(--charcoal);
+  margin-top: 0.9rem;
+}
+.milestone-tooltip {
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--earth-brown);
+  color: var(--parchment);
+  padding: 0.4rem 0.65rem;
+  border-radius: 6px;
+  white-space: nowrap;
+  text-align: center;
+  z-index: 200;
+  pointer-events: none;
+  box-shadow: 0 3px 12px rgba(0,0,0,0.35);
+}
+.milestone-badge:hover .milestone-tooltip { display: block; }
+.milestone-tooltip-req {
+  font-family: 'Crimson Text', serif;
+  font-style: italic;
+  font-size: 0.75rem;
+}
+.player-card:has(.milestone-badge:hover) { z-index: 10; }
+
 .leader-banner {
   font-family: 'Cinzel', serif;
   font-size: 0.7rem;
@@ -725,6 +906,11 @@ h3 { font-size: clamp(0.9rem, 2.5vw, 1.15rem); font-weight: 600; }
 .stat-info-wrap.infrastructure-info .stat-info-tooltip {
   width: 350px;
   text-align: left;
+}
+/* Short one-liner tooltip that sizes to its text */
+.stat-info-wrap.compact-info .stat-info-tooltip {
+  width: auto;
+  white-space: nowrap;
 }
 .stat-info-wrap:hover .stat-info-tooltip {
   display: block;
