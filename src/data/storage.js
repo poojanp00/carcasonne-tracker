@@ -140,6 +140,7 @@ export async function getGames() {
       farmWin:       g.farm_win   || false, // Farm-dominant victory flag
       achievements,  // Live-tracked achievements in UI format
       gameDuration:  g.duration || 0, // Game duration in milliseconds
+      scoreTimeline: g.score_timeline || [], // Scoring events: {player, type, amount, t (elapsed ms)}
     };
   });
 }
@@ -153,6 +154,7 @@ export async function getGames() {
  *
  * @param {Object} game - Game object with players, scores, expansions, maxFeatures, etc.
  */
+// Requires: ALTER TABLE games ADD COLUMN IF NOT EXISTS score_timeline jsonb DEFAULT '[]'::jsonb;
 export async function insertGame(game) {
   // maxFeatures is live-tracked during gameplay: {road: {amount, player}, city: {amount, player}, ...}
   // Map to database column names
@@ -169,6 +171,7 @@ export async function insertGame(game) {
     clutch_win:       game.clutchWin  || false, // Victory in close game
     farm_win:         game.farmWin    || false, // Victory via farm dominance
     duration:         game.gameDuration || 0, // Game duration in milliseconds
+    score_timeline:   game.scoreTimeline || [], // Scoring events with elapsed-time offsets
     longest_road:      maxFeatures.road        || null,
     largest_city:      maxFeatures.city        || null,
     largest_field:     maxFeatures.field       || null,

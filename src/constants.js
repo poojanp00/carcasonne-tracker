@@ -105,5 +105,5 @@ export const MEEPLE_COLOR_MAP = {
 
 // ── Statistics Configuration ──
 export const STATISTICS_CONFIG = {
-  CLUTCH_THRESHOLD: 0.10, // 10% - margin threshold for "clutch" (close) games
+  CLUTCH_THRESHOLD: 0.07, // 7% - margin threshold for "clutch" (close) games
 };

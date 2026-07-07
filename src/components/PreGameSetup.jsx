@@ -55,8 +55,12 @@ const FUN_MEEPLES = Object.entries(FUN_MODULES)
 
 export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeples, defaultExpansions, realms = [], currentRealm = null, onRealmChange, onRealmCreate, startAtRealmCreation = false, isGuest = false }) {
   // Steps: 0=Group selection, 1=Realm creation, 2=Mode selection, 3=Meeples (table only), 4=Expansions
-  const initialStep = startAtRealmCreation ? 1 : realms.length === 0 ? 1 : 0;
+  // Guests skip group selection (their single "Guest" group is auto-created) and land on mode selection
+  const initialStep = startAtRealmCreation ? 1 : realms.length === 0 ? 1 : isGuest ? 2 : 0;
   const [step, setStep] = useState(initialStep);
+  // Guest onboarding: opening question gate
+  const [guestAnswered, setGuestAnswered] = useState(false);
+  const [noGameError, setNoGameError] = useState(false);
   const [mode, setMode] = useState('table'); // 'table' | 'party'
   const [modeInfoOpen, setModeInfoOpen] = useState(new Set());
   const [modeInfoHover, setModeInfoHover] = useState(null);
@@ -339,6 +343,42 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
     });
   };
 
+
+  // ── Guest gate: must own the game (or be ready to set one up) to continue.
+  // Only on the first mount (no group yet) — after the guest group is created the
+  // component remounts with currentRealm set, and the question must not reappear.
+  if (isGuest && !guestAnswered && !currentRealm) {
+    return (
+      <div className="pregame-screen">
+        <div className="section-title">
+          <h2>Before We Begin</h2>
+          <div className="section-title-line" />
+        </div>
+
+        <div className="tile-card" style={{ marginBottom: '1rem' }}>
+          <div className="form-label" style={{ marginBottom: '0.9rem' }}>Do you own the game?</div>
+          <div style={{ display: 'flex', gap: '0.7rem' }}>
+            <button type="button" className="btn" onClick={() => setGuestAnswered(true)}>Yes</button>
+            <button type="button" className="btn btn-ghost" onClick={() => setNoGameError(true)}>No</button>
+          </div>
+        </div>
+
+        {noGameError && (
+          <div className="realm-modal-overlay" onClick={() => setNoGameError(false)}>
+            <div className="realm-modal tile-card" onClick={e => e.stopPropagation()}>
+              <h3 style={{ color: 'var(--deep-red)', marginBottom: '0.5rem' }}>Game Required</h3>
+              <p style={{ fontSize: '0.95rem', marginBottom: '1.2rem', lineHeight: 1.5 }}>
+                Carcasscore is a live scoreboard for a physical board game.
+              </p>
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <button className="btn btn-sm" onClick={() => setNoGameError(false)}>OK</button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   // ── Step 0: Group Selection ──
   if (step === 0) {

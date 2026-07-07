@@ -213,8 +213,8 @@ export default function App() {
     setSession(prev => ({ ...prev, meeples: { ...(prev.meeples || {}), ...meepleMap } }));
   }, []);
 
-  const handleFinishGame = useCallback((finalScores, scoreBreakdown, farmWin, gameDuration, maxFeatures) => {
-    setSession(prev => ({ ...prev, finalScores, scoreBreakdown, farmWin, gameDuration, maxFeatures }));
+  const handleFinishGame = useCallback((finalScores, scoreBreakdown, farmWin, gameDuration, maxFeatures, scoreTimeline) => {
+    setSession(prev => ({ ...prev, finalScores, scoreBreakdown, farmWin, gameDuration, maxFeatures, scoreTimeline }));
     setTab('board');
     window.scrollTo(0, 0);
   }, []);

@@ -19,6 +19,7 @@ import { getBoard, saveBoard, resetBoard } from '../data/boardStorage';
 import { computeWinners } from '../utils/scoring';
 import { fetchNewEvents, subscribeEvents, setPhase, endSession, deleteSession, unsubscribe, submitEvent } from '../data/partySession';
 import { MONASTERY_LIKE_TYPES, MONASTERY_LIKE_MAX, LIVE_PLAY_ONLY_RECORD_TYPES, MONASTERY_RECORD_TYPES } from '../constants';
+import HowToModal from './HowToGuide';
 import boardImg from '../../images/score-board.jpg';
 
 /**
@@ -113,10 +114,10 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
   const [leadersAtFinish,  setLeadersAtFinish]  = useState([]);
   const [showTraders,   setShowTraders]   = useState(false);
   const [confirmFinish, setConfirmFinish] = useState(false); // Finish game confirmation
+  const [showHowTo, setShowHowTo] = useState(isGuest); // "?" how-to guide modal — guests see it on arrival
   const [confirmReset,         setConfirmReset]         = useState(false); // Reset board confirmation
   const [warning,             setWarning]             = useState(null); // Warning toast (e.g. monastery/abbot/abbey point cap)
   const logContainerRef  = useRef(null);
-  const boardPopoutRef   = useRef(null);
   const boardPopoutChRef = useRef(null);
 
   // Generate log from moves and undo events merged chronologically
@@ -749,6 +750,12 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
     const endTime = Date.now();
     const gameDuration = endTime - board.startTime;
 
+    // Score timeline: every scoring move with its elapsed-time offset from game start,
+    // truncated at moveIndex so undone moves are excluded.
+    const scoreTimeline = board.moves.slice(0, board.moveIndex + 1)
+      .filter(m => m.amount !== 0 && m.timestamp)
+      .map(m => ({ player: m.player, type: m.type, amount: m.amount, t: Math.max(0, m.timestamp - board.startTime) }));
+
     // Update board with endTime and save it BEFORE resetting
     const updatedBoard = { ...board, endTime };
     saveBoard(updatedBoard, userId, isGuest);
@@ -787,7 +794,7 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
     });
     boardPopoutChRef.current?.postMessage({ type: 'GAME_OVER' });
     resetBoard(userId, players, [], isGuest);
-    onFinish(finalScores, scoreBreakdown, autoFarmWin, gameDuration, finalMaxFeatures);
+    onFinish(finalScores, scoreBreakdown, autoFarmWin, gameDuration, finalMaxFeatures, scoreTimeline);
   }
 
   function applyHarvestBonuses() {
@@ -943,23 +950,11 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
           <h2 style={{ margin: 0, fontSize: 'clamp(0.85rem, 3vw, 1.55rem)' }}>score board</h2>
           <button
               type="button"
-              title="Pop out board view"
-              onClick={() => {
-                const base = `${window.location.origin}${window.location.pathname}`;
-                if (!boardPopoutRef.current || boardPopoutRef.current.closed) {
-                  boardPopoutRef.current = window.open(`${base}?view=board`, 'carcasonne-board', 'popup,width=1000,height=700');
-                } else {
-                  boardPopoutRef.current.focus();
-                }
-              }}
-              style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', color: 'var(--stone-gray)', opacity: 0.6 }}
+              title="How it works"
+              onClick={() => setShowHowTo(true)}
+              style={{ background: 'none', border: '1px solid var(--warm-gold)', borderRadius: '50%', width: '1.15rem', height: '1.15rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontFamily: 'Cinzel, serif', fontSize: '0.62rem', fontWeight: 700, color: 'var(--earth-brown)', padding: 0, flexShrink: 0 }}
             >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <polyline points="15 3 21 3 21 9"/>
-                <polyline points="9 21 3 21 3 15"/>
-                <line x1="21" y1="3" x2="14" y2="10"/>
-                <line x1="3" y1="21" x2="10" y2="14"/>
-              </svg>
+              ?
             </button>
         </div>
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '0.7rem' }}>
@@ -990,6 +985,7 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
             <div className="tile-card-header" style={{ border: 'none', padding: 0, margin: 0 }}>Score Log</div>
             <span style={{ fontFamily: 'Crimson Text, serif', fontStyle: 'italic', fontSize: 'clamp(0.65rem, 1.8vw, 0.82rem)', color: 'var(--stone-gray)' }}>{elapsed}</span>
           </div>
+          {showHowTo && <HowToModal onClose={() => setShowHowTo(false)} />}
           {log.length === 0 ? (
             <p style={{ fontFamily: 'Crimson Text, serif', fontStyle: 'italic', color: 'var(--stone-gray)', fontSize: 'clamp(0.75rem, 2vw, 0.9rem)', margin: 0 }}>
               No moves yet.

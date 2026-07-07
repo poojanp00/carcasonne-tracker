@@ -5,7 +5,7 @@ const RECORD_IMGS = Object.fromEntries(
   Object.entries(RECORD_MODULES).map(([path, img]) => [path.split('/').pop().replace('.png', ''), img])
 );
 
-const ACHIEVEMENT_DISPLAY_ORDER = [
+export const ACHIEVEMENT_DISPLAY_ORDER = [
   'longestRoad',
   'largestCity',
   'largestField',
@@ -29,7 +29,7 @@ const ACHIEVEMENT_COLORS = {
   bestTrader:       '#C9A34A',
 };
 
-const ACHIEVEMENT_BADGE = {
+export const ACHIEVEMENT_BADGE = {
   longestRoad:      RECORD_IMGS['largestroad'],
   largestCity:      RECORD_IMGS['largestcity'],
   largestField:     RECORD_IMGS['largestfield'],
@@ -41,7 +41,7 @@ const ACHIEVEMENT_BADGE = {
   bestTrader:       RECORD_IMGS['mastermerchant'],
 };
 
-const ACHIEVEMENT_LABEL_OVERRIDE = {
+export const ACHIEVEMENT_LABEL_OVERRIDE = {
   mostMonastery: 'Most Monasteries',
   bestTrader:    'Master Merchant',
 };

@@ -60,7 +60,6 @@ const EXPANSION_ICONS = {
 };
 
 function ExpansionGroup({ label, expansions, onToggle, canEdit, isGuest, completeSet }) {
-  const [open, setOpen] = useState(false);
   const owned   = expansions.filter((e) => e.owned);
   const unowned = expansions.filter((e) => !e.owned);
 
@@ -79,13 +78,12 @@ function ExpansionGroup({ label, expansions, onToggle, canEdit, isGuest, complet
     <div className="tile-card" style={{ marginBottom: '1.2rem' }}>
       <div
         className="tile-card-header"
-        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: open ? '1px solid var(--warm-gold)' : 'none', paddingBottom: open ? '0.5rem' : 0 }}
+        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--warm-gold)', paddingBottom: '0.5rem' }}
       >
         <span>{label} <span style={{ fontFamily: 'Crimson Text, serif', fontWeight: 400, fontSize: 'clamp(0.7rem, 2vw, 0.85rem)', opacity: 0.7 }}>({owned.length}/{expansions.length})</span></span>
       </div>
 
-      {open && (
-        <div style={{ marginTop: '1rem' }}>
+      <div style={{ marginTop: '1rem' }}>
           {owned.length > 0 && (
             <>
               <div className="collection-group-label owned-label">In Your Possession</div>
@@ -135,16 +133,7 @@ function ExpansionGroup({ label, expansions, onToggle, canEdit, isGuest, complet
               </div>
             </>
           )}
-        </div>
-      )}
-
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', background: 'none', border: 'none', cursor: 'pointer', padding: '0.25rem 0', color: 'var(--stone-gray)', fontSize: '0.65rem', fontFamily: 'Cinzel, serif', opacity: 0.6, marginTop: '0.6rem' }}
-      >
-        {open ? '▲' : '▼'}
-      </button>
+      </div>
     </div>
   );
 }

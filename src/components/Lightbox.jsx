@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import GameHighlights from './GameHighlights';
-import { SCORE_TYPE_ORDER, SCORE_TYPE_COLORS } from '../constants';
+import { ACHIEVEMENT_DISPLAY_ORDER } from './GameHighlights';
+import RecordBadge from './RecordBadge';
+import ScoreTimelineChart from './ScoreTimelineChart';
+import { SCORE_TYPE_ORDER, SCORE_TYPE_COLORS, STATISTICS_CONFIG } from '../constants';
+import { getMeepleColor } from '../utils/formatters';
 import pigImg from '../../images/icons/pig.png';
 import cImg   from '../../images/icons/C.png';
 
@@ -10,6 +13,7 @@ const MEEPLE_IMGS = {
   ...Object.fromEntries(Object.entries(MEEPLE_MODULES).map(([path, img]) => [path.split('/').pop(), img])),
   ...Object.fromEntries(Object.entries(FUN_MODULES).map(([path, img]) => [`fun/${path.split('/').pop()}`, img])),
 };
+const FALLBACK_MEEPLE = Object.values(MEEPLE_IMGS)[0];
 
 const SCORE_GROUPS = [
   { label: 'Road + Inn',              types: ['road', 'inn'] },
@@ -23,7 +27,7 @@ SCORE_GROUPS.forEach(g => g.types.forEach(t => { TYPE_TO_GROUP[t] = g; }));
 
 function formatDate(dateStr) {
   return new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', {
-    weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
+    weekday: 'short', year: 'numeric', month: 'short', day: 'numeric',
   });
 }
 
@@ -35,6 +39,7 @@ export default function Lightbox({ game, games = [], onNavigate, onClose, onDele
   const [tooltip, setTooltip] = useState(null);
   const [showTable, setShowTable] = useState(false);
   const [combined, setCombined] = useState(false);
+  const [sortType, setSortType] = useState(null);
   const barsRef = useRef(null);
 
   useEffect(() => {
@@ -52,16 +57,18 @@ export default function Lightbox({ game, games = [], onNavigate, onClose, onDele
   }, [onClose, onNavigate, idx, games]);
 
   const topPlayers = game.winners || [];  // Use precomputed winners from database
-  const winnerText = topPlayers.length === 0 
-    ? 'No winner' 
-    : topPlayers.length > 1 
-    ? `${topPlayers.join(' & ')} win` 
-    : `${topPlayers[0]} wins`;
 
   const sorted = [...game.players].sort((a, b) => b.score - a.score);
-  const margin = topPlayers.length === 1 && sorted.length > 1 ? sorted[0].score - sorted[1].score : null;
+
+  // Group headline records by their holder so they render as medal chips beside each name
+  const badgesByPlayer = {};
+  ACHIEVEMENT_DISPLAY_ORDER.forEach(key => {
+    const a = game.achievements?.[key];
+    if (!a?.player) return;
+    (badgesByPlayer[a.player] = badgesByPlayer[a.player] || []).push({ key, amount: a.amount });
+  });
   const s1 = sorted[0]?.score ?? 0, s2 = sorted[1]?.score ?? 0;
-  const isClutch = topPlayers.length === 1 && (s1 + s2) > 0 && (s1 - s2) / (s1 + s2) < 0.10;
+  const isClutch = topPlayers.length === 1 && (s1 + s2) > 0 && (s1 - s2) / (s1 + s2) < STATISTICS_CONFIG.CLUTCH_THRESHOLD;
 
   const slideClass = animDir === 'down' ? 'lb-slide-down' : animDir === 'up' ? 'lb-slide-up' : '';
 
@@ -69,64 +76,105 @@ export default function Lightbox({ game, games = [], onNavigate, onClose, onDele
     <div className="lightbox-overlay" onClick={onClose}>
       <div className="lightbox-inner" onClick={e => e.stopPropagation()}>
         <div key={animKey} className={`lightbox-meta ${slideClass}`}>
-          <p style={{ fontStyle: 'italic', color: 'var(--stone-gray)', fontSize: 'clamp(0.75rem, 2vw, 0.88rem)', marginBottom: '0.5rem' }}>
-            {formatDate(game.date)}
-          </p>
+          <div className="section-title">
+            <h2>Final Scores</h2>
+            <div className="section-title-line" />
+          </div>
 
-          <h3 style={{ fontFamily: 'Cinzel, serif', color: 'var(--earth-brown)', marginBottom: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            {winnerText}
+          {/* Info bar: date · duration · expansions · clutch/farm stickers */}
+          <div style={{ marginBottom: '1.2rem', background: 'var(--aged-paper)', border: 'var(--border-tile)', borderRadius: 'var(--radius-tile)', padding: '0.45rem 1rem', display: 'flex', gap: '1.5rem', alignItems: 'center' }}>
+            <div style={{ fontFamily: "'Crimson Text', serif", fontSize: 'clamp(0.8rem, 2.2vw, 0.95rem)', color: 'var(--stone-gray)', fontStyle: 'italic' }}>
+              {formatDate(game.date)}
+            </div>
+            {(game.gameDuration || 0) > 0 && (
+              <>
+                <div style={{ width: '1px', height: '20px', background: 'var(--stone-gray)', opacity: 0.3 }} />
+                <div style={{ fontFamily: "'Crimson Text', serif", fontSize: 'clamp(0.8rem, 2.2vw, 0.95rem)', color: 'var(--stone-gray)', fontStyle: 'italic', whiteSpace: 'nowrap' }}>
+                  {(() => {
+                    const s = Math.floor(game.gameDuration / 1000);
+                    const h = Math.floor(s / 3600);
+                    const m = Math.floor((s % 3600) / 60);
+                    return h > 0 ? `${h}h ${m}m` : `${m}m`;
+                  })()}
+                </div>
+              </>
+            )}
+            <div style={{ width: '1px', height: '20px', background: 'var(--stone-gray)', opacity: 0.3 }} />
+            <div style={{ fontFamily: "'Crimson Text', serif", fontSize: 'clamp(0.8rem, 2.2vw, 0.95rem)', color: 'var(--stone-gray)', fontStyle: 'italic' }}>
+              {game.expansions.length === 0 ? 'Base Game' : game.expansions.join(' · ')}
+            </div>
+            {(isClutch || (game.farmWin && topPlayers.length === 1)) && (
+              <div style={{ width: '1px', height: '20px', background: 'var(--stone-gray)', opacity: 0.3 }} />
+            )}
             {isClutch && (
               <span className="val-info-wrap">
-                <img src={cImg} alt="clutch" style={{ height: 20, width: 'auto', opacity: 0.85 }} />
+                <img src={cImg} alt="clutch" style={{ height: 20, width: 'auto', opacity: 0.85, display: 'block' }} />
                 <span className="val-info-tooltip" style={{ right: 'auto', left: '50%', top: 'auto', bottom: 'calc(100% + 6px)', transform: 'translateX(-50%)', whiteSpace: 'nowrap' }}>Clutch win</span>
               </span>
             )}
             {game.farmWin && topPlayers.length === 1 && (
               <span className="val-info-wrap">
-                <img src={pigImg} alt="farm win" style={{ height: 14, width: 'auto', opacity: 0.85 }} />
+                <img src={pigImg} alt="farm win" style={{ height: 16, width: 'auto', opacity: 0.85, display: 'block' }} />
                 <span className="val-info-tooltip" style={{ right: 'auto', left: '50%', top: 'auto', bottom: 'calc(100% + 6px)', transform: 'translateX(-50%)', whiteSpace: 'nowrap' }}>Farm win</span>
               </span>
             )}
-          </h3>
+          </div>
 
-          {margin !== null && (
-            <p style={{ fontFamily: 'Crimson Text, serif', fontStyle: 'italic', fontSize: 'clamp(0.78rem, 2vw, 0.9rem)', color: 'var(--stone-gray)', marginBottom: '1rem' }}>
-              +{margin} point margin
-            </p>
-          )}
-
-          {/* Player scores */}
-          <div style={{ marginBottom: '1.2rem' }}>
-            {sorted.map((p, i) => {
-              const isWinner = topPlayers.includes(p.name);
-              return (
-                <div
-                  key={p.name}
-                  style={{
-                    padding: '0.5rem 0',
-                    borderBottom: i < sorted.length - 1 ? '1px solid rgba(201,163,74,0.25)' : 'none',
-                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                  }}
-                >
-                  <span style={{
-                    fontFamily: 'Cinzel, serif',
-                    fontSize: 'clamp(0.8rem, 2.2vw, 0.95rem)',
-                    fontWeight: isWinner ? 700 : 400,
-                    color: isWinner ? 'var(--forest-green)' : 'var(--charcoal)',
-                  }}>
-                    {p.name}
-                  </span>
-                  <span style={{
-                    fontFamily: 'Cinzel, serif',
-                    fontSize: 'clamp(0.88rem, 2.5vw, 1.05rem)',
-                    fontWeight: isWinner ? 700 : 400,
-                    color: isWinner ? 'var(--forest-green)' : 'var(--stone-gray)',
-                  }}>
-                    {p.score}
-                  </span>
-                </div>
-              );
-            })}
+          {/* Standings: one bordered card per player, meeple-colored */}
+          <div className="tile-card" style={{ marginBottom: '1.4rem', borderTop: '4px solid var(--warm-gold)' }}>
+            <div className="chart-header" style={{ margin: '0 0 1rem', textAlign: 'left' }}>Standings</div>
+            <div className="postgame-scores-grid">
+              {sorted.map((p) => {
+                const color = getMeepleColor(p.meeple);
+                return (
+                  <div key={p.name} className="postgame-player-card" style={{ borderLeft: `3px solid ${color}` }}>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', columnGap: '0.5rem', rowGap: '0.4rem' }}>
+                      <img src={MEEPLE_IMGS[p.meeple] || FALLBACK_MEEPLE} alt={p.name} style={{ height: 26, width: 'auto', flexShrink: 0 }} />
+                      {/* Col 1: name — hard-fixed width so every row's columns match and
+                          badge strips wrap at the same screen width */}
+                      <span style={{
+                        fontFamily: 'Cinzel, serif',
+                        color,
+                        fontWeight: 600,
+                        fontSize: 'clamp(0.8rem, 2.2vw, 0.95rem)',
+                        flexShrink: 0,
+                        width: 'clamp(72px, 24vw, 130px)',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                      }}>
+                        {p.name}
+                      </span>
+                      {/* Col 2: score — fixed width so every row's columns match */}
+                      <span style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        flexShrink: 0,
+                        width: 'calc(4ch + 2.5rem)',
+                        borderLeft: '1px solid rgba(201,163,74,0.35)',
+                        padding: '0 1rem 0 1.5rem',
+                        alignSelf: 'stretch',
+                      }}>
+                        <div className="postgame-score-display">
+                          {p.score}
+                        </div>
+                      </span>
+                      {/* Col 3: medal chips — right-aligned; wraps below name+score on thin screens
+                          (where CSS drops the divider and left-aligns the strip) */}
+                      {(badgesByPlayer[p.name] || []).length > 0 && (
+                        <span className="lb-badge-col" style={{ flex: '1 1 52px', minWidth: 0, overflowX: 'auto', display: 'flex', alignSelf: 'stretch', alignItems: 'center' }}>
+                          <span className="lb-badge-strip" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                            {badgesByPlayer[p.name].map(({ key, amount }) => (
+                              <RecordBadge key={key} badgeKey={key} amount={amount} size="clamp(32px, 9vw, 48px)" />
+                            ))}
+                          </span>
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
           {/* Points breakdown table */}
@@ -151,16 +199,31 @@ export default function Lightbox({ game, games = [], onNavigate, onClose, onDele
               ...displayTypes.filter(t => !TYPE_TO_GROUP[t]),
             ];
 
-            const maxTotal = Math.max(1, ...sorted.map(p => {
+            const totalBreakdown = {};
+            game.players.forEach(p => {
+              Object.entries(p.breakdown || {}).forEach(([t, v]) => {
+                totalBreakdown[t] = (totalBreakdown[t] || 0) + (v || 0);
+              });
+            });
+
+            const displayPlayers = combined
+              ? [{ name: 'All Players', breakdown: totalBreakdown, score: sorted.reduce((s, p) => s + p.score, 0) }]
+              : sorted;
+
+            // Combined bar fills the same vertical space as the per-player rows (16px rows, 0.45rem gaps)
+            const barHeight = combined ? `calc(${sorted.length} * 16px + ${sorted.length - 1} * 0.45rem)` : '16px';
+
+            const maxTotal = Math.max(1, ...displayPlayers.map(p => {
               const bd = p.breakdown || {};
               return displayTypes.reduce((s, t) => s + (bd[t] || 0), 0);
             }));
 
             return (
-              <div style={{ marginBottom: '1.5rem', marginTop: '2rem' }}>
+              <div className="chart-wrapper" style={{ marginBottom: '1.4rem' }}>
+                <div className="chart-container" style={{ borderTop: '4px solid var(--warm-gold)', paddingTop: '1.25rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.2rem' }}>
-                  <div style={{ fontSize: 'clamp(0.6rem, 1.8vw, 0.75rem)', fontFamily: 'Cinzel, serif', letterSpacing: '0.1em', color: 'var(--stone-gray)' }}>
-                    POINTS BREAKDOWN
+                  <div className="chart-header" style={{ margin: 0, textAlign: 'left' }}>
+                    Points Breakdown
                   </div>
                   <button
                     type="button"
@@ -176,7 +239,7 @@ export default function Lightbox({ game, games = [], onNavigate, onClose, onDele
                   style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', marginBottom: '1rem', position: 'relative' }}
                   onMouseLeave={() => setTooltip(null)}
                 >
-                  {sorted.map(p => {
+                  {displayPlayers.map(p => {
                     const bd = p.breakdown || {};
                     const total = displayTypes.reduce((s, t) => s + (bd[t] || 0), 0);
                     return (
@@ -184,8 +247,8 @@ export default function Lightbox({ game, games = [], onNavigate, onClose, onDele
                         <span style={{ fontFamily: 'Cinzel, serif', fontSize: 'clamp(0.58rem, 1.6vw, 0.72rem)', color: topPlayers.includes(p.name) ? 'var(--forest-green)' : 'var(--stone-gray)', fontWeight: topPlayers.includes(p.name) ? 700 : 400, minWidth: '64px', textAlign: 'right', flexShrink: 0 }}>
                           {p.name}
                         </span>
-                        <div style={{ flex: 1, height: '16px' }}>
-                          <div style={{ width: `${(total / maxTotal) * 100}%`, height: '16px', borderRadius: '6px', overflow: 'hidden', display: 'flex' }}>
+                        <div style={{ flex: 1, height: barHeight }}>
+                          <div style={{ width: `${(total / maxTotal) * 100}%`, height: barHeight, borderRadius: '6px', overflow: 'hidden', display: 'flex' }}>
                           {total === 0
                             ? <div style={{ flex: 1, backgroundColor: 'var(--stone-gray)', opacity: 0.2 }} />
                             : orderedTypes.map(t => {
@@ -199,13 +262,9 @@ export default function Lightbox({ game, games = [], onNavigate, onClose, onDele
                                       if (!barsRef.current) return;
                                       const segRect = e.currentTarget.getBoundingClientRect();
                                       const containerRect = barsRef.current.getBoundingClientRect();
-                                      const group = combined ? TYPE_TO_GROUP[t] : null;
-                                      const groupValue = group ? group.types.reduce((s, gt) => s + (bd[gt] || 0), 0) : null;
                                       setTooltip({
                                         type: t,
                                         value: val,
-                                        groupLabel: group?.label ?? null,
-                                        groupValue,
                                         x: segRect.left + segRect.width / 2 - containerRect.left,
                                         y: segRect.top - containerRect.top,
                                       });
@@ -239,25 +298,12 @@ export default function Lightbox({ game, games = [], onNavigate, onClose, onDele
                       boxShadow: '0 3px 12px rgba(0,0,0,0.35)',
                       textAlign: 'center',
                     }}>
-                      {combined && tooltip.groupLabel ? (
-                        <>
-                          <div style={{ fontFamily: "'Cinzel', serif", fontSize: '0.65rem', color: 'rgba(240,230,210,0.7)', marginBottom: '0.1rem' }}>
-                            {tooltip.groupLabel}
-                          </div>
-                          <div style={{ fontFamily: "'Cinzel', serif", fontWeight: 700, fontSize: '0.85rem' }}>
-                            {tooltip.groupValue}
-                          </div>
-                        </>
-                      ) : (
-                        <>
-                          <div style={{ fontFamily: "'Cinzel', serif", fontSize: '0.65rem', color: 'rgba(240,230,210,0.7)', marginBottom: '0.1rem' }}>
-                            {TYPE_LABELS[tooltip.type] ?? tooltip.type}
-                          </div>
-                          <div style={{ fontFamily: "'Cinzel', serif", fontWeight: 700, fontSize: '0.85rem' }}>
-                            {tooltip.value}
-                          </div>
-                        </>
-                      )}
+                      <div style={{ fontFamily: "'Cinzel', serif", fontSize: '0.65rem', color: 'rgba(240,230,210,0.7)', marginBottom: '0.1rem' }}>
+                        {TYPE_LABELS[tooltip.type] ?? tooltip.type}
+                      </div>
+                      <div style={{ fontFamily: "'Cinzel', serif", fontWeight: 700, fontSize: '0.85rem' }}>
+                        {tooltip.value}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -275,17 +321,25 @@ export default function Lightbox({ game, games = [], onNavigate, onClose, onDele
                       <tr>
                         <th style={{ textAlign: 'left', padding: '0.3rem 0.5rem 0.3rem 0', fontFamily: 'Cinzel, serif', color: 'var(--stone-gray)', fontWeight: 400, fontSize: 'clamp(0.55rem, 1.5vw, 0.68rem)', whiteSpace: 'nowrap' }}>Player</th>
                         {orderedTypes.map(t => (
-                          <th key={t} style={{ padding: '0.25rem 0.3rem', fontFamily: 'Cinzel, serif', fontWeight: 600, fontSize: 'clamp(0.5rem, 1.4vw, 0.62rem)', textAlign: 'center', color: 'var(--stone-gray)', whiteSpace: 'nowrap' }}>
+                          <th
+                            key={t}
+                            onClick={() => setSortType(s => s === t ? null : t)}
+                            style={{ padding: '0.25rem 0.3rem', fontFamily: 'Cinzel, serif', fontWeight: 600, fontSize: 'clamp(0.5rem, 1.4vw, 0.62rem)', textAlign: 'center', color: sortType === t ? 'var(--earth-brown)' : 'var(--stone-gray)', whiteSpace: 'nowrap', cursor: 'pointer', userSelect: 'none', textDecoration: sortType === t ? 'underline' : 'none' }}
+                          >
                             <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', justifyContent: 'center' }}>
                               <span style={{ width: '7px', height: '7px', borderRadius: '2px', backgroundColor: SCORE_TYPE_COLORS[t], display: 'inline-block', flexShrink: 0 }} />
                               {TYPE_LABELS[t] ?? t}
+                              {sortType === t && <span style={{ fontSize: '0.5rem' }}>▼</span>}
                             </span>
                           </th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
-                      {sorted.map((p) => (
+                      {(sortType
+                        ? [...sorted].sort((a, b) => ((b.breakdown || {})[sortType] || 0) - ((a.breakdown || {})[sortType] || 0))
+                        : sorted
+                      ).map((p) => (
                         <tr key={p.name} style={{ borderTop: '1px solid rgba(201,163,74,0.2)' }}>
                           <td style={{ padding: '0.35rem 0.5rem 0.35rem 0', fontFamily: 'Cinzel, serif', fontSize: 'clamp(0.62rem, 1.8vw, 0.78rem)', color: topPlayers.includes(p.name) ? 'var(--forest-green)' : 'var(--charcoal)', fontWeight: topPlayers.includes(p.name) ? 700 : 400, whiteSpace: 'nowrap' }}>
                             {p.name}
@@ -300,34 +354,39 @@ export default function Lightbox({ game, games = [], onNavigate, onClose, onDele
                           })}
                         </tr>
                       ))}
+                      {combined && <tr style={{ borderTop: '2px solid rgba(201,163,74,0.45)' }}>
+                        <td style={{ padding: '0.35rem 0.5rem 0.35rem 0', fontFamily: 'Cinzel, serif', fontWeight: 700, fontSize: 'clamp(0.62rem, 1.8vw, 0.78rem)', color: 'var(--earth-brown)', whiteSpace: 'nowrap' }}>
+                          Total
+                        </td>
+                        {orderedTypes.map(t => {
+                          const val = totalBreakdown[t] || 0;
+                          return (
+                            <td key={t} style={{ padding: '0.35rem 0.3rem', textAlign: 'center', fontFamily: 'Crimson Text, serif', fontWeight: 700, fontSize: 'clamp(0.72rem, 1.8vw, 0.88rem)', color: val > 0 ? 'var(--earth-brown)' : 'var(--stone-gray)', opacity: val > 0 ? 1 : 0.35 }}>
+                              {val > 0 ? val : '—'}
+                            </td>
+                          );
+                        })}
+                      </tr>}
                     </tbody>
                   </table>
                 </div>}
+                </div>
               </div>
             );
           })()}
 
-          {/* Game Records */}
-          {game.achievements && Object.keys(game.achievements).length > 0 && (
-            <div style={{ marginTop: '2rem' }}>
-              <GameHighlights achievements={game.achievements} />
+          {/* Score swing timeline */}
+          {game.scoreTimeline?.length > 0 && (
+            <div style={{ marginBottom: '1.4rem' }}>
+              <ScoreTimelineChart
+                timeline={game.scoreTimeline}
+                players={game.players.map(p => p.name)}
+                duration={game.gameDuration}
+              />
             </div>
           )}
 
-          {/* Expansions */}
-          {game.expansions.length > 0 ? (
-            <div className="expansion-chips" style={{ marginTop: '1.6rem', marginBottom: '1.2rem' }}>
-              {game.expansions.map(exp => (
-                <span key={exp} className="expansion-chip display-only">{exp}</span>
-              ))}
-            </div>
-          ) : (
-            <span style={{ fontStyle: 'italic', color: 'var(--stone-gray)', fontSize: '0.9rem', display: 'block', marginTop: '1.6rem', marginBottom: '1.2rem' }}>
-              Base game — no expansions
-            </span>
-          )}
-
-          <div style={{ display: 'flex', justifyContent: onDeleteRequest ? 'space-between' : 'flex-end' }}>
+          <div style={{ display: 'flex', justifyContent: onDeleteRequest ? 'space-between' : 'flex-end', marginTop: '1.6rem' }}>
             {onDeleteRequest && (
               <button
                 className="btn btn-sm"

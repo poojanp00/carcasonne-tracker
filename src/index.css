@@ -467,11 +467,12 @@ h3 { font-size: clamp(0.9rem, 2.5vw, 1.15rem); font-weight: 600; }
 /* ── Stats ── */
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  /* minmax(0, …) keeps tracks equal — a flipped card's badge grid can't widen its column */
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 1.2rem;
 }
 .stats-grid-2col {
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .player-card {
@@ -657,9 +658,15 @@ h3 { font-size: clamp(0.9rem, 2.5vw, 1.15rem); font-weight: 600; }
 .player-card-flip:hover { transform: translateY(-3px); }
 .player-card-flip-inner {
   display: grid;
+  /* Explicit minmax(0, 1fr) track: faces must fit the card width — a wide
+     badge grid on the back can't stretch the card or spill off-page */
+  grid-template-columns: minmax(0, 1fr);
   position: relative;
   transform-style: preserve-3d;
   transition: transform 0.6s cubic-bezier(0.4, 0.2, 0.2, 1);
+}
+.player-card-flip .player-card {
+  min-width: 0;
 }
 /* Only the visible face drives card height — pin the hidden face so a tall
    back (badge grid) doesn't stretch the front */
@@ -740,13 +747,16 @@ h3 { font-size: clamp(0.9rem, 2.5vw, 1.15rem); font-weight: 600; }
 .milestone-badge.milestone-locked .milestone-badge-name { opacity: 0.45; }
 .milestone-badge-name {
   font-family: 'Cinzel', serif;
-  font-size: 0.6rem;
+  /* Flexes with viewport like the badge art so thin screens don't overflow */
+  font-size: clamp(0.44rem, 1.5vw, 0.6rem);
   font-weight: 1000;
   letter-spacing: 0.04em;
   line-height: 1.25;
   text-align: center;
   color: var(--earth-brown);
   margin-top: 0.35rem;
+  overflow-wrap: break-word;
+  max-width: 100%;
 }
 .milestone-badge img {
   width: 100%;
@@ -1194,7 +1204,7 @@ h3 { font-size: clamp(0.9rem, 2.5vw, 1.15rem); font-weight: 600; }
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  padding: 1rem;
+  padding: clamp(3rem, 10vh, 7rem) 1rem;
   overflow-y: auto;
   animation: lbFadeIn 0.28s ease forwards;
 }
@@ -1204,11 +1214,11 @@ h3 { font-size: clamp(0.9rem, 2.5vw, 1.15rem); font-weight: 600; }
 }
 
 .lightbox-inner {
-  background: var(--aged-paper);
+  background: var(--parchment);
   border: 2px solid var(--warm-gold);
   border-radius: var(--radius-tile);
   box-shadow: var(--shadow-deep);
-  max-width: 720px;
+  max-width: 1200px;
   width: 100%;
   /* Auto margins center the modal when there's room, but collapse when the
      content is taller than the viewport so the top stays scrollable. */
@@ -1231,7 +1241,10 @@ h3 { font-size: clamp(0.9rem, 2.5vw, 1.15rem); font-weight: 600; }
 }
 
 .lightbox-meta {
-  padding: 1.6rem;
+  padding: 2rem 1.6rem;
+  /* Content boxes stay reader-width; the parchment panel around them can be wider */
+  max-width: 820px;
+  margin: 0 auto;
 }
 
 @keyframes lbSlideFromBelow {
@@ -1913,11 +1926,11 @@ input[type="file"] { display: none; }
 
 /* ── Responsive ── */
 @media (max-width: 720px) {
-  .stats-grid { grid-template-columns: repeat(2, 1fr); }
+  .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 640px) {
-  .lightbox-overlay { padding: 0.5rem; }
+  .lightbox-overlay { padding: 1.25rem 0.5rem; }
   .lightbox-inner { max-width: 100%; }
   .lightbox-photo { max-height: 260px; }
   .lightbox-meta { padding: 1rem; }
@@ -2550,3 +2563,21 @@ input[type="file"] { display: none; }
   to   { opacity: 1; transform: translateY(0); }
 }
 .hl-card { animation: hl-pop 0.32s ease both; }
+
+/* Lightbox standings: badge column divider — dropped on thin screens where the strip wraps under the name/score */
+.lb-badge-col {
+  border-left: 1px solid rgba(201, 163, 74, 0.35);
+  padding-left: 0.75rem;
+}
+.lb-badge-strip {
+  margin-left: auto; /* right-align when badges share the row */
+}
+@media (max-width: 560px) {
+  .lb-badge-col {
+    border-left: none;
+    padding-left: 0;
+  }
+  .lb-badge-strip {
+    margin-left: 0; /* left-align once the strip wraps to its own line */
+  }
+}

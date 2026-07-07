@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, useRef } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 
 const MEEPLE_MODULES = import.meta.glob('../../images/meeples/*.png',     { eager: true, import: 'default' });
@@ -7,7 +7,7 @@ const MEEPLE_IMGS = {
   ...Object.fromEntries(Object.entries(MEEPLE_MODULES).map(([p, img]) => [p.split('/').pop(), img])),
   ...Object.fromEntries(Object.entries(FUN_MODULES).map(([p, img]) => [`fun/${p.split('/').pop()}`, img])),
 };
-import { STATISTICS_CONFIG, SCORE_TYPE_ORDER, SCORE_TYPE_COLORS } from '../constants';
+import { STATISTICS_CONFIG } from '../constants';
 import { DEFAULT_EXPANSIONS } from '../data/expansions';
 import { MILESTONE_CATEGORIES, badgeProgress, progressForTypes } from '../data/milestones';
 import ChipGroup from './ChipGroup';
@@ -56,7 +56,7 @@ function calcBreakdown(games, name) {
  * - Point differentials and averages
  * 
  * ADVANCED ANALYSIS:
- * - Clutch factor: Performance in close games (margin < 10% of combined scores)
+ * - Clutch factor: Performance in close games (margin < 7% of combined scores)
  * - Farm win percentage: How often victories come from field scoring dominance  
  * - Biggest blowouts: Largest victory margins with game details
  * - Current streaks: Consecutive wins/losses from most recent games
@@ -122,7 +122,7 @@ function calcStats(games, name) {
     if (g.farmWin && isWinner) farmWins++;
 
     // CLUTCH GAME ANALYSIS
-    // "Clutch" games are close contests where margin < 10% of combined score
+    // "Clutch" games are close contests where margin < 7% of combined score
     // Tests performance under pressure in competitive games
     const total_pts = my + maxOpp;
     if (total_pts > 0 && Math.abs(my - maxOpp) / total_pts < STATISTICS_CONFIG.CLUTCH_THRESHOLD) {
@@ -229,18 +229,21 @@ const PLAYER_COLOR_CLASSES = ['p1', 'p2', 'p3', 'p4', 'p5', 'p6'];
 
 
 function calcGroupStats(games) {
-  let totalPoints = 0, farmWins = 0, clutchGames = 0, longestGame = 0, longestGameObj = null;
+  let totalPoints = 0, farmWins = 0, clutchGames = 0, longestGame = 0, longestGameObj = null, shortestGame = 0, shortestGameObj = null, highestPoints = 0, highestPointsObj = null;
   const typePoints = {};
   for (const g of games) {
-    totalPoints += g.players.reduce((s, p) => s + p.score, 0);
+    const gamePoints = g.players.reduce((s, p) => s + p.score, 0);
+    totalPoints += gamePoints;
     if (g.farmWin) farmWins++;
     if (g.clutchWin) clutchGames++;
     if ((g.gameDuration || 0) > longestGame) { longestGame = g.gameDuration || 0; longestGameObj = g; }
+    if ((g.gameDuration || 0) > 0 && (shortestGame === 0 || g.gameDuration < shortestGame)) { shortestGame = g.gameDuration; shortestGameObj = g; }
+    if (gamePoints > highestPoints) { highestPoints = gamePoints; highestPointsObj = g; }
     for (const p of g.players)
       for (const [type, pts] of Object.entries(p.breakdown || {}))
         typePoints[type] = (typePoints[type] || 0) + pts;
   }
-  return { totalPoints, farmWins, clutchGames, longestGame, longestGameObj, typePoints };
+  return { totalPoints, farmWins, clutchGames, longestGame, longestGameObj, shortestGame, shortestGameObj, highestPoints, highestPointsObj, typePoints };
 }
 
 function calcPlayerRecords(games, players) {
@@ -263,16 +266,6 @@ const TYPE_LABELS = {
   largest_city: 'Largest City', largest_road: 'Largest Road',
   abbey: 'Abbey', barn: 'Barn', abbot: 'Abbot', wagon: 'Wagon',
 };
-
-const SCORE_GROUPS = [
-  { label: 'Road + Inn',           types: ['road', 'inn'] },
-  { label: 'City + Cath.',         types: ['city', 'cathedral'] },
-  { label: 'Mon. + Abbot + Abbey', types: ['monastery', 'abbot', 'abbey'] },
-  { label: 'Field + Pig + Barn',   types: ['field', 'pig', 'barn'] },
-  { label: 'Goods',                types: ['wine', 'grain', 'cloth'] },
-];
-const TYPE_TO_GROUP = {};
-SCORE_GROUPS.forEach(g => g.types.forEach(t => { TYPE_TO_GROUP[t] = g; }));
 
 function MilestoneBadge({ badge, unit, unlocked, onSelect }) {
   return (
@@ -305,6 +298,15 @@ function MilestoneLightbox({ badge, unit, unlocked, onClose }) {
           <img src={badge.img} alt={badge.name} draggable={false} />
         </div>
         <p className="milestone-lightbox-desc">{badge.description}</p>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.8rem' }}>
+          <button
+            className="btn btn-ghost btn-sm"
+            onClick={(e) => { e.stopPropagation(); onClose(); }}
+            style={{ color: 'var(--deep-red)', borderColor: 'var(--deep-red)' }}
+          >
+            Close
+          </button>
+        </div>
       </div>
     </div>,
     document.body
@@ -375,8 +377,9 @@ function PlayerCard({ name, stats, breakdown, favMeeple, favMeepleCount, colorCl
           </ValInfo>
         )}
         <div className="player-card-name" style={{ margin: 0 }}>{name}</div>
-        <StatInfo className="compact-info">Click card to view milestones.</StatInfo>
       </div>
+
+      <div className="milestones-subtitle">Player Stats</div>
 
       <div className="stat-row">
         <span className="stat-label">Victories</span>
@@ -416,20 +419,20 @@ function PlayerCard({ name, stats, breakdown, favMeeple, favMeepleCount, colorCl
 
       {stats.total > 0 && (
         <div className="stat-row">
-          <span className="stat-label">Point differential <StatInfo>Net point difference across all games.</StatInfo></span>
+          <span className="stat-label">Point differential</span>
           <span className="stat-value" style={{ color: stats.netPtDiff > 0 ? 'var(--forest-green)' : stats.netPtDiff < 0 ? 'var(--deep-red)' : 'inherit' }}>
             {stats.netPtDiff > 0 ? `+${stats.netPtDiff}` : stats.netPtDiff}
           </span>
         </div>
       )}
       <div className="stat-row">
-        <span className="stat-label">Farm <StatInfo>How often your wins came via farm.</StatInfo></span>
+        <span className="stat-label">Farm</span>
         <ValInfo tip={stats.farm !== null ? `${stats.farmWins} farm win / ${stats.wins} total wins` : null}>
           <span className="stat-value">{stats.farm !== null ? `${stats.farm}%` : '—'}</span>
         </ValInfo>
       </div>
       <div className="stat-row">
-        <span className="stat-label">Clutch factor <StatInfo>Win rate in close games (margin &lt; 10% of total points).</StatInfo></span>
+        <span className="stat-label">Clutch factor</span>
         <ValInfo tip={stats.clutchFactor !== null ? `${stats.clutchWins} wins / ${stats.clutchGames} clutch games` : null}>
           <span className="stat-value" style={{
             color: stats.clutchFactor !== null && stats.clutchFactor >= 0.6
@@ -443,7 +446,7 @@ function PlayerCard({ name, stats, breakdown, favMeeple, favMeepleCount, colorCl
         </ValInfo>
       </div>
       <div className="stat-row">
-        <span className="stat-label">Biggest blowout <StatInfo>Largest winning margin in a single game.</StatInfo></span>
+        <span className="stat-label">Biggest blowout</span>
         {stats.biggestBlowout > 0 && stats.biggestBlowoutGame && onNavigateToGame ? (
           <button
             type="button"
@@ -470,14 +473,9 @@ function PlayerCard({ name, stats, breakdown, favMeeple, favMeepleCount, colorCl
 export default function Stats({ games, realms = [], currentRealm = null, onRealmChange, onDelete, isGuest = false, showDemoData = false, onToggleDemoData = null }) {
   const realmGames = currentRealm ? games.filter(g => g.realmId === currentRealm.id) : [];
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [cardExpanded, setCardExpanded] = useState(false);
-  const [barTooltip, setBarTooltip] = useState(null);
   const [selectedGame, setSelectedGame] = useState(null);
-  const barRef = useRef(null);
 
   const openGameLightbox = (game) => setSelectedGame(game);
-
-  useEffect(() => { setCardExpanded(false); }, [currentRealm?.id]);
 
   useEffect(() => {
     const isOpen = confirmDelete || !!selectedGame;
@@ -590,12 +588,6 @@ export default function Stats({ games, realms = [], currentRealm = null, onRealm
           {(() => {
             const gs = calcGroupStats(realmGames);
             const records = calcPlayerRecords(realmGames, currentRealm.players);
-            const activeTypes = SCORE_TYPE_ORDER.filter(t => gs.typePoints[t] > 0);
-            const orderedBarTypes = [
-              ...SCORE_GROUPS.flatMap(g => g.types.filter(t => activeTypes.includes(t))),
-              ...activeTypes.filter(t => !TYPE_TO_GROUP[t]),
-            ];
-            const totalBreakdown = activeTypes.reduce((s, t) => s + gs.typePoints[t], 0);
             const EXP_TYPE = Object.fromEntries(DEFAULT_EXPANSIONS.map(e => [e.name, e.type]));
             const { favFull, favFullCount, favMini, favMiniCount } = (() => {
               const full = {}, mini = {};
@@ -614,123 +606,26 @@ export default function Stats({ games, realms = [], currentRealm = null, onRealm
               };
             })();
 
-            const longestText = gs.longestGame > 0 ? (() => {
-              const s = Math.floor(gs.longestGame / 1000);
+            const formatDuration = (ms) => {
+              if (!(ms > 0)) return '—';
+              const s = Math.floor(ms / 1000);
               const h = Math.floor(s / 3600);
               const m = Math.floor((s % 3600) / 60);
               return h > 0 ? `${h}h ${m}m` : `${m}m`;
-            })() : '—';
+            };
+            const longestText = formatDuration(gs.longestGame);
+            const shortestText = formatDuration(gs.shortestGame);
             return (
               <div className={`stats-grid${(sorted.length === 2 || sorted.length === 4) ? ' stats-grid-2col' : ''}`} style={{ alignItems: 'start' }}>
 
-                {/* Wide combined card: group stats left, point totals right */}
-                <div className="tile-card" style={{ borderTop: '4px solid var(--warm-gold)', gridColumn: '1 / -1' }}>
-
-                  {/* Always-visible: name/records + point totals bar */}
-                  <div style={{ display: 'flex', gap: '1.5rem' }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.15rem' }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
-                          <span style={{ fontFamily: 'Cinzel, serif', fontSize: 'clamp(0.85rem, 2.5vw, 1.1rem)', fontWeight: 700, color: 'var(--earth-brown)' }}>
-                            {currentRealm.name}
-                          </span>
-                          <div style={{ fontFamily: 'Cinzel, serif', fontSize: 'clamp(0.7rem, 1.8vw, 0.85rem)', display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
-                            {[...currentRealm.players]
-                              .sort((a, b) => (records[b.toLowerCase()]?.w || 0) - (records[a.toLowerCase()]?.w || 0))
-                              .map((name) => (
-                                <span key={name} style={{ whiteSpace: 'nowrap' }}>
-                                  <span style={{ color: 'var(--forest-green)', fontWeight: 600, minWidth: '1.2em', display: 'inline-block' }}>{records[name.toLowerCase()]?.w || 0}</span>
-                                  {' '}
-                                  <span style={{ color: 'var(--charcoal)' }}>{name}</span>
-                                </span>
-                              ))}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div style={{ width: '1px', background: 'var(--warm-gold)', opacity: 0.3, flexShrink: 0 }} />
-
-                    <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', paddingBottom: '0.6rem' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <span style={{ fontFamily: 'Cinzel, serif', fontSize: 'clamp(0.52rem, 1.5vw, 0.7rem)', letterSpacing: '0.1em', color: 'var(--stone-gray)' }}>POINT TOTALS</span>
-                        <span className="stat-value">{gs.totalPoints}</span>
-                      </div>
-                      <div
-                        ref={barRef}
-                        style={{ position: 'relative', margin: '0.5rem 0 0', flex: 1, minHeight: '16px', display: 'flex' }}
-                        onMouseLeave={() => setBarTooltip(null)}
-                      >
-                        <div style={{ display: 'flex', width: '100%', height: '100%', minHeight: '16px', borderRadius: '6px', overflow: 'hidden' }}>
-                          {orderedBarTypes.length === 0
-                            ? <div style={{ flex: 1, backgroundColor: 'var(--stone-gray)', opacity: 0.25 }} />
-                            : orderedBarTypes.map(t => (
-                                <div
-                                  key={t}
-                                  style={{ flex: gs.typePoints[t] / totalBreakdown, backgroundColor: SCORE_TYPE_COLORS[t], cursor: 'default' }}
-                                  onMouseEnter={(e) => {
-                                    if (!barRef.current) return;
-                                    const segRect = e.currentTarget.getBoundingClientRect();
-                                    const containerRect = barRef.current.getBoundingClientRect();
-                                    setBarTooltip({
-                                      type: t,
-                                      value: gs.typePoints[t],
-                                      x: segRect.left + segRect.width / 2 - containerRect.left,
-                                      y: segRect.bottom - containerRect.top,
-                                    });
-                                  }}
-                                />
-                              ))
-                          }
-                        </div>
-                        {barTooltip && (
-                          <div style={{
-                            position: 'absolute',
-                            left: barTooltip.x,
-                            top: barTooltip.y,
-                            transform: 'translate(-50%, 6px)',
-                            background: 'var(--earth-brown)',
-                            color: 'var(--parchment)',
-                            padding: '0.3rem 0.55rem',
-                            borderRadius: '6px',
-                            zIndex: 100,
-                            whiteSpace: 'nowrap',
-                            pointerEvents: 'none',
-                            boxShadow: '0 3px 12px rgba(0,0,0,0.35)',
-                            textAlign: 'center',
-                          }}>
-                            <div style={{ fontFamily: "'Cinzel', serif", fontSize: '0.65rem', color: 'rgba(240,230,210,0.7)', marginBottom: '0.1rem' }}>
-                              {TYPE_LABELS[barTooltip.type] ?? barTooltip.type}
-                            </div>
-                            <div style={{ fontFamily: "'Cinzel', serif", fontWeight: 700, fontSize: '0.85rem' }}>
-                              {barTooltip.value}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                    </div>
-                  </div>
-
-                  {/* Arrow stays here — between fixed and expanding content */}
-                  <button
-                    type="button"
-                    onClick={() => setCardExpanded(v => !v)}
-                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', background: 'none', border: 'none', cursor: 'pointer', padding: '0.25rem 0', color: 'var(--stone-gray)', fontSize: '0.65rem', fontFamily: 'Cinzel, serif', opacity: 0.6, marginTop: '0.4rem' }}
-                  >
-                    {cardExpanded ? '▲' : '▼'}
-                  </button>
-
-                  {/* Expanded content — below arrow, same two-column layout */}
-                  {cardExpanded && (
-                    <div style={{ display: 'flex', gap: '1.5rem', marginTop: '0.2rem' }}>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        {[
-                          ['Games', realmGames.length, null, null],
-                          ['Farm Wins', gs.farmWins, null, 'Games won in final scoring stage.'],
-                          ['Clutch Games', gs.clutchGames, null, 'Games where winning margin was less than 10%.'],
-                          ['Longest Game', longestText, gs.longestGameObj, null],
-                        ].map(([label, val, gameObj, info]) => (
+                {/* Wide combined card: standings + proportional point bars, group stats below */}
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <PointBreakdownChart
+                    players={[...sorted].sort((a, b) => (records[b.name.toLowerCase()]?.w || 0) - (records[a.name.toLowerCase()]?.w || 0))}
+                    title={currentRealm.name}
+                    winsByPlayer={Object.fromEntries(sorted.map(ps => [ps.name, records[ps.name.toLowerCase()]?.w || 0]))}
+                    footer={(() => {
+                        const statRow = ([label, val, gameObj, info]) => (
                           <div key={label} className="stat-row" style={{ margin: 0 }}>
                             <span className="stat-label">
                               {label}
@@ -741,37 +636,43 @@ export default function Stats({ games, realms = [], currentRealm = null, onRealm
                               : <span className="stat-value">{val}</span>
                             }
                           </div>
-                        ))}
-                        <div style={{ marginTop: '0.1rem' }}>
-                          <span className="stat-label">Favorite Expansion</span>
-                          <div style={{ paddingLeft: '0.8rem', marginTop: '0.15rem', display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
-                            {[['Full', favFull, favFullCount], ['Mini', favMini, favMiniCount]].map(([label, val, count]) => (
-                              <div key={label} className="stat-row" style={{ margin: 0 }}>
-                                <span className="stat-label" style={{ color: 'var(--stone-gray)' }}>{label}</span>
-                                <ValInfo tip={count !== null ? `Played in ${count} ${count === 1 ? 'game' : 'games'}` : null}>
-                                  <span className="stat-value" style={{ fontSize: 'clamp(0.6rem, 1.5vw, 0.78rem)', fontWeight: 500 }}>{val}</span>
-                                </ValInfo>
+                        );
+                        const durationVal = (text, gameObj) => gameObj
+                          ? <button type="button" onClick={() => openGameLightbox(gameObj)} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'Cinzel, serif', fontWeight: 600, color: 'var(--charcoal)', textDecoration: 'underline dotted', fontSize: 'inherit' }}>{text}</button>
+                          : text;
+                        return (
+                          <>
+                            <div className="milestones-subtitle">Group Stats</div>
+                            <div className="stat-row" style={{ margin: 0 }}>
+                              <span className="stat-label">Longest / Shortest Game</span>
+                              <span className="stat-value">
+                                {durationVal(longestText, gs.longestGameObj)}
+                                {' / '}
+                                {durationVal(shortestText, gs.shortestGameObj)}
+                              </span>
+                            </div>
+                            {[
+                              ['Highest Combined Points', gs.highestPoints > 0 ? gs.highestPoints : '—', gs.highestPointsObj, null],
+                              ['Farm Wins', gs.farmWins, null, 'Games won in final scoring stage.'],
+                              ['Clutch Games', gs.clutchGames, null, 'Games where winning margin was less than 7%.'],
+                            ].map(statRow)}
+                            <div style={{ marginTop: '0.8rem' }}>
+                              <span className="stat-label">Favorite Expansion</span>
+                              <div style={{ paddingLeft: '0.8rem', marginTop: '0.15rem', display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                                {[['Full', favFull, favFullCount], ['Mini', favMini, favMiniCount]].map(([label, val, count]) => (
+                                  <div key={label} className="stat-row" style={{ margin: 0 }}>
+                                    <span className="stat-label" style={{ color: 'var(--stone-gray)' }}>{label}</span>
+                                    <ValInfo tip={count !== null ? `Played in ${count} ${count === 1 ? 'game' : 'games'}` : null}>
+                                      <span className="stat-value" style={{ fontSize: 'clamp(0.6rem, 1.5vw, 0.78rem)', fontWeight: 500 }}>{val}</span>
+                                    </ValInfo>
+                                  </div>
+                                ))}
                               </div>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div style={{ width: '1px', background: 'var(--warm-gold)', opacity: 0.3, flexShrink: 0 }} />
-
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        {activeTypes.length > 0 && activeTypes.map(t => (
-                          <div key={t} className="stat-row" style={{ margin: 0 }}>
-                            <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                              <span style={{ width: '8px', height: '8px', borderRadius: '2px', backgroundColor: SCORE_TYPE_COLORS[t], flexShrink: 0, display: 'inline-block' }} />
-                              <span className="stat-label">{TYPE_LABELS[t] ?? t.charAt(0).toUpperCase() + t.slice(1)}</span>
-                            </span>
-                            <span className="stat-value">{gs.typePoints[t]}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                            </div>
+                          </>
+                        );
+                      })()}
+                  />
                 </div>
 
                 {/* Player cards */}
@@ -791,12 +692,6 @@ export default function Stats({ games, realms = [], currentRealm = null, onRealm
               </div>
             );
           })()}
-
-          {sorted.some(p => Object.values(p.breakdown).some(v => v > 0)) && (
-            <div style={{ marginTop: '3rem', display: 'flex', flexDirection: 'column', gap: '3rem' }}>
-              <PointBreakdownChart players={sorted} />
-            </div>
-          )}
 
           {!showDemoData && (
             <div style={{ marginTop: '3rem', display: 'flex', justifyContent: 'center' }}>
