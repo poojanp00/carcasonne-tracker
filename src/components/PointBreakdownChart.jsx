@@ -245,7 +245,8 @@ export default function PointBreakdownChart({ players, showLegend = false, title
           </table>
         </div>}
 
-        {footer && (
+        {/* Footer tucks behind the dropdown; shown outright only when there's no dropdown to expand */}
+        {footer && (showTable || displayTypes.length === 0) && (
           <div style={{ marginTop: '1.2rem', borderTop: '1px solid rgba(201,163,74,0.35)', paddingTop: '1.2rem' }}>
             {footer}
           </div>
