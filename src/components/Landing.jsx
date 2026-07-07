@@ -119,10 +119,10 @@ const features = [
 
 const pages = [
   {
-    icon: <StatsPageIcon />,
-    name: 'Statistics',
-    description: 'Analyze win rates, streaks, scoring trends, point breakdowns.',
-    color: 'var(--forest-green)',
+    icon: <PlayIcon />,
+    name: 'Play',
+    description: 'Set up a live game and use Carcasscore as the scoreboard.',
+    color: 'var(--earth-brown)',
   },
   {
     icon: <BookIcon />,
@@ -131,10 +131,10 @@ const pages = [
     color: 'var(--royal-blue)',
   },
   {
-    icon: <PlayIcon />,
-    name: 'Play',
-    description: 'Set up a live game and use Carcasscore as the scoreboard.',
-    color: 'var(--earth-brown)',
+    icon: <StatsPageIcon />,
+    name: 'Statistics',
+    description: 'Analyze win rates, streaks, scoring trends, point breakdowns.',
+    color: 'var(--forest-green)',
   },
   {
     icon: <CollectionIcon />,

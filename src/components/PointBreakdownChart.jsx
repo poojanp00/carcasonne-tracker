@@ -22,10 +22,18 @@ const SCORE_GROUPS = [
 const TYPE_TO_GROUP = {};
 SCORE_GROUPS.forEach(g => g.types.forEach(t => { TYPE_TO_GROUP[t] = g; }));
 
-export default function PointBreakdownChart({ players, showLegend = false }) {
+/**
+ * Proportional per-player point bars with a Combine toggle and expandable table.
+ *
+ * @param {string}    title        - Card header (e.g. a group name when used as the standings box)
+ * @param {Object}    winsByPlayer - Optional {name: wins}; renders a win count before each name
+ * @param {ReactNode} footer       - Optional content rendered below the bars/table (e.g. group stats)
+ */
+export default function PointBreakdownChart({ players, showLegend = false, title = 'Complete Points Breakdown', winsByPlayer = null, footer = null }) {
   const [tooltip, setTooltip] = useState(null);
   const [showTable, setShowTable] = useState(false);
   const [combined, setCombined] = useState(false);
+  const [sortType, setSortType] = useState(null);
   const barsRef = useRef(null);
 
   if (!players || players.length === 0) return null;
@@ -35,7 +43,8 @@ export default function PointBreakdownChart({ players, showLegend = false }) {
     Object.entries(player.breakdown || {}).forEach(([t, v]) => { if (v > 0) usedTypes.add(t); });
   });
 
-  if (usedTypes.size === 0) return null;
+  // Standings mode (winsByPlayer set) still renders with no scored points yet
+  if (usedTypes.size === 0 && !winsByPlayer) return null;
 
   const displayTypes = SCORE_TYPE_ORDER.filter(t => usedTypes.has(t));
 
@@ -44,22 +53,32 @@ export default function PointBreakdownChart({ players, showLegend = false }) {
     ...displayTypes.filter(t => !TYPE_TO_GROUP[t]),
   ];
 
-  const maxTotal = Math.max(1, ...players.map(player => {
+  const totalBreakdown = {};
+  players.forEach(player => {
+    Object.entries(player.breakdown || {}).forEach(([t, v]) => {
+      totalBreakdown[t] = (totalBreakdown[t] || 0) + (v || 0);
+    });
+  });
+
+  const displayPlayers = combined
+    ? [{ name: 'All Players', breakdown: totalBreakdown }]
+    : players;
+
+  // Combined bar fills the same vertical space as the per-player rows (24px rows, 8px gaps)
+  const barHeight = combined ? `${24 * players.length + 8 * (players.length - 1)}px` : '24px';
+
+  const maxTotal = Math.max(1, ...displayPlayers.map(player => {
     const bd = player.breakdown || {};
     return displayTypes.reduce((s, t) => s + (bd[t] || 0), 0);
   }));
 
-  function handleMouseEnter(e, type, val, bd) {
+  function handleMouseEnter(e, type, val) {
     if (!barsRef.current) return;
     const segRect = e.currentTarget.getBoundingClientRect();
     const containerRect = barsRef.current.getBoundingClientRect();
-    const group = combined ? TYPE_TO_GROUP[type] : null;
-    const groupValue = group ? group.types.reduce((s, t) => s + (bd[t] || 0), 0) : null;
     setTooltip({
       type,
       value: val,
-      groupLabel: group?.label ?? null,
-      groupValue,
       x: segRect.left + segRect.width / 2 - containerRect.left,
       y: segRect.top - containerRect.top,
     });
@@ -69,7 +88,7 @@ export default function PointBreakdownChart({ players, showLegend = false }) {
     <div className="chart-wrapper">
       <div className="chart-container" style={{ borderTop: '4px solid var(--warm-gold)', paddingTop: '1.25rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.2rem' }}>
-          <div className="chart-header" style={{ margin: 0 }}>Complete Points Breakdown</div>
+          <div className="chart-header" style={{ margin: 0, textAlign: 'left' }}>{title}</div>
           <button
             type="button"
             onClick={() => { setCombined(v => !v); setTooltip(null); }}
@@ -95,16 +114,21 @@ export default function PointBreakdownChart({ players, showLegend = false }) {
           style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1.2rem', position: 'relative' }}
           onMouseLeave={() => setTooltip(null)}
         >
-          {players.map(player => {
+          {displayPlayers.map(player => {
             const bd = player.breakdown || {};
             const total = displayTypes.reduce((s, t) => s + (bd[t] || 0), 0);
             return (
               <div key={player.name} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <span style={{ fontFamily: 'Cinzel, serif', fontSize: 'clamp(0.6rem, 1.8vw, 0.78rem)', color: 'var(--stone-gray)', minWidth: 'clamp(48px, 12vw, 80px)', textAlign: 'right', flexShrink: 0 }}>
+                {winsByPlayer && (
+                  <span style={{ fontFamily: 'Cinzel, serif', fontSize: 'clamp(1rem, 3vw, 1.3rem)', color: 'var(--forest-green)', fontWeight: 600, minWidth: '1.5em', textAlign: 'right', flexShrink: 0 }}>
+                    {winsByPlayer[player.name] ?? ''}
+                  </span>
+                )}
+                <span style={{ fontFamily: 'Cinzel, serif', fontSize: winsByPlayer ? 'clamp(1rem, 3vw, 1.3rem)' : 'clamp(0.6rem, 1.8vw, 0.78rem)', color: winsByPlayer ? 'var(--charcoal)' : 'var(--stone-gray)', minWidth: winsByPlayer ? 'clamp(100px, 28vw, 180px)' : 'clamp(48px, 12vw, 80px)', textAlign: winsByPlayer ? 'left' : 'right', flexShrink: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {player.name}
                 </span>
-                <div style={{ flex: 1, height: '24px' }}>
-                  <div style={{ width: `${(total / maxTotal) * 100}%`, height: '24px', borderRadius: '6px', overflow: 'hidden', display: 'flex' }}>
+                <div style={{ flex: 1, height: barHeight }}>
+                  <div style={{ width: `${(total / maxTotal) * 100}%`, height: barHeight, borderRadius: '6px', overflow: 'hidden', display: 'flex' }}>
                     {total === 0
                       ? <div style={{ flex: 1, backgroundColor: 'var(--stone-gray)', opacity: 0.2 }} />
                       : orderedTypes.map(t => {
@@ -114,7 +138,7 @@ export default function PointBreakdownChart({ players, showLegend = false }) {
                             <div
                               key={t}
                               style={{ flex: val / total, backgroundColor: SCORE_TYPE_COLORS[t], cursor: 'default' }}
-                              onMouseEnter={(e) => handleMouseEnter(e, t, val, bd)}
+                              onMouseEnter={(e) => handleMouseEnter(e, t, val)}
                             />
                           );
                         })
@@ -144,54 +168,49 @@ export default function PointBreakdownChart({ players, showLegend = false }) {
               boxShadow: '0 3px 12px rgba(0,0,0,0.35)',
               textAlign: 'center',
             }}>
-              {combined && tooltip.groupLabel ? (
-                <>
-                  <div style={{ fontFamily: "'Cinzel', serif", fontSize: '0.65rem', color: 'rgba(240,230,210,0.7)', marginBottom: '0.1rem' }}>
-                    {tooltip.groupLabel}
-                  </div>
-                  <div style={{ fontFamily: "'Cinzel', serif", fontWeight: 700, fontSize: '0.85rem' }}>
-                    {tooltip.groupValue}
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div style={{ fontFamily: "'Cinzel', serif", fontSize: '0.65rem', color: 'rgba(240,230,210,0.7)', marginBottom: '0.1rem' }}>
-                    {TYPE_LABELS[tooltip.type] ?? tooltip.type}
-                  </div>
-                  <div style={{ fontFamily: "'Cinzel', serif", fontWeight: 700, fontSize: '0.85rem' }}>
-                    {tooltip.value}
-                  </div>
-                </>
-              )}
+              <div style={{ fontFamily: "'Cinzel', serif", fontSize: '0.65rem', color: 'rgba(240,230,210,0.7)', marginBottom: '0.1rem' }}>
+                {TYPE_LABELS[tooltip.type] ?? tooltip.type}
+              </div>
+              <div style={{ fontFamily: "'Cinzel', serif", fontWeight: 700, fontSize: '0.85rem' }}>
+                {tooltip.value}
+              </div>
             </div>
           )}
         </div>
 
-        <button
+        {displayTypes.length > 0 && <button
           type="button"
           onClick={() => setShowTable(v => !v)}
           style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', background: 'none', border: 'none', cursor: 'pointer', padding: '0.25rem 0', color: 'var(--stone-gray)', fontSize: '0.65rem', fontFamily: 'Cinzel, serif', gap: '0.4rem', opacity: 0.6 }}
         >
           {showTable ? '▲' : '▼'}
-        </button>
+        </button>}
 
-        {showTable && <div style={{ overflowX: 'auto' }}>
+        {showTable && displayTypes.length > 0 && <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr>
                 <th style={{ textAlign: 'left', padding: '0.3rem 0.5rem 0.3rem 0', fontFamily: 'Cinzel, serif', color: 'var(--stone-gray)', fontWeight: 400, fontSize: 'clamp(0.55rem, 1.5vw, 0.7rem)', whiteSpace: 'nowrap' }}>Player</th>
                 {orderedTypes.map(t => (
-                  <th key={t} style={{ padding: '0.25rem 0.4rem', fontFamily: 'Cinzel, serif', fontWeight: 600, fontSize: 'clamp(0.52rem, 1.4vw, 0.65rem)', textAlign: 'center', color: 'var(--stone-gray)', whiteSpace: 'nowrap' }}>
+                  <th
+                    key={t}
+                    onClick={() => setSortType(s => s === t ? null : t)}
+                    style={{ padding: '0.25rem 0.4rem', fontFamily: 'Cinzel, serif', fontWeight: 600, fontSize: 'clamp(0.52rem, 1.4vw, 0.65rem)', textAlign: 'center', color: sortType === t ? 'var(--earth-brown)' : 'var(--stone-gray)', whiteSpace: 'nowrap', cursor: 'pointer', userSelect: 'none', textDecoration: sortType === t ? 'underline' : 'none' }}
+                  >
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', justifyContent: 'center' }}>
                       <span style={{ width: '7px', height: '7px', borderRadius: '2px', backgroundColor: SCORE_TYPE_COLORS[t], display: 'inline-block', flexShrink: 0 }} />
                       {TYPE_LABELS[t] ?? t}
+                      {sortType === t && <span style={{ fontSize: '0.5rem' }}>▼</span>}
                     </span>
                   </th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {players.map(player => {
+              {(sortType
+                ? [...players].sort((a, b) => ((b.breakdown || {})[sortType] || 0) - ((a.breakdown || {})[sortType] || 0))
+                : players
+              ).map(player => {
                 const bd = player.breakdown || {};
                 return (
                   <tr key={player.name} style={{ borderTop: '1px solid rgba(201,163,74,0.2)' }}>
@@ -209,9 +228,28 @@ export default function PointBreakdownChart({ players, showLegend = false }) {
                   </tr>
                 );
               })}
+              {combined && <tr style={{ borderTop: '2px solid rgba(201,163,74,0.45)' }}>
+                <td style={{ padding: '0.35rem 0.5rem 0.35rem 0', fontFamily: 'Cinzel, serif', fontWeight: 700, fontSize: 'clamp(0.6rem, 1.8vw, 0.82rem)', color: 'var(--earth-brown)', whiteSpace: 'nowrap' }}>
+                  Total
+                </td>
+                {orderedTypes.map(t => {
+                  const val = totalBreakdown[t] || 0;
+                  return (
+                    <td key={t} style={{ padding: '0.35rem 0.4rem', textAlign: 'center', fontFamily: 'Crimson Text, serif', fontWeight: 700, fontSize: 'clamp(0.7rem, 1.8vw, 0.9rem)', color: val > 0 ? 'var(--earth-brown)' : 'var(--stone-gray)', opacity: val > 0 ? 1 : 0.35 }}>
+                      {val > 0 ? val : '—'}
+                    </td>
+                  );
+                })}
+              </tr>}
             </tbody>
           </table>
         </div>}
+
+        {footer && (
+          <div style={{ marginTop: '1.2rem', borderTop: '1px solid rgba(201,163,74,0.35)', paddingTop: '1.2rem' }}>
+            {footer}
+          </div>
+        )}
       </div>
     </div>
   );
