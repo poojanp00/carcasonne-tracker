@@ -524,20 +524,33 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
             )}
           </button>
 
-          <div
-            style={{ position: 'relative', width: '100%' }}
-            onMouseEnter={() => setPartyGuestHover(true)}
-            onMouseLeave={() => setPartyGuestHover(false)}
-          >
-            <button
-              type="button"
+          <div style={{ position: 'relative', width: '100%' }}>
+            <div
               className="mode-card"
-              disabled
-              style={{ opacity: 0.45, width: '100%' }}
+              aria-disabled="true"
+              style={{ opacity: 0.45, width: '100%', cursor: 'default' }}
             >
-              <div className="mode-card-icon"><img src={partyModeImg} alt="Party Mode" /></div>
-              <div className="mode-card-title">Party Mode</div>
-            </button>
+              <div
+                className="mode-card-icon"
+                onMouseEnter={() => setPartyGuestHover(true)}
+                onMouseLeave={() => setPartyGuestHover(false)}
+              >
+                <img src={partyModeImg} alt="Party Mode" />
+              </div>
+              <div className="mode-card-title">
+                <span
+                  onMouseEnter={() => setPartyGuestHover(true)}
+                  onMouseLeave={() => setPartyGuestHover(false)}
+                >
+                  Party Mode
+                </span>
+                <span
+                  className="mode-card-info-icon"
+                  onMouseEnter={() => setPartyGuestHover(true)}
+                  onMouseLeave={() => setPartyGuestHover(false)}
+                >ⓘ</span>
+              </div>
+            </div>
             {partyGuestHover && (
               <div style={{
                 position: 'absolute', top: '50%', left: '50%',

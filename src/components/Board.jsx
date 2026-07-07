@@ -18,6 +18,7 @@ import BOARD_PATH from '../data/boardCoords';
 import { getBoard, saveBoard, resetBoard } from '../data/boardStorage';
 import { computeWinners } from '../utils/scoring';
 import { fetchNewEvents, subscribeEvents, setPhase, endSession, deleteSession, unsubscribe, submitEvent } from '../data/partySession';
+import { MONASTERY_LIKE_TYPES, MONASTERY_LIKE_MAX, LIVE_PLAY_ONLY_RECORD_TYPES, MONASTERY_RECORD_TYPES } from '../constants';
 import boardImg from '../../images/score-board.jpg';
 
 /**
@@ -47,6 +48,10 @@ const GOODS_IMGS = Object.fromEntries(
 // Physical token supply counts for Traders & Builders
 const GOODS_SUPPLY = { wine: 9, grain: 6, cloth: 5 };
 const GOODS_LABELS = { wine: 'Wine', grain: 'Grain', cloth: 'Cloth' };
+
+// Applied to a score type/goods button while it's the pending selection,
+// so it looks pressed in rather than glowing/highlighted.
+const PRESSED_STYLE = { transform: 'scale(0.93)', boxShadow: 'inset 0 2px 6px rgba(0,0,0,0.35)' };
 
 /**
  * MEEPLE COLOR EXTRACTION SYSTEM
@@ -101,13 +106,15 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
   const [board,       setBoard]       = useState(null);
   const [now,         setNow]         = useState(Date.now());
   const [input,       setInput]       = useState(() => Object.fromEntries(players.map(p => [p, 0])));
-  const [selectedPlayers, setSelectedPlayers] = useState(new Set()); // Track which players are selected for scoring
+  const [selectedType, setSelectedType] = useState(null); // Score type highlighted, awaiting a player click to commit
+  const [selectedGoods, setSelectedGoods] = useState(new Set()); // Goods tokens highlighted (can pick several), awaiting a player click to commit
+  const [selectedPlayer, setSelectedPlayer] = useState(null); // Player highlighted first, awaiting a type/good click to commit
   const [finishStep,       setFinishStep]       = useState(0); // 0 = normal, 1 = awaiting field confirm
   const [leadersAtFinish,  setLeadersAtFinish]  = useState([]);
   const [showTraders,   setShowTraders]   = useState(false);
   const [confirmFinish, setConfirmFinish] = useState(false); // Finish game confirmation
   const [confirmReset,         setConfirmReset]         = useState(false); // Reset board confirmation
-  const [warning,             setWarning]             = useState(null); // Warning toast for no players selected
+  const [warning,             setWarning]             = useState(null); // Warning toast (e.g. monastery/abbot/abbey point cap)
   const logContainerRef  = useRef(null);
   const boardPopoutRef   = useRef(null);
   const boardPopoutChRef = useRef(null);
@@ -233,6 +240,14 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
     if (el) el.scrollTop = el.scrollHeight;
   }, [log]);
 
+  // Clear any highlighted score type/goods token/player when the scoring phase changes,
+  // since the buttons available (e.g. Inn/Cathedral) differ between phases.
+  useEffect(() => {
+    setSelectedType(null);
+    setSelectedGoods(new Set());
+    setSelectedPlayer(null);
+  }, [finishStep]);
+
   // Recalculate board state from moves when moveIndex changes (for undo/redo)
   useEffect(() => {
     if (!board || board.moves.length === 0) return;
@@ -269,13 +284,14 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
       rebuilt.laps[move.player]                          = newLaps;
       rebuilt.scoreTotals[move.player][move.type]        = (rebuilt.scoreTotals[move.player][move.type] || 0) + move.amount;
 
-      // Rebuild maxFeatures: skip monastery/abbot from generic path
-      if (move.amount > 0 && move.type !== 'monastery' && move.type !== 'abbot') {
+      // Rebuild maxFeatures: skip monastery/abbot/abbey from generic path
+      const skipRecord = LIVE_PLAY_ONLY_RECORD_TYPES.includes(move.type) && move.inFinalScoring;
+      if (move.amount > 0 && !MONASTERY_RECORD_TYPES.includes(move.type) && !skipRecord) {
         const cur = rebuilt.maxFeatures[move.type] || { amount: 0, player: null };
         if (move.amount > cur.amount) rebuilt.maxFeatures[move.type] = { amount: move.amount, player: move.player };
       }
       // Rebuild monastery completion count
-      if ((move.type === 'monastery' || move.type === 'abbot') && move.amount === 9) {
+      if (MONASTERY_RECORD_TYPES.includes(move.type) && move.amount === 9 && !move.inFinalScoring) {
         const counts = rebuilt.maxFeatures._monasteryCounts || {};
         counts[move.player] = (counts[move.player] || 0) + 1;
         rebuilt.maxFeatures._monasteryCounts = counts;
@@ -326,11 +342,13 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
       const newLaps = curLaps + (lapInc > 0 ? lapInc : 0);
       const prevBreakdown = prev.scoreTotals?.[player] || {};
       const maxFeatures = { ...prev.maxFeatures };
-      if (delta > 0 && type !== 'monastery' && type !== 'abbot') {
+      const inFinalScoring = prev.finalScoringIndex !== null;
+      const skipRecord = LIVE_PLAY_ONLY_RECORD_TYPES.includes(type) && inFinalScoring;
+      if (delta > 0 && !MONASTERY_RECORD_TYPES.includes(type) && !skipRecord) {
         const currentMax = maxFeatures[type] || { amount: 0, player: null };
         if (delta > currentMax.amount) maxFeatures[type] = { amount: delta, player };
       }
-      if ((type === 'monastery' || type === 'abbot') && delta === 9) {
+      if (MONASTERY_RECORD_TYPES.includes(type) && delta === 9 && !inFinalScoring) {
         const counts = { ...(maxFeatures._monasteryCounts || {}) };
         counts[player] = (counts[player] || 0) + 1;
         maxFeatures._monasteryCounts = counts;
@@ -524,7 +542,6 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
     const lapInc  = Math.floor(sum / track); // How many complete laps to add
     const newPos  = ((sum % track) + track) % track; // Modulo with negative handling
     const newLaps = curLaps + (lapInc > 0 ? lapInc : 0); // Prevent negative laps
-    const newTotal = newLaps * track + newPos; // Final score for logging
 
     // Generate human-readable category names for logging
     const label = type === 'pig' ? 'Field (Pig)' :
@@ -539,17 +556,19 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
     setBoard(b => {
       const prevBreakdown = b.scoreTotals?.[player] || { road: 0, city: 0, monastery: 0, field: 0 };
       const maxFeatures = { ...b.maxFeatures };
+      const inFinalScoring = b.finalScoringIndex !== null;
+      const skipRecord = LIVE_PLAY_ONLY_RECORD_TYPES.includes(type) && inFinalScoring;
 
-      // Check if this feature is the largest of its type (monastery/abbot tracked separately by count)
-      if (delta > 0 && type !== 'monastery' && type !== 'abbot') {
+      // Check if this feature is the largest of its type (monastery/abbot/abbey tracked separately by count)
+      if (delta > 0 && !MONASTERY_RECORD_TYPES.includes(type) && !skipRecord) {
         const currentMaxFeature = maxFeatures[type] || { amount: 0, player: null };
         if (delta > currentMaxFeature.amount) {
           maxFeatures[type] = { amount: delta, player };
         }
       }
 
-      // Count full monastery completions (monastery or abbot scoring exactly 9)
-      if ((type === 'monastery' || type === 'abbot') && delta === 9) {
+      // Count full monastery completions (monastery, abbot, or abbey scoring exactly 9)
+      if (MONASTERY_RECORD_TYPES.includes(type) && delta === 9 && !inFinalScoring) {
         const counts = { ...(maxFeatures._monasteryCounts || {}) };
         counts[player] = (counts[player] || 0) + 1;
         maxFeatures._monasteryCounts = counts;
@@ -576,24 +595,120 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
     }
   }
 
-  // Apply points to all selected players and reset selection
-  function addPointsToSelected(delta, type = 'road') {
-    if (!delta || Number(delta) === 0) return;
+  function showWarning(msg) {
+    setWarning(msg);
+    setTimeout(() => setWarning(null), 2500);
+  }
 
-    // Show warning if no players are selected
-    if (selectedPlayers.size === 0) {
-      setWarning('Select a player first');
-      setTimeout(() => setWarning(null), 2500);
+  function zeroInput() {
+    setInput(Object.fromEntries(players.map(p => [p, 0])));
+  }
+
+  function exceedsMonasteryCap(type, delta) {
+    return MONASTERY_LIKE_TYPES.includes(type) && Math.abs(Number(delta)) > MONASTERY_LIKE_MAX;
+  }
+
+  // Reset the points input and warn that `type` is capped, since it just got blocked.
+  function warnCapExceeded(type) {
+    zeroInput();
+    showWarning(`${type.charAt(0).toUpperCase() + type.slice(1)} can only score up to ${MONASTERY_LIKE_MAX} points`);
+  }
+
+  // Update the points input; if a monastery-like type is currently highlighted
+  // and the new value exceeds its cap, un-highlight it and warn.
+  function updatePoints(newVal) {
+    if (selectedType && exceedsMonasteryCap(selectedType, newVal)) {
+      setSelectedType(null);
+      warnCapExceeded(selectedType);
+      return;
+    }
+    setInput(Object.fromEntries(players.map(p => [p, String(newVal)])));
+  }
+
+  // Award points of `type` to `player` using the current input value, respecting the
+  // monastery/abbot/abbey cap.
+  function commitScore(player, type) {
+    const delta = Object.values(input)[0] || 0;
+    if (!delta || Number(delta) === 0) return; // nothing to commit; leave the current selection as-is
+
+    if (exceedsMonasteryCap(type, delta)) {
+      warnCapExceeded(type);
       return;
     }
 
-    selectedPlayers.forEach(player => {
-      addPoints(player, delta, type);
-    });
+    addPoints(player, delta, type);
+    zeroInput();
+    setSelectedType(null);
+    setSelectedPlayer(null);
+  }
 
-    // Reset selected players and input field
-    setSelectedPlayers(new Set());
-    setInput(v => Object.fromEntries(players.map(p => [p, 0])));
+  // Highlight a score type; clicking a player next commits the current points to them.
+  // If a player is already highlighted (clicked first), commit to them immediately instead.
+  function selectType(type) {
+    if (selectedPlayer) {
+      const delta = Object.values(input)[0] || 0;
+      if (!delta || Number(delta) === 0) {
+        // No points yet — swap the highlight to this type instead of doing nothing
+        setSelectedPlayer(null);
+        setSelectedGoods(new Set());
+        setSelectedType(type);
+        return;
+      }
+      commitScore(selectedPlayer, type);
+      return;
+    }
+
+    const delta = Object.values(input)[0] || 0;
+    const turningOn = selectedType !== type;
+    if (turningOn && exceedsMonasteryCap(type, delta)) {
+      warnCapExceeded(type);
+      return;
+    }
+    setSelectedGoods(new Set());
+    setSelectedType(prev => (prev === type ? null : type));
+  }
+
+  // Highlight a goods token; several can be picked at once (e.g. one of each good).
+  // If a player is already highlighted (clicked first), award just this one token immediately instead.
+  function selectGood(good) {
+    if (selectedPlayer) {
+      const player = selectedPlayer;
+      setSelectedPlayer(null);
+      addMove(player, `goods_${good}`, 0, `${GOODS_LABELS[good]} Token`);
+      return;
+    }
+    setSelectedType(null);
+    setSelectedGoods(prev => {
+      const next = new Set(prev);
+      next.has(good) ? next.delete(good) : next.add(good);
+      return next;
+    });
+  }
+
+  // Commit the currently-highlighted score type or goods token(s) to a single player.
+  // If nothing is highlighted yet, highlight this player instead, awaiting a type/good click.
+  function commitToPlayer(player) {
+    if (selectedGoods.size > 0) {
+      selectedGoods.forEach(good => {
+        addMove(player, `goods_${good}`, 0, `${GOODS_LABELS[good]} Token`);
+      });
+      setSelectedGoods(new Set());
+      return;
+    }
+
+    if (selectedType) {
+      const delta = Object.values(input)[0] || 0;
+      if (!delta || Number(delta) === 0) {
+        // No points yet — swap the highlight to this player instead of doing nothing
+        setSelectedType(null);
+        setSelectedPlayer(player);
+        return;
+      }
+      commitScore(player, selectedType);
+      return;
+    }
+
+    setSelectedPlayer(prev => (prev === player ? null : player));
   }
 
   function handleReset() {
@@ -647,14 +762,17 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
     });
     const merchantCandidates = players.filter(p => goodsWinnerSets.every(s => s.has(p)));
     const finalMaxFeatures = { ...board.maxFeatures };
+    const goodsTotal = (p) => ['wine', 'grain', 'cloth'].reduce((s, g) => s + (goodsTokens[p]?.[g] || 0), 0);
     if (merchantCandidates.length > 0) {
-      const merchant = merchantCandidates.reduce((best, p) => {
-        const tot = ['wine', 'grain', 'cloth'].reduce((s, g) => s + (goodsTokens[p]?.[g] || 0), 0);
-        const bestTot = ['wine', 'grain', 'cloth'].reduce((s, g) => s + (goodsTokens[best]?.[g] || 0), 0);
-        return tot > bestTot ? p : best;
-      });
-      const total = ['wine', 'grain', 'cloth'].reduce((s, g) => s + (goodsTokens[merchant]?.[g] || 0), 0);
-      finalMaxFeatures.bestTrader = { amount: total, player: merchant };
+      // Someone (or a tie) dominated all 3 goods types — award to whoever of them has the most total goods.
+      const merchant = merchantCandidates.reduce((best, p) => goodsTotal(p) > goodsTotal(best) ? p : best);
+      finalMaxFeatures.bestTrader = { amount: goodsTotal(merchant), player: merchant };
+    } else {
+      // No one led in all 3 — fall back to whoever collected the most goods overall.
+      const merchant = players.reduce((best, p) => goodsTotal(p) > goodsTotal(best) ? p : best);
+      if (goodsTotal(merchant) > 0) {
+        finalMaxFeatures.bestTrader = { amount: goodsTotal(merchant), player: merchant };
+      }
     }
 
     if (session?.partySessionId) endSession(session.partySessionId, {
@@ -684,22 +802,6 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
     }
     setShowTraders(false);
     setFinishStep(1);
-  }
-
-  function addGoodsToken(good) {
-    if (selectedPlayers.size === 0) {
-      setWarning('Select a player first');
-      setTimeout(() => setWarning(null), 2500);
-      return;
-    }
-    if (selectedPlayers.size > 1) {
-      setWarning('Select only one player');
-      setTimeout(() => setWarning(null), 2500);
-      return;
-    }
-    const [player] = selectedPlayers;
-    addMove(player, `goods_${good}`, 0, `${GOODS_LABELS[good]} Token`);
-    setSelectedPlayers(new Set());
   }
 
   function broadcastBoard(ch) {
@@ -994,20 +1096,12 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
             }}>
               {players.map((name) => {
                 const color = getMeepleColor(meepleMap[name]);
-                const isSelected = selectedPlayers.has(name);
+                const isSelected = selectedPlayer === name;
                 return (
                   <button
                     key={name}
                     type="button"
-                    onClick={() => {
-                      const newSelected = new Set(selectedPlayers);
-                      if (newSelected.has(name)) {
-                        newSelected.delete(name);
-                      } else {
-                        newSelected.add(name);
-                      }
-                      setSelectedPlayers(newSelected);
-                    }}
+                    onClick={() => commitToPlayer(name)}
                     style={{
                       display: 'flex',
                       flexDirection: 'column',
@@ -1035,7 +1129,7 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
                                 ? <img src={GOODS_IMGS[g]} alt={g} style={{ height: 13, width: 'auto' }} />
                                 : <span style={{ fontSize: '0.55rem' }}>{g[0].toUpperCase()}</span>
                               }
-                              <span style={{ fontSize: '0.5rem', color: 'var(--stone-gray)', lineHeight: 1 }}>{pg[g]}</span>
+                              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#000', lineHeight: 1 }}>{pg[g]}</span>
                             </span>
                           ))}
                         </div>
@@ -1056,30 +1150,26 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
               type="number"
               className="form-input board-score-input"
               value={Object.values(input)[0] || 0}
-              onChange={e => {
-                const val = e.target.value;
-                const newInput = Object.fromEntries(players.map(p => [p, val]));
-                setInput(newInput);
-              }}
+              onChange={e => updatePoints(e.target.value)}
               placeholder="Enter points"
               style={{ marginBottom: '1rem', textAlign: 'right' }}
             />
             <div className="board-btn-row">
               <button type="button" className="btn btn-sm board-btn-equal" style={{}} onClick={() => {
                 const val = Object.values(input)[0] || 0;
-                setInput(Object.fromEntries(players.map(p => [p, String(Number(val) + 1)])));
+                updatePoints(Number(val) + 1);
               }}>+1</button>
               <button type="button" className="btn btn-sm board-btn-equal" style={{}} onClick={() => {
                 const val = Object.values(input)[0] || 0;
-                setInput(Object.fromEntries(players.map(p => [p, String(Number(val) + 2)])));
+                updatePoints(Number(val) + 2);
               }}>+2</button>
               <button type="button" className="btn btn-sm board-btn-equal" style={{}} onClick={() => {
                 const val = Object.values(input)[0] || 0;
-                setInput(Object.fromEntries(players.map(p => [p, String(Number(val) + 3)])));
+                updatePoints(Number(val) + 3);
               }}>+3</button>
               {((finishStep === 1 && (hasTB || hasAM)) || (finishStep === 0 && hasTB && hasAM)) && <button type="button" className="btn btn-sm board-btn-equal" style={{}} onClick={() => {
                 const val = Object.values(input)[0] || 0;
-                setInput(Object.fromEntries(players.map(p => [p, String(Number(val) + 4)])));
+                updatePoints(Number(val) + 4);
               }}>+4</button>}
             </div>
 
@@ -1089,8 +1179,8 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
                   key={type}
                   type="button"
                   className="btn btn-sm board-btn-equal"
-                  style={{ justifyContent: 'center' }}
-                  onClick={() => addPointsToSelected(Object.values(input)[0], type)}
+                  style={{ justifyContent: 'center', ...(selectedType === type ? PRESSED_STYLE : {}) }}
+                  onClick={() => selectType(type)}
                 >
                   {type.charAt(0).toUpperCase() + type.slice(1)}
                 </button>
@@ -1102,8 +1192,8 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
                 <button
                   type="button"
                   className="btn btn-sm"
-                  style={{ width: '100%', justifyContent: 'center' }}
-                  onClick={() => addPointsToSelected(Object.values(input)[0], 'abbot')}
+                  style={{ width: '100%', justifyContent: 'center', ...(selectedType === 'abbot' ? PRESSED_STYLE : {}) }}
+                  onClick={() => selectType('abbot')}
                 >
                   Abbot
                 </button>
@@ -1117,8 +1207,8 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
                     key={type}
                     type="button"
                     className="btn btn-sm board-btn-equal"
-                    style={{ justifyContent: 'center' }}
-                    onClick={() => addPointsToSelected(Object.values(input)[0], type)}
+                    style={{ justifyContent: 'center', ...(selectedType === type ? PRESSED_STYLE : {}) }}
+                    onClick={() => selectType(type)}
                   >
                     {label}
                   </button>
@@ -1133,8 +1223,8 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
                     key={type}
                     type="button"
                     className="btn btn-sm board-btn-equal"
-                    style={{ justifyContent: 'center' }}
-                    onClick={() => addPointsToSelected(Object.values(input)[0], type)}
+                    style={{ justifyContent: 'center', ...(selectedType === type ? PRESSED_STYLE : {}) }}
+                    onClick={() => selectType(type)}
                   >
                     {label}
                   </button>
@@ -1147,8 +1237,8 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
                 <button
                   type="button"
                   className="btn btn-sm"
-                  style={{ width: '100%', justifyContent: 'center' }}
-                  onClick={() => addPointsToSelected(Object.values(input)[0], 'barn')}
+                  style={{ width: '100%', justifyContent: 'center', ...(selectedType === 'barn' ? PRESSED_STYLE : {}) }}
+                  onClick={() => selectType('barn')}
                 >
                   Barn
                 </button>
@@ -1163,8 +1253,8 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
                       key={type}
                       type="button"
                       className="btn btn-sm board-btn-equal"
-                      style={{ justifyContent: 'center' }}
-                      onClick={() => addPointsToSelected(Object.values(input)[0], type)}
+                      style={{ justifyContent: 'center', ...(selectedType === type ? PRESSED_STYLE : {}) }}
+                      onClick={() => selectType(type)}
                     >
                       {label}
                     </button>
@@ -1174,8 +1264,8 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
                 <button
                   type="button"
                   className="btn btn-sm"
-                  style={{ width: '100%', justifyContent: 'center' }}
-                  onClick={() => addPointsToSelected(Object.values(input)[0], 'field')}
+                  style={{ width: '100%', justifyContent: 'center', ...(selectedType === 'field' ? PRESSED_STYLE : {}) }}
+                  onClick={() => selectType('field')}
                 >
                   Field
                 </button>
@@ -1197,22 +1287,26 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
                         style={{
                           background: 'none',
                           border: 'none',
-                          padding: '0',
+                          padding: '0.2rem',
+                          borderRadius: '10px',
                           cursor: 'pointer',
                           opacity: remaining <= 0 ? 0.35 : 1,
                           display: 'flex',
                           flexDirection: 'column',
                           alignItems: 'center',
                           gap: '0.2rem',
+                          outline: selectedGoods.has(good) ? '2px solid var(--stone-gray)' : 'none',
+                          outlineOffset: '2px',
+                          transform: selectedGoods.has(good) ? 'scale(0.9)' : 'none',
                         }}
-                        onClick={() => addGoodsToken(good)}
+                        onClick={() => selectGood(good)}
                         disabled={remaining <= 0}
                       >
                         {GOODS_IMGS[good]
                           ? <img src={GOODS_IMGS[good]} alt={good} style={{ height: 44, width: 'auto', display: 'block' }} />
                           : <span style={{ fontFamily: 'Cinzel, serif', fontSize: '0.8rem' }}>{GOODS_LABELS[good]}</span>
                         }
-                        <span style={{ fontSize: '0.65rem', fontFamily: 'Cinzel, serif', color: 'var(--stone-gray)' }}>×{remaining}</span>
+                        <span style={{ fontSize: '0.95rem', fontWeight: 700, fontFamily: 'Cinzel, serif', color: '#000' }}>×{remaining}</span>
                       </button>
                     );
                   })}
@@ -1222,6 +1316,36 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
           </div>
         </div>
       </div>
+
+      {/* Ready-to-award hint: shown once a type/good or a player is highlighted, or once points are
+          entered, prompting the next click. Only for the first 10 scores — after that, players know the flow. */}
+      {!warning && board.moveIndex < 9 && (selectedType || selectedGoods.size > 0 || selectedPlayer || (Number(Object.values(input)[0]) || 0) > 0) && (
+        <div style={{
+          position: 'fixed',
+          bottom: '2rem',
+          right: '2rem',
+          background: 'var(--charcoal)',
+          color: 'var(--parchment)',
+          padding: '0.75rem 1.3rem',
+          borderRadius: 'var(--radius-tile)',
+          borderLeft: '4px solid var(--forest-green)',
+          fontFamily: "'Crimson Text', serif",
+          fontSize: '1rem',
+          boxShadow: '0 4px 18px rgba(0,0,0,0.4)',
+          zIndex: 20001,
+          animation: 'toastIn 0.3s ease',
+        }}>
+          {selectedGoods.size > 0
+            ? `Select a player to award ${[...selectedGoods].map(g => GOODS_LABELS[g]).join(', ')} token${selectedGoods.size > 1 ? 's' : ''}`
+            : (Number(Object.values(input)[0]) || 0) === 0
+            ? 'Add points.'
+            : selectedType
+            ? 'Select a player.'
+            : selectedPlayer
+            ? 'Select a score type.'
+            : 'Select a player or a score type.'}
+        </div>
+      )}
 
       {/* Warning Toast */}
       {warning && (

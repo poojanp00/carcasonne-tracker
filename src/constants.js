@@ -8,9 +8,9 @@
 // ── Navigation ──
 export const TABS = [
   { id: 'home',       label: 'About'       },
-  { id: 'statistics', label: 'Statistics'  },
-  { id: 'history',    label: 'Logbook'     },
   { id: 'board',      label: 'Play'        },
+  { id: 'history',    label: 'Logbook'     },
+  { id: 'statistics', label: 'Statistics'  },
   { id: 'collection', label: 'Collection'  },
 ];
 
@@ -22,6 +22,22 @@ export const APP_CONFIG = {
 // ── Carcassonne Game Rules ──
 export const MAX_GAME_PLAYERS = 6;
 export const MAX_REALMS = 12;
+
+// Monastery, Abbot, and Abbey all score a max of 9 points per completed feature
+// (1 point for the tile itself + up to 8 surrounding neighbors).
+export const MONASTERY_LIKE_TYPES = ['monastery', 'abbot', 'abbey'];
+export const MONASTERY_LIKE_MAX = 9;
+
+// City/Cathedral, Road/Inn, and Monastery/Abbot/Abbey "game record" badges only
+// count features completed before final scoring — those features must be
+// finished to score at all, so anything closed out during final scoring was
+// left unfinished mid-game and scored via the leftover-points rules.
+// Field/Pig/Barn are exempt since they're intentionally always scored during
+// final scoring.
+export const LIVE_PLAY_ONLY_RECORD_TYPES = ['road', 'city', 'inn', 'cathedral', 'monastery', 'abbot', 'abbey'];
+
+// Types whose full (9-point) completions count toward the "Most Monasteries" record.
+export const MONASTERY_RECORD_TYPES = ['monastery', 'abbot', 'abbey'];
 
 // ── Expansion Type Mapping ──
 // Maps expansion names to the score types they introduce beyond the base four
