@@ -67,7 +67,7 @@ export default function PointBreakdownChart({ players, showLegend = false }) {
 
   return (
     <div className="chart-wrapper">
-      <div className="chart-container">
+      <div className="chart-container" style={{ borderTop: '4px solid var(--warm-gold)', paddingTop: '1.25rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.2rem' }}>
           <div className="chart-header" style={{ margin: 0 }}>Complete Points Breakdown</div>
           <button
@@ -103,8 +103,8 @@ export default function PointBreakdownChart({ players, showLegend = false }) {
                 <span style={{ fontFamily: 'Cinzel, serif', fontSize: 'clamp(0.6rem, 1.8vw, 0.78rem)', color: 'var(--stone-gray)', minWidth: 'clamp(48px, 12vw, 80px)', textAlign: 'right', flexShrink: 0 }}>
                   {player.name}
                 </span>
-                <div style={{ flex: 1, height: '16px' }}>
-                  <div style={{ width: `${(total / maxTotal) * 100}%`, height: '16px', borderRadius: '6px', overflow: 'hidden', display: 'flex' }}>
+                <div style={{ flex: 1, height: '24px' }}>
+                  <div style={{ width: `${(total / maxTotal) * 100}%`, height: '24px', borderRadius: '6px', overflow: 'hidden', display: 'flex' }}>
                     {total === 0
                       ? <div style={{ flex: 1, backgroundColor: 'var(--stone-gray)', opacity: 0.2 }} />
                       : orderedTypes.map(t => {
