@@ -10,7 +10,7 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
-import { SCORE_TYPE_ORDER, SCORE_TYPE_COLORS } from '../constants';
+import { SCORE_TYPE_ORDER, SCORE_TYPE_COLORS, MONASTERY_LIKE_TYPES, MONASTERY_LIKE_MAX } from '../constants';
 import {
   getSessionByCode,
   getSessionById,
@@ -239,6 +239,11 @@ export default function Play() {
         setError(`No ${good} tokens left in supply.`);
         return;
       }
+    }
+
+    if (MONASTERY_LIKE_TYPES.includes(category) && Math.abs(Number(delta)) > MONASTERY_LIKE_MAX) {
+      setError(`${category.charAt(0).toUpperCase() + category.slice(1)} can only score up to ${MONASTERY_LIKE_MAX} points.`);
+      return;
     }
 
     try {

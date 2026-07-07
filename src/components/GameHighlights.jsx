@@ -46,14 +46,6 @@ const ACHIEVEMENT_LABEL_OVERRIDE = {
   bestTrader:    'Master Merchant',
 };
 
-const ACHIEVEMENT_AMOUNT_SUFFIX = {
-  bestTrader: ' Total Goods',
-};
-
-const ACHIEVEMENT_TOOLTIP = {
-  bestTrader: 'Awarded to the player who dominated all goods.',
-};
-
 export default function GameHighlights({ achievements = {} }) {
   if (!achievements) return null;
 
@@ -131,12 +123,6 @@ export default function GameHighlights({ achievements = {} }) {
                 gap:           '0.25rem',
               }}>
                 {(ACHIEVEMENT_LABEL_OVERRIDE[key] || formatAchievementName(key)).toUpperCase()}
-                {ACHIEVEMENT_TOOLTIP[key] && (
-                  <span className="stat-info-wrap">
-                    <span className="stat-info-icon">ⓘ</span>
-                    <span className="stat-info-tooltip">{ACHIEVEMENT_TOOLTIP[key]}</span>
-                  </span>
-                )}
               </div>
 
               {/* Amount */}
@@ -147,11 +133,7 @@ export default function GameHighlights({ achievements = {} }) {
                 color,
                 textAlign:  'center',
               }}>
-                {amount}{ACHIEVEMENT_AMOUNT_SUFFIX[key] ? (
-                  <span style={{ fontSize: '0.6rem', fontWeight: 400, opacity: 0.75 }}>
-                    {' '}{ACHIEVEMENT_AMOUNT_SUFFIX[key].trim().toUpperCase()}
-                  </span>
-                ) : null}
+                {amount}
               </span>
             </div>
           );
