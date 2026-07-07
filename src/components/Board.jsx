@@ -650,7 +650,7 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
       if (!delta || Number(delta) === 0) {
         // No points yet — swap the highlight to this type instead of doing nothing
         setSelectedPlayer(null);
-        setSelectedGood(null);
+        setSelectedGoods(new Set());
         setSelectedType(type);
         return;
       }
