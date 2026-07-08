@@ -358,9 +358,11 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
 
         <div className="tile-card" style={{ marginBottom: '1rem' }}>
           <div className="form-label" style={{ marginBottom: '0.9rem' }}>Do you own the game?</div>
-          <div style={{ display: 'flex', gap: '0.7rem' }}>
-            <button type="button" className="btn" onClick={() => onGuestGateAnswered?.()}>Yes</button>
-            <button type="button" className="btn btn-ghost" onClick={() => setNoGameError(true)}>No</button>
+          {/* Same Back/Next rhythm as the rest of the form: secondary choice ghost on
+              the left, primary choice filled on the right, spread across the full row */}
+          <div style={{ display: 'flex', gap: '0.7rem', justifyContent: 'space-between' }}>
+            <button type="button" className="btn btn-ghost" onClick={() => setNoGameError(true)} style={{ minWidth: '6rem' }}>No</button>
+            <button type="button" className="btn" onClick={() => onGuestGateAnswered?.()} style={{ minWidth: '6rem' }}>Yes</button>
           </div>
         </div>
 
