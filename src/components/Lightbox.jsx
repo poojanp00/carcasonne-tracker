@@ -31,6 +31,16 @@ function formatDate(dateStr) {
   });
 }
 
+// Longer player names get a smaller font instead of being truncated with an ellipsis.
+// Takes a character count (the longest name in the list) so every row can share one size.
+function nameFontSize(len) {
+  if (len <= 7)  return 'clamp(0.8rem, 2.2vw, 0.95rem)';
+  if (len <= 10) return 'clamp(0.7rem, 1.9vw, 0.85rem)';
+  if (len <= 13) return 'clamp(0.62rem, 1.7vw, 0.75rem)';
+  if (len <= 17) return 'clamp(0.55rem, 1.5vw, 0.66rem)';
+  return 'clamp(0.48rem, 1.3vw, 0.58rem)';
+}
+
 
 export default function Lightbox({ game, games = [], onNavigate, onClose, onDeleteRequest }) {
   const idx = games.findIndex(g => g.id === game.id);
@@ -59,6 +69,9 @@ export default function Lightbox({ game, games = [], onNavigate, onClose, onDele
   const topPlayers = game.winners || [];  // Use precomputed winners from database
 
   const sorted = [...game.players].sort((a, b) => b.score - a.score);
+  // Every name renders at the same size/width — set by the longest name — so
+  // the score column lines up in the same spot across every player row
+  const maxNameLen = Math.max(...sorted.map(p => p.name.length));
 
   // Group headline records by their holder so they render as medal chips beside each name
   const badgesByPlayer = {};
@@ -67,6 +80,9 @@ export default function Lightbox({ game, games = [], onNavigate, onClose, onDele
     if (!a?.player) return;
     (badgesByPlayer[a.player] = badgesByPlayer[a.player] || []).push({ key, amount: a.amount });
   });
+  // Every player's badge column reserves the same width — the widest badge
+  // holder's count — so rows stay aligned even when some players have none
+  const maxBadgeCount = Math.max(0, ...Object.values(badgesByPlayer).map(list => list.length));
   const s1 = sorted[0]?.score ?? 0, s2 = sorted[1]?.score ?? 0;
   const isClutch = topPlayers.length === 1 && (s1 + s2) > 0 && (s1 - s2) / (s1 + s2) < STATISTICS_CONFIG.CLUTCH_THRESHOLD;
 
@@ -81,8 +97,9 @@ export default function Lightbox({ game, games = [], onNavigate, onClose, onDele
             <div className="section-title-line" />
           </div>
 
-          {/* Info bar: date · duration · expansions · clutch/farm stickers */}
-          <div style={{ marginBottom: '1.2rem', background: 'var(--aged-paper)', border: 'var(--border-tile)', borderRadius: 'var(--radius-tile)', padding: '0.45rem 1rem', display: 'flex', gap: '1.5rem', alignItems: 'center' }}>
+          {/* Info bar: date · duration · clutch/farm stickers (expansions live in
+              their own box near the bottom, below the score timeline) */}
+          <div className="lb-info-bar" style={{ marginBottom: '1.2rem', background: 'var(--aged-paper)', border: 'var(--border-tile)', borderRadius: 'var(--radius-tile)', padding: '0.45rem 1rem', display: 'flex', flexWrap: 'wrap', gap: '1.5rem', alignItems: 'center' }}>
             <div style={{ fontFamily: "'Crimson Text', serif", fontSize: 'clamp(0.8rem, 2.2vw, 0.95rem)', color: 'var(--stone-gray)', fontStyle: 'italic' }}>
               {formatDate(game.date)}
             </div>
@@ -99,10 +116,6 @@ export default function Lightbox({ game, games = [], onNavigate, onClose, onDele
                 </div>
               </>
             )}
-            <div style={{ width: '1px', height: '20px', background: 'var(--stone-gray)', opacity: 0.3 }} />
-            <div style={{ fontFamily: "'Crimson Text', serif", fontSize: 'clamp(0.8rem, 2.2vw, 0.95rem)', color: 'var(--stone-gray)', fontStyle: 'italic' }}>
-              {game.expansions.length === 0 ? 'Base Game' : game.expansions.join(' · ')}
-            </div>
             {(isClutch || (game.farmWin && topPlayers.length === 1)) && (
               <div style={{ width: '1px', height: '20px', background: 'var(--stone-gray)', opacity: 0.3 }} />
             )}
@@ -128,20 +141,21 @@ export default function Lightbox({ game, games = [], onNavigate, onClose, onDele
                 const color = getMeepleColor(p.meeple);
                 return (
                   <div key={p.name} className="postgame-player-card" style={{ borderLeft: `3px solid ${color}` }}>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', columnGap: '0.5rem', rowGap: '0.4rem' }}>
+                    {/* Name/score/badges stay three columns at every width — badges
+                        wrap and shrink internally instead of dropping to a new row */}
+                    <div style={{ display: 'flex', flexWrap: 'nowrap', alignItems: 'center', gap: '0.5rem' }}>
                       <img src={MEEPLE_IMGS[p.meeple] || FALLBACK_MEEPLE} alt={p.name} style={{ height: 26, width: 'auto', flexShrink: 0 }} />
-                      {/* Col 1: name — hard-fixed width so every row's columns match and
-                          badge strips wrap at the same screen width */}
+                      {/* Col 1: name — every row shares one font size and width (both
+                          set by the longest name) so scores line up directly to the
+                          right of the longest name across every row */}
                       <span style={{
                         fontFamily: 'Cinzel, serif',
                         color,
                         fontWeight: 600,
-                        fontSize: 'clamp(0.8rem, 2.2vw, 0.95rem)',
-                        flexShrink: 0,
-                        width: 'clamp(72px, 24vw, 130px)',
+                        fontSize: nameFontSize(maxNameLen),
+                        flex: '0 0 auto',
+                        width: `${maxNameLen}ch`,
                         whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
                       }}>
                         {p.name}
                       </span>
@@ -150,24 +164,26 @@ export default function Lightbox({ game, games = [], onNavigate, onClose, onDele
                         display: 'flex',
                         alignItems: 'center',
                         flexShrink: 0,
-                        width: 'calc(4ch + 2.5rem)',
-                        borderLeft: '1px solid rgba(201,163,74,0.35)',
-                        padding: '0 1rem 0 1.5rem',
+                        width: 'calc(4ch + 0.85rem)',
+                        padding: '0 0.35rem 0 0.5rem',
                         alignSelf: 'stretch',
                       }}>
                         <div className="postgame-score-display">
                           {p.score}
                         </div>
                       </span>
-                      {/* Col 3: medal chips — right-aligned; wraps below name+score on thin screens
-                          (where CSS drops the divider and left-aligns the strip) */}
-                      {(badgesByPlayer[p.name] || []).length > 0 && (
-                        <span className="lb-badge-col" style={{ flex: '1 1 52px', minWidth: 0, overflowX: 'auto', display: 'flex', alignSelf: 'stretch', alignItems: 'center' }}>
-                          <span className="lb-badge-strip" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                            {badgesByPlayer[p.name].map(({ key, amount }) => (
-                              <RecordBadge key={key} badgeKey={key} amount={amount} size="clamp(32px, 9vw, 48px)" />
-                            ))}
-                          </span>
+                      {/* Col 3: medal chips — reserved at the widest badge holder's count so
+                          every row matches, even players with none; badges left-align, wrap,
+                          and shrink with the viewport */}
+                      {maxBadgeCount > 0 && (
+                        <span className="lb-badge-col" style={{ flex: `0 1 calc(${maxBadgeCount} * clamp(32px, 9vw, 48px) + ${maxBadgeCount - 1} * 0.75rem)`, minWidth: 0, display: 'flex', alignSelf: 'stretch', alignItems: 'center' }}>
+                          {(badgesByPlayer[p.name] || []).length > 0 && (
+                            <span className="lb-badge-strip" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.4rem 0.75rem' }}>
+                              {badgesByPlayer[p.name].map(({ key, amount }) => (
+                                <RecordBadge key={key} badgeKey={key} amount={amount} size="clamp(32px, 9vw, 48px)" />
+                              ))}
+                            </span>
+                          )}
                         </span>
                       )}
                     </div>
@@ -385,6 +401,13 @@ export default function Lightbox({ game, games = [], onNavigate, onClose, onDele
               />
             </div>
           )}
+
+          {/* Expansions — own box near the bottom, below the score timeline */}
+          <div style={{ marginBottom: '1.4rem', background: 'var(--aged-paper)', border: 'var(--border-tile)', borderRadius: 'var(--radius-tile)', padding: '0.45rem 1rem' }}>
+            <div style={{ fontFamily: "'Crimson Text', serif", fontSize: 'clamp(0.8rem, 2.2vw, 0.95rem)', color: 'var(--stone-gray)', fontStyle: 'italic' }}>
+              {game.expansions.length === 0 ? 'Base Game' : game.expansions.join(' · ')}
+            </div>
+          </div>
 
           <div style={{ display: 'flex', justifyContent: onDeleteRequest ? 'space-between' : 'flex-end', marginTop: '1.6rem' }}>
             {onDeleteRequest && (

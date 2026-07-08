@@ -63,33 +63,6 @@ const CollectionIcon = () => (
   </svg>
 );
 
-const howToSteps = [
-  {
-    title: 'Gather players',
-    body: 'Create a group and add each player under the Carcasscore Play tab.',
-  },
-  {
-    title: 'Set up the game',
-    body: 'While you set up an actual game, select your meeples and expansions on Carcasscore.',
-  },
-  {
-    title: 'Play the game',
-    body: 'Track all scoring events live on Carcasscore as features are completed.',
-  },
-  {
-    title: 'Final Scoring',
-    body: 'Complete end-game scoring on Carcasscore once the final tile is placed.',
-  },
-  {
-    title: 'Crown a winner',
-    body: 'View the final standings, score breakdowns, and game statistics on Carcasscore.',
-  },
-  {
-    title: 'Build your legacy',
-    body: 'Sign in to save games to your logbook. Access your complete game history, group leaderboards, player stats, and long-term analytics.',
-  },
-];
-
 const features = [
   {
     icon: <MeepleIcon />,
@@ -228,22 +201,6 @@ export default function Landing() {
             <p className="landing-feature-body">{f.body}</p>
           </div>
         ))}
-      </section>
-
-      {/* How To */}
-      <section className="landing-howto">
-        <h3 className="landing-howto-heading">How It Works</h3>
-        <ol className="landing-howto-steps">
-          {howToSteps.map((s, i) => (
-            <li key={s.title} className="landing-howto-step">
-              <span className="landing-howto-number">{i + 1}</span>
-              <div className="landing-howto-content">
-                <h4 className="landing-howto-title">{s.title}</h4>
-                <p className="landing-howto-body">{s.body}</p>
-              </div>
-            </li>
-          ))}
-        </ol>
       </section>
 
       {/* Disclaimer */}

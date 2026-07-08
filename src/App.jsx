@@ -38,6 +38,9 @@ export default function App() {
   const [toast,          setToast]          = useState(null);
   const [realmPickerKey, setRealmPickerKey] = useState(0);
   const [openGame,       setOpenGame]       = useState(null);
+  // Guest "own the game?" pre-game gate — lives here (not in PreGameSetup) so it survives
+  // that component remounting mid-flow, and resets whenever the guest leaves the Play tab.
+  const [guestGateAnswered, setGuestGateAnswered] = useState(false);
 
   // Check for recovery mode once on mount
   const [isRecoveryMode, setIsRecoveryMode] = useState(() => {
@@ -128,6 +131,11 @@ export default function App() {
     const realm  = appData.realms.find(r => r.id === latest?.realmId);
     if (realm) setSession({ realm });
   }, [appData.loading, authLoading, user, isGuest]);  // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Leaving the Play tab re-arms the guest gate so returning always re-asks the question
+  useEffect(() => {
+    if (tab !== 'board') setGuestGateAnswered(false);
+  }, [tab]);
 
   const goHome = useCallback(() => {
     setSession(null);
@@ -414,6 +422,8 @@ export default function App() {
                           onRealmCreate={handleRealmCreate}
                           startAtRealmCreation={true}
                           isGuest={isGuest}
+                          guestGateAnswered={guestGateAnswered}
+                          onGuestGateAnswered={() => setGuestGateAnswered(true)}
                         />
                       : <PreGameSetup
                         key={session.realm.id}
@@ -427,6 +437,8 @@ export default function App() {
                         onRealmChange={handleRealmSelect}
                         onRealmCreate={handleRealmCreate}
                         isGuest={isGuest}
+                        guestGateAnswered={guestGateAnswered}
+                        onGuestGateAnswered={() => setGuestGateAnswered(true)}
                       />
                 : appData.realms.length === 0
                   ? <PreGameSetup
@@ -442,8 +454,26 @@ export default function App() {
                       onRealmCreate={handleRealmCreate}
                       startAtRealmCreation={true}
                       isGuest={isGuest}
+                      guestGateAnswered={guestGateAnswered}
+                      onGuestGateAnswered={() => setGuestGateAnswered(true)}
                     />
-                  : (
+                  : isGuest
+                    ? <PreGameSetup
+                        key="guest-existing-realm"
+                        realm={appData.realms[0]}
+                        ownedExpansions={ownedExpansions}
+                        onStart={handleGameStart}
+                        defaultMeeples={null}
+                        defaultExpansions={null}
+                        realms={appData.realms}
+                        currentRealm={appData.realms[0]}
+                        onRealmChange={handleRealmSelect}
+                        onRealmCreate={handleRealmCreate}
+                        isGuest={isGuest}
+                        guestGateAnswered={guestGateAnswered}
+                        onGuestGateAnswered={() => setGuestGateAnswered(true)}
+                      />
+                    : (
                     <div>
                       <div className="section-title">
                         <h2>score board</h2>

@@ -19,6 +19,15 @@ const MEEPLE_IMGS = {
 };
 const FALLBACK_MEEPLE = Object.values(MEEPLE_IMGS)[0];
 
+// Longer player names get a smaller font instead of being truncated with an ellipsis.
+// Takes a character count (the longest name in the list) so every row can share one size.
+function nameFontSize(len) {
+  if (len <= 7)  return 'clamp(0.8rem, 2.2vw, 0.95rem)';
+  if (len <= 10) return 'clamp(0.7rem, 1.9vw, 0.85rem)';
+  if (len <= 13) return 'clamp(0.62rem, 1.7vw, 0.75rem)';
+  if (len <= 17) return 'clamp(0.55rem, 1.5vw, 0.66rem)';
+  return 'clamp(0.48rem, 1.3vw, 0.58rem)';
+}
 
 export default function GameLogForm({ session, ownedExpansions, onSubmit, onCancel, onPlayAgain, isGuest = false }) {
   const { players = [], meeples = {}, expansions: prefillExp = [], finalScores = {}, scoreBreakdown = {}, farmWin: autoFarmWin = false, gameDuration = 0, maxFeatures = {}, scoreTimeline = [] } = session || {};
@@ -43,6 +52,9 @@ export default function GameLogForm({ session, ownedExpansions, onSubmit, onCanc
   const scoreNums    = players.map(p => Number(finalScores[p]) || 0);
   const { winners, maxScore } = computeWinners(Object.fromEntries(players.map(p => [p, finalScores[p]])));
   const sortedPlayers = [...players].sort((a, b) => (Number(finalScores[b]) || 0) - (Number(finalScores[a]) || 0));
+  // Every name renders at the same size/width — set by the longest name — so
+  // the score column lines up in the same spot across every player row
+  const maxNameLen = Math.max(...sortedPlayers.map(n => n.length));
 
   const sortedScores = [...scoreNums].sort((a, b) => b - a);
   const s1 = sortedScores[0] ?? 0, s2 = sortedScores[1] ?? 0;
@@ -58,6 +70,9 @@ export default function GameLogForm({ session, ownedExpansions, onSubmit, onCanc
     if (!a?.player) return;
     (badgesByPlayer[a.player] = badgesByPlayer[a.player] || []).push({ key, amount: a.amount });
   });
+  // Every player's badge column reserves the same width — the widest badge
+  // holder's count — so rows stay aligned even when some players have none
+  const maxBadgeCount = Math.max(0, ...Object.values(badgesByPlayer).map(list => list.length));
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -126,20 +141,21 @@ export default function GameLogForm({ session, ownedExpansions, onSubmit, onCanc
             const color    = getMeepleColor(meeples[name]);
             return (
               <div key={name} className="postgame-player-card" style={{ borderLeft: `3px solid ${color}` }}>
-                <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', columnGap: '0.5rem', rowGap: '0.4rem' }}>
+                {/* Name/score/badges stay three columns at every width — badges
+                    wrap and shrink internally instead of dropping to a new row */}
+                <div style={{ display: 'flex', flexWrap: 'nowrap', alignItems: 'center', gap: '0.5rem' }}>
                   <img src={MEEPLE_IMGS[meeples[name]] || FALLBACK_MEEPLE} alt={name} style={{ height: 26, width: 'auto', flexShrink: 0 }} />
-                  {/* Col 1: name — hard-fixed width so every row's columns match and
-                      badge strips wrap at the same screen width */}
+                  {/* Col 1: name — every row shares one font size and width (both
+                      set by the longest name) so scores line up directly to the
+                      right of the longest name across every row */}
                   <span style={{
                     fontFamily: 'Cinzel, serif',
                     color,
                     fontWeight: 600,
-                    fontSize: 'clamp(0.8rem, 2.2vw, 0.95rem)',
-                    flexShrink: 0,
-                    width: 'clamp(72px, 24vw, 130px)',
+                    fontSize: nameFontSize(maxNameLen),
+                    flex: '0 0 auto',
+                    width: `${maxNameLen}ch`,
                     whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
                   }}>
                     {name}
                   </span>
@@ -148,24 +164,26 @@ export default function GameLogForm({ session, ownedExpansions, onSubmit, onCanc
                     display: 'flex',
                     alignItems: 'center',
                     flexShrink: 0,
-                    width: 'calc(4ch + 2.5rem)',
-                    borderLeft: '1px solid rgba(201,163,74,0.35)',
-                    padding: '0 1rem 0 1.5rem',
+                    width: 'calc(4ch + 0.85rem)',
+                    padding: '0 0.35rem 0 0.5rem',
                     alignSelf: 'stretch',
                   }}>
                     <div className="postgame-score-display">
                       {finalScores[name] ?? 0}
                     </div>
                   </span>
-                  {/* Col 3: medal chips — right-aligned; wraps below name+score on thin screens
-                      (where CSS drops the divider and left-aligns the strip) */}
-                  {(badgesByPlayer[name] || []).length > 0 && (
-                    <span className="lb-badge-col" style={{ flex: '1 1 52px', minWidth: 0, overflowX: 'auto', display: 'flex', alignSelf: 'stretch', alignItems: 'center' }}>
-                      <span className="lb-badge-strip" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                        {badgesByPlayer[name].map(({ key, amount }) => (
-                          <RecordBadge key={key} badgeKey={key} amount={amount} size="clamp(32px, 9vw, 48px)" />
-                        ))}
-                      </span>
+                  {/* Col 3: medal chips — reserved at the widest badge holder's count so
+                      every row matches, even players with none; badges left-align, wrap,
+                      and shrink with the viewport */}
+                  {maxBadgeCount > 0 && (
+                    <span className="lb-badge-col" style={{ flex: `0 1 calc(${maxBadgeCount} * clamp(32px, 9vw, 48px) + ${maxBadgeCount - 1} * 0.75rem)`, minWidth: 0, display: 'flex', alignSelf: 'stretch', alignItems: 'center' }}>
+                      {(badgesByPlayer[name] || []).length > 0 && (
+                        <span className="lb-badge-strip" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.4rem 0.75rem' }}>
+                          {badgesByPlayer[name].map(({ key, amount }) => (
+                            <RecordBadge key={key} badgeKey={key} amount={amount} size="clamp(32px, 9vw, 48px)" />
+                          ))}
+                        </span>
+                      )}
                     </span>
                   )}
                 </div>

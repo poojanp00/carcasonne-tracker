@@ -725,8 +725,8 @@ h3 { font-size: clamp(0.9rem, 2.5vw, 1.15rem); font-weight: 600; }
   color: var(--charcoal);
 }
 .milestone-grid {
-  display: flex;
-  justify-content: space-evenly;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   align-items: flex-start;
   gap: 0.65rem;
 }
@@ -736,7 +736,6 @@ h3 { font-size: clamp(0.9rem, 2.5vw, 1.15rem); font-weight: 600; }
   flex-direction: column;
   align-items: center;
   gap: 0.3rem;
-  flex: 0 1 88px;
   min-width: 0;
   background: none;
   border: none;
@@ -755,7 +754,6 @@ h3 { font-size: clamp(0.9rem, 2.5vw, 1.15rem); font-weight: 600; }
   text-align: center;
   color: var(--earth-brown);
   margin-top: 0.35rem;
-  overflow-wrap: break-word;
   max-width: 100%;
 }
 .milestone-badge img {
@@ -1568,73 +1566,6 @@ input[type="file"] { display: none; }
   color: var(--stone-gray);
 }
 
-.landing-howto {
-  padding: 1.6rem 1.8rem;
-  background: var(--aged-paper);
-  border: var(--border-tile);
-  border-radius: var(--radius-tile);
-  box-shadow: var(--shadow-sm);
-}
-
-.landing-howto-heading {
-  font-family: 'Cinzel', serif;
-  font-size: clamp(1rem, 2.8vw, 1.3rem);
-  font-weight: 700;
-  color: var(--earth-brown);
-  letter-spacing: 0.04em;
-  text-align: center;
-  margin-bottom: 1.6rem;
-}
-
-.landing-howto-steps {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.landing-howto-step {
-  display: flex;
-  gap: 1rem;
-  align-items: flex-start;
-  margin-bottom: 1.4rem;
-}
-
-.landing-howto-number {
-  flex: 0 0 auto;
-  width: 2rem;
-  height: 2rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  background: var(--warm-gold);
-  color: var(--charcoal);
-  font-family: 'Cinzel', serif;
-  font-weight: 700;
-  font-size: 0.95rem;
-  box-shadow: var(--shadow-sm);
-}
-
-.landing-howto-content {
-  flex: 1 1 auto;
-}
-
-.landing-howto-title {
-  font-family: 'Cinzel', serif;
-  font-size: clamp(0.85rem, 2.2vw, 1rem);
-  font-weight: 700;
-  color: var(--earth-brown);
-  letter-spacing: 0.03em;
-  margin-bottom: 0.3rem;
-}
-
-.landing-howto-body {
-  font-family: 'Crimson Text', serif;
-  font-size: clamp(0.85rem, 2.2vw, 1rem);
-  line-height: 1.6;
-  color: var(--stone-gray);
-}
-
 .landing-disclaimer {
   font-family: 'Crimson Text', serif;
   font-size: 0.82rem;
@@ -2044,7 +1975,7 @@ input[type="file"] { display: none; }
 .mode-card.selected { background: none; box-shadow: none; }
 
 .mode-card-icon {
-  font-size: 12rem;
+  font-size: clamp(3.5rem, 18vw, 9rem);
   line-height: 1;
   border-radius: 12px;
   padding: 0.3rem;
@@ -2052,8 +1983,9 @@ input[type="file"] { display: none; }
 }
 
 .mode-card-icon img {
-  height: 12rem;
+  height: clamp(3.5rem, 18vw, 9rem);
   width: auto;
+  max-width: 100%;
 }
 
 .mode-card:hover .mode-card-icon {
@@ -2564,20 +2496,6 @@ input[type="file"] { display: none; }
 }
 .hl-card { animation: hl-pop 0.32s ease both; }
 
-/* Lightbox standings: badge column divider — dropped on thin screens where the strip wraps under the name/score */
 .lb-badge-col {
-  border-left: 1px solid rgba(201, 163, 74, 0.35);
-  padding-left: 0.75rem;
-}
-.lb-badge-strip {
-  margin-left: auto; /* right-align when badges share the row */
-}
-@media (max-width: 560px) {
-  .lb-badge-col {
-    border-left: none;
-    padding-left: 0;
-  }
-  .lb-badge-strip {
-    margin-left: 0; /* left-align once the strip wraps to its own line */
-  }
+  padding-left: 0.5rem;
 }

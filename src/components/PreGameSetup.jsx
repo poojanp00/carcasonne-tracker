@@ -53,13 +53,14 @@ const FUN_MEEPLES = Object.entries(FUN_MODULES)
     img
   }));
 
-export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeples, defaultExpansions, realms = [], currentRealm = null, onRealmChange, onRealmCreate, startAtRealmCreation = false, isGuest = false }) {
+export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeples, defaultExpansions, realms = [], currentRealm = null, onRealmChange, onRealmCreate, startAtRealmCreation = false, isGuest = false, guestGateAnswered = false, onGuestGateAnswered }) {
   // Steps: 0=Group selection, 1=Realm creation, 2=Mode selection, 3=Meeples (table only), 4=Expansions
-  // Guests skip group selection (their single "Guest" group is auto-created) and land on mode selection
-  const initialStep = startAtRealmCreation ? 1 : realms.length === 0 ? 1 : isGuest ? 2 : 0;
+  // Guests: a `realm` prop means this mount already has their group — skip straight to mode
+  // selection; otherwise (no group yet) they need to create one first.
+  const initialStep = startAtRealmCreation ? 1 : realms.length === 0 ? 1 : isGuest ? (realm ? 2 : 1) : 0;
   const [step, setStep] = useState(initialStep);
-  // Guest onboarding: opening question gate
-  const [guestAnswered, setGuestAnswered] = useState(false);
+  // Guest onboarding: "own the game?" gate — answered state lives in the parent (App) so it
+  // survives this component remounting mid-flow, and is reset whenever the guest leaves the tab.
   const [noGameError, setNoGameError] = useState(false);
   const [mode, setMode] = useState('table'); // 'table' | 'party'
   const [modeInfoOpen, setModeInfoOpen] = useState(new Set());
@@ -345,9 +346,9 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
 
 
   // ── Guest gate: must own the game (or be ready to set one up) to continue.
-  // Only on the first mount (no group yet) — after the guest group is created the
-  // component remounts with currentRealm set, and the question must not reappear.
-  if (isGuest && !guestAnswered && !currentRealm) {
+  // `guestGateAnswered` is owned by the parent (App) — it survives this component
+  // remounting mid-flow, and App resets it to false whenever the guest leaves the Play tab.
+  if (isGuest && !guestGateAnswered) {
     return (
       <div className="pregame-screen">
         <div className="section-title">
@@ -358,7 +359,7 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
         <div className="tile-card" style={{ marginBottom: '1rem' }}>
           <div className="form-label" style={{ marginBottom: '0.9rem' }}>Do you own the game?</div>
           <div style={{ display: 'flex', gap: '0.7rem' }}>
-            <button type="button" className="btn" onClick={() => setGuestAnswered(true)}>Yes</button>
+            <button type="button" className="btn" onClick={() => onGuestGateAnswered?.()}>Yes</button>
             <button type="button" className="btn btn-ghost" onClick={() => setNoGameError(true)}>No</button>
           </div>
         </div>
