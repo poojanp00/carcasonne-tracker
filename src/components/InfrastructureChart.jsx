@@ -28,7 +28,7 @@ export default function InfrastructureChart({ players }) {
           </StatInfo>
         </div>
         <ResponsiveContainer width="100%" height={700}>
-          <RadarChart data={chartData} margin={{ top: 0, right: 10, bottom: 5, left: 10 }}>
+          <RadarChart data={chartData} margin={{ top: 0, right: 10, bottom: 5, left: 10 }} style={{ cursor: 'var(--cursor-arrow)' }}>
             <PolarGrid stroke="rgba(139,94,60,0.3)" strokeWidth={2} />
             <PolarAngleAxis
               dataKey="axis"

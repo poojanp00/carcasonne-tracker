@@ -1,6 +1,7 @@
-import { useMemo, useState, useEffect, useRef, useLayoutEffect } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { usePortalTooltip } from '../hooks/usePortalTooltip';
+import { useTapTooltip } from '../hooks/useTapTooltip';
 
 const MEEPLE_MODULES = import.meta.glob('../../images/meeples/*.png',     { eager: true, import: 'default' });
 const FUN_MODULES    = import.meta.glob('../../images/meeples/fun/*.png', { eager: true, import: 'default' });
@@ -17,6 +18,7 @@ import crownImg from '../../images/icons/crown.png';
 import PointBreakdownChart from './PointBreakdownChart';
 import Lightbox from './Lightbox';
 import StatInfo from './StatInfo';
+import { formatDate } from '../utils/formatters';
 
 function calcFavMeeple(games, name) {
   const low = name.toLowerCase();
@@ -204,34 +206,22 @@ function calcStats(games, name) {
  * coordinates instead, so it always sits on top regardless of which card it's opened from.
  */
 function ValInfo({ tip, children, style }) {
-  const [tapped, setTapped] = useState(false);
-  const [hover, setHover] = useState(false);
-  const timerRef = useRef(null);
   const triggerRef = useRef(null);
-  const visible = tapped || hover;
+  const { visible, open, onMouseEnter, onMouseLeave } = useTapTooltip();
   const { tooltipRef, portalStyle } = usePortalTooltip(visible, triggerRef);
 
-  useEffect(() => () => clearTimeout(timerRef.current), []);
-
   if (!tip) return <span className="val-info-wrap" style={style}>{children}</span>;
-
-  // Stop the tap from bubbling up to the flip-card's click handler — otherwise tapping
-  // the value (no hover-out on touch) flips the card instead of showing the tooltip.
-  const handleClick = (e) => {
-    e.stopPropagation();
-    clearTimeout(timerRef.current);
-    setTapped(true);
-    timerRef.current = setTimeout(() => setTapped(false), 3000);
-  };
 
   return (
     <span
       ref={triggerRef}
       className="val-info-wrap"
       style={style}
-      onClick={handleClick}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
+      // Stop the tap from bubbling up to the flip-card's click handler — otherwise tapping
+      // the value (no hover-out on touch) flips the card instead of showing the tooltip.
+      onClick={e => { e.stopPropagation(); open(); }}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
     >
       {children}
       {visible && portalStyle && createPortal(
@@ -253,6 +243,7 @@ const PLAYER_COLOR_CLASSES = ['p1', 'p2', 'p3', 'p4', 'p5', 'p6'];
 function calcGroupStats(games) {
   let totalPoints = 0, farmWins = 0, clutchGames = 0, longestGame = 0, longestGameObj = null, shortestGame = 0, shortestGameObj = null, highestPoints = 0, highestPointsObj = null;
   const typePoints = {};
+  const dayStats = {}; // date -> { count, duration } — for "Most Active Day"
   for (const g of games) {
     const gamePoints = g.players.reduce((s, p) => s + p.score, 0);
     totalPoints += gamePoints;
@@ -264,8 +255,25 @@ function calcGroupStats(games) {
     for (const p of g.players)
       for (const [type, pts] of Object.entries(p.breakdown || {}))
         typePoints[type] = (typePoints[type] || 0) + pts;
+    if (g.date) {
+      const day = dayStats[g.date] || (dayStats[g.date] = { count: 0, duration: 0 });
+      day.count++;
+      day.duration += g.gameDuration || 0;
+    }
   }
-  return { totalPoints, farmWins, clutchGames, longestGame, longestGameObj, shortestGame, shortestGameObj, highestPoints, highestPointsObj, typePoints };
+
+  // Most games played in a single day; ties broken by total time played that day.
+  let mostActiveDay = null, mostActiveDayCount = 0, bestCount = -1, bestDuration = -1;
+  for (const [day, stat] of Object.entries(dayStats)) {
+    if (stat.count > bestCount || (stat.count === bestCount && stat.duration > bestDuration)) {
+      bestCount = stat.count;
+      bestDuration = stat.duration;
+      mostActiveDay = day;
+      mostActiveDayCount = stat.count;
+    }
+  }
+
+  return { totalPoints, farmWins, clutchGames, longestGame, longestGameObj, shortestGame, shortestGameObj, highestPoints, highestPointsObj, typePoints, mostActiveDay, mostActiveDayCount };
 }
 
 function calcPlayerRecords(games, players) {
@@ -289,38 +297,18 @@ const TYPE_LABELS = {
   abbey: 'Abbey', barn: 'Barn', abbot: 'Abbot', wagon: 'Wagon',
 };
 
-// Touch has no hover, so a single tap can't distinguish "show me what this is" from
-// "open it". First tap (or real mouse hover) just reveals the tooltip; a second tap, or a
-// click while already hovering on desktop, is treated as the deliberate "open" action.
-function MilestoneBadge({ badge, unit, unlocked, onSelect }) {
-  const [tapped, setTapped] = useState(false);
-  const [hover, setHover] = useState(false);
-  const timerRef = useRef(null);
+function MilestoneBadge({ badge, unit, unlocked }) {
   const triggerRef = useRef(null);
-  const visible = tapped || hover;
+  const { visible, open, onMouseEnter, onMouseLeave } = useTapTooltip();
   const { tooltipRef, portalStyle } = usePortalTooltip(visible, triggerRef, 'above');
-
-  useEffect(() => () => clearTimeout(timerRef.current), []);
-
-  const handleClick = () => {
-    if (visible) {
-      clearTimeout(timerRef.current);
-      setTapped(false);
-      if (unlocked) onSelect();
-    } else {
-      clearTimeout(timerRef.current);
-      setTapped(true);
-      timerRef.current = setTimeout(() => setTapped(false), 3000);
-    }
-  };
 
   return (
     <button
       ref={triggerRef}
       type="button"
-      onClick={handleClick}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
+      onClick={open}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
       className={`milestone-badge${unlocked ? '' : ' milestone-locked'}`}
     >
       <img src={badge.img} alt={badge.name} draggable={false} />
@@ -335,38 +323,7 @@ function MilestoneBadge({ badge, unit, unlocked, onSelect }) {
   );
 }
 
-// Rendered through a portal: a fixed overlay inside the flipped card would be
-// trapped by the ancestor's transform. Clicks are stopped from bubbling so the
-// React tree above (the card flip handler) doesn't see them.
-function MilestoneLightbox({ badge, unit, unlocked, onClose }) {
-  return createPortal(
-    <div className="realm-modal-overlay" onClick={(e) => { e.stopPropagation(); onClose(); }}>
-      <div className="milestone-lightbox tile-card" onClick={(e) => e.stopPropagation()}>
-        <div className="milestone-lightbox-header">
-          <span className="milestone-lightbox-title">{badge.name}</span>
-          <span className="milestone-lightbox-req">{badge.threshold.toLocaleString()} {unit}</span>
-        </div>
-        <div className={`milestone-lightbox-img${unlocked ? '' : ' milestone-locked'}`}>
-          <img src={badge.img} alt={badge.name} draggable={false} />
-        </div>
-        <p className="milestone-lightbox-desc">{badge.description}</p>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.8rem' }}>
-          <button
-            className="btn btn-ghost btn-sm"
-            onClick={(e) => { e.stopPropagation(); onClose(); }}
-            style={{ color: 'var(--deep-red)', borderColor: 'var(--deep-red)' }}
-          >
-            Close
-          </button>
-        </div>
-      </div>
-    </div>,
-    document.body
-  );
-}
-
 function MilestonesBack({ name, breakdown }) {
-  const [selected, setSelected] = useState(null); // { badge, unit, unlocked }
   return (
     <>
       <div className="player-card-name" style={{ margin: 0 }}>{name}</div>
@@ -389,21 +346,12 @@ function MilestonesBack({ name, breakdown }) {
                   badge={b}
                   unit={unit}
                   unlocked={unlocked}
-                  onSelect={() => setSelected({ badge: b, unit, unlocked })}
                 />
               );
             })}
           </div>
         </div>
       ))}
-      {selected && (
-        <MilestoneLightbox
-          badge={selected.badge}
-          unit={selected.unit}
-          unlocked={selected.unlocked}
-          onClose={() => setSelected(null)}
-        />
-      )}
     </>
   );
 }
@@ -452,7 +400,7 @@ function PlayerCard({ name, stats, breakdown, favMeeple, favMeepleCount, colorCl
           <button
             type="button"
             onClick={() => onNavigateToGame(stats.highScoreGame)}
-            style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', font: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.1rem' }}
+            style={{ background: 'none', border: 'none', padding: 0, cursor: 'var(--cursor-pointer)', font: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.1rem' }}
           >
             <span className="stat-value" style={{ color: 'var(--charcoal)', textDecoration: 'underline dotted' }}>{stats.highScore}</span>
           </button>
@@ -503,7 +451,7 @@ function PlayerCard({ name, stats, breakdown, favMeeple, favMeepleCount, colorCl
           <button
             type="button"
             onClick={() => onNavigateToGame(stats.biggestBlowoutGame)}
-            style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', font: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.1rem' }}
+            style={{ background: 'none', border: 'none', padding: 0, cursor: 'var(--cursor-pointer)', font: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.1rem' }}
           >
             <span className="stat-value" style={{ color: 'var(--charcoal)', textDecoration: 'underline dotted' }}>+{stats.biggestBlowout}</span>
           </button>
@@ -684,13 +632,13 @@ export default function Stats({ games, realms = [], currentRealm = null, onRealm
                               {info && <StatInfo>{info}</StatInfo>}
                             </span>
                             {gameObj
-                              ? <button type="button" onClick={() => openGameLightbox(gameObj)} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'Cinzel, serif', fontWeight: 600, color: 'var(--charcoal)', textDecoration: 'underline dotted' }}>{val}</button>
+                              ? <button type="button" onClick={() => openGameLightbox(gameObj)} style={{ background: 'none', border: 'none', padding: 0, cursor: 'var(--cursor-pointer)', fontFamily: 'Cinzel, serif', fontWeight: 600, color: 'var(--charcoal)', textDecoration: 'underline dotted' }}>{val}</button>
                               : <span className="stat-value">{val}</span>
                             }
                           </div>
                         );
                         const durationVal = (text, gameObj) => gameObj
-                          ? <button type="button" onClick={() => openGameLightbox(gameObj)} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'Cinzel, serif', fontWeight: 600, color: 'var(--charcoal)', textDecoration: 'underline dotted', fontSize: 'inherit' }}>{text}</button>
+                          ? <button type="button" onClick={() => openGameLightbox(gameObj)} style={{ background: 'none', border: 'none', padding: 0, cursor: 'var(--cursor-pointer)', fontFamily: 'Cinzel, serif', fontWeight: 600, color: 'var(--charcoal)', textDecoration: 'underline dotted', fontSize: 'inherit' }}>{text}</button>
                           : text;
                         return (
                           <>
@@ -708,6 +656,12 @@ export default function Stats({ games, realms = [], currentRealm = null, onRealm
                               ['Farm Wins', gs.farmWins, null, 'Games won in final scoring stage.'],
                               ['Clutch Games', gs.clutchGames, null, 'Games where winning margin was less than 7%.'],
                             ].map(statRow)}
+                            <div className="stat-row" style={{ margin: 0 }}>
+                              <span className="stat-label">Most Active Day</span>
+                              <ValInfo tip={gs.mostActiveDay ? `${gs.mostActiveDayCount} ${gs.mostActiveDayCount === 1 ? 'game' : 'games'} played` : null}>
+                                <span className="stat-value">{gs.mostActiveDay ? formatDate(gs.mostActiveDay) : '—'}</span>
+                              </ValInfo>
+                            </div>
                             <div style={{ marginTop: '0.8rem' }}>
                               <span className="stat-label">Favorite Expansion</span>
                               <div style={{ paddingLeft: '0.8rem', marginTop: '0.15rem', display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>

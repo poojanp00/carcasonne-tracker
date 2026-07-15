@@ -122,7 +122,7 @@ function PageTile({ icon, name, description, color, hovered, onHover, onLeave })
     <div
       onMouseEnter={onHover}
       onMouseLeave={onLeave}
-      style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.45rem', flex: 1, cursor: 'default', padding: '0 0.5rem' }}
+      style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.45rem', flex: 1, cursor: 'var(--cursor-arrow)', padding: '0 0.5rem' }}
     >
       <div style={{ color: hovered ? 'var(--stone-gray)' : color, opacity: hovered ? 0.2 : 1, transition: 'color 0.2s ease, opacity 0.2s ease' }}>
         {icon}

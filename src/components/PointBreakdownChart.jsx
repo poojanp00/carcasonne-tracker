@@ -92,7 +92,7 @@ export default function PointBreakdownChart({ players, showLegend = false, title
           <button
             type="button"
             onClick={() => { setCombined(v => !v); setTooltip(null); }}
-            style={{ background: 'none', border: '1px solid var(--warm-gold)', borderRadius: '4px', cursor: 'pointer', padding: '0.15rem 0.5rem', fontFamily: 'Cinzel, serif', fontSize: '0.62rem', color: combined ? 'var(--earth-brown)' : 'var(--stone-gray)', opacity: combined ? 1 : 0.7, letterSpacing: '0.05em' }}
+            style={{ background: 'none', border: '1px solid var(--warm-gold)', borderRadius: '4px', cursor: 'var(--cursor-pointer)', padding: '0.15rem 0.5rem', fontFamily: 'Cinzel, serif', fontSize: '0.62rem', color: combined ? 'var(--earth-brown)' : 'var(--stone-gray)', opacity: combined ? 1 : 0.7, letterSpacing: '0.05em' }}
           >
             {combined ? 'Split' : 'Combine'}
           </button>
@@ -137,7 +137,7 @@ export default function PointBreakdownChart({ players, showLegend = false, title
                           return (
                             <div
                               key={t}
-                              style={{ flex: val / total, backgroundColor: SCORE_TYPE_COLORS[t], cursor: 'default' }}
+                              style={{ flex: val / total, backgroundColor: SCORE_TYPE_COLORS[t], cursor: 'var(--cursor-arrow)' }}
                               onMouseEnter={(e) => handleMouseEnter(e, t, val)}
                             />
                           );
@@ -181,7 +181,7 @@ export default function PointBreakdownChart({ players, showLegend = false, title
         {displayTypes.length > 0 && <button
           type="button"
           onClick={() => setShowTable(v => !v)}
-          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', background: 'none', border: 'none', cursor: 'pointer', padding: '0.25rem 0', color: 'var(--stone-gray)', fontSize: '0.65rem', fontFamily: 'Cinzel, serif', gap: '0.4rem', opacity: 0.6 }}
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', background: 'none', border: 'none', cursor: 'var(--cursor-pointer)', padding: '0.25rem 0', color: 'var(--stone-gray)', fontSize: '0.65rem', fontFamily: 'Cinzel, serif', gap: '0.4rem', opacity: 0.6 }}
         >
           {showTable ? '▲' : '▼'}
         </button>}
@@ -195,7 +195,7 @@ export default function PointBreakdownChart({ players, showLegend = false, title
                   <th
                     key={t}
                     onClick={() => setSortType(s => s === t ? null : t)}
-                    style={{ padding: '0.25rem 0.4rem', fontFamily: 'Cinzel, serif', fontWeight: 600, fontSize: 'clamp(0.52rem, 1.4vw, 0.65rem)', textAlign: 'center', color: sortType === t ? 'var(--earth-brown)' : 'var(--stone-gray)', whiteSpace: 'nowrap', cursor: 'pointer', userSelect: 'none', textDecoration: sortType === t ? 'underline' : 'none' }}
+                    style={{ padding: '0.25rem 0.4rem', fontFamily: 'Cinzel, serif', fontWeight: 600, fontSize: 'clamp(0.52rem, 1.4vw, 0.65rem)', textAlign: 'center', color: sortType === t ? 'var(--earth-brown)' : 'var(--stone-gray)', whiteSpace: 'nowrap', cursor: 'var(--cursor-pointer)', userSelect: 'none', textDecoration: sortType === t ? 'underline' : 'none' }}
                   >
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', justifyContent: 'center' }}>
                       <span style={{ width: '7px', height: '7px', borderRadius: '2px', backgroundColor: SCORE_TYPE_COLORS[t], display: 'inline-block', flexShrink: 0 }} />

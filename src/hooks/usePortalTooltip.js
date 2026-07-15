@@ -10,8 +10,9 @@ const GAP = 6;
  * `transform`ed flip card — where a normally absolute-positioned tooltip would be trapped
  * underneath sibling elements (like the next card in a grid) no matter its z-index.
  *
- * Two-pass: first place the tooltip under (or above) the trigger's midpoint, then measure
- * the tooltip's own rendered size and nudge it back on-screen if it overflows an edge.
+ * Position is `fixed` (viewport-relative), so while open it re-measures the trigger on
+ * every scroll/resize and re-anchors to it — otherwise the tooltip would stay frozen on
+ * screen while the page (and the trigger it's pointing at) scrolls out from under it.
  *
  * `placement`: 'below' (default) anchors under the trigger; 'above' anchors above it —
  * using the viewport's bottom edge so no second pass is needed to know the tooltip's height.
@@ -22,11 +23,25 @@ export function usePortalTooltip(open, triggerRef, placement = 'below') {
 
   useLayoutEffect(() => {
     if (!open || !triggerRef.current) { setPos(null); return; }
-    const rect = triggerRef.current.getBoundingClientRect();
-    const vertical = placement === 'above'
-      ? { bottom: window.innerHeight - rect.top + GAP }
-      : { top: rect.bottom + GAP };
-    setPos({ ...vertical, left: rect.left + rect.width / 2, shift: 0 });
+
+    const update = () => {
+      if (!triggerRef.current) return;
+      const rect = triggerRef.current.getBoundingClientRect();
+      const vertical = placement === 'above'
+        ? { bottom: window.innerHeight - rect.top + GAP }
+        : { top: rect.bottom + GAP };
+      setPos({ ...vertical, left: rect.left + rect.width / 2, shift: 0 });
+    };
+
+    update();
+    // `capture: true` so scrolling inside any nested scrollable ancestor (not just the
+    // window) also re-anchors the tooltip.
+    window.addEventListener('scroll', update, true);
+    window.addEventListener('resize', update);
+    return () => {
+      window.removeEventListener('scroll', update, true);
+      window.removeEventListener('resize', update);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, placement]);
 

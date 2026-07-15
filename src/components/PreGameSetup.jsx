@@ -16,11 +16,12 @@
  * - Previous game settings used as smart defaults
  */
 
-import { useState, useMemo, useRef, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { MAX_GAME_PLAYERS, MAX_REALMS } from '../constants';
 import { formatPieceName } from '../utils/formatters';
 import { DEFAULT_EXPANSIONS } from '../data/expansions';
 import { useClampTooltip } from '../hooks/useClampTooltip';
+import { useTapTooltip } from '../hooks/useTapTooltip';
 
 /**
  * MEEPLE LOADING SYSTEM (STANDARD MEEPLES)
@@ -61,46 +62,11 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
   const initialStep = startAtRealmCreation ? 1 : realms.length === 0 ? 1 : isGuest ? (realm ? 2 : 1) : 0;
   const [step, setStep] = useState(initialStep);
   const [mode, setMode] = useState('table'); // 'table' | 'party'
-  const [modeInfoOpen, setModeInfoOpen] = useState(new Set());
-  const [modeInfoHover, setModeInfoHover] = useState(null);
-  const [partyGuestHover, setPartyGuestHover] = useState(false);
-  // Tapped-open "i" tooltips have no hover-out event on touch devices, so they'd otherwise
-  // stay open forever — auto-close them 3s after opening.
-  const modeInfoTimerRef = useRef(null);
-  const partyGuestTimerRef = useRef(null);
-  useEffect(() => () => { clearTimeout(modeInfoTimerRef.current); clearTimeout(partyGuestTimerRef.current); }, []);
-
-  const toggleModeInfo = (key) => {
-    clearTimeout(modeInfoTimerRef.current);
-    setModeInfoOpen(prev => {
-      const s = new Set(prev);
-      if (s.has(key)) {
-        s.delete(key);
-      } else {
-        s.add(key);
-        modeInfoTimerRef.current = setTimeout(() => {
-          setModeInfoOpen(p => { const n = new Set(p); n.delete(key); return n; });
-        }, 3000);
-      }
-      return s;
-    });
-  };
-
-  const openPartyGuestHover = () => {
-    clearTimeout(partyGuestTimerRef.current);
-    setPartyGuestHover(true);
-    partyGuestTimerRef.current = setTimeout(() => setPartyGuestHover(false), 3000);
-  };
-
-  const closePartyGuestHover = () => {
-    clearTimeout(partyGuestTimerRef.current);
-    setPartyGuestHover(false);
-  };
-
+  const tableInfo = useTapTooltip();
+  const partyInfo = useTapTooltip();
   // Nudge these tooltips back on-screen if they'd otherwise spill off a narrow phone edge.
-  const tableInfoVisible = modeInfoOpen.has('table') || modeInfoHover === 'table';
-  const { tooltipRef: tableDescRef, tooltipStyle: tableDescStyle } = useClampTooltip(tableInfoVisible);
-  const { tooltipRef: partyDescRef, tooltipStyle: partyDescStyle } = useClampTooltip(partyGuestHover);
+  const { tooltipRef: tableDescRef, tooltipStyle: tableDescStyle } = useClampTooltip(tableInfo.visible);
+  const { tooltipRef: partyDescRef, tooltipStyle: partyDescStyle } = useClampTooltip(partyInfo.visible);
 
   // Realm creation state (step 1)
   const [realmName, setRealmName] = useState('');
@@ -552,12 +518,12 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
               Table Mode
               <span
                 className="mode-card-info-icon"
-                onClick={e => { e.stopPropagation(); toggleModeInfo('table'); }}
-                onMouseEnter={() => setModeInfoHover('table')}
-                onMouseLeave={() => setModeInfoHover(null)}
+                onClick={e => { e.stopPropagation(); tableInfo.open(); }}
+                onMouseEnter={tableInfo.onMouseEnter}
+                onMouseLeave={tableInfo.onMouseLeave}
               >ⓘ</span>
             </div>
-            {tableInfoVisible && (
+            {tableInfo.visible && (
               <div ref={tableDescRef} className="mode-card-desc" style={tableDescStyle}>
                 One player records scores and manages the game from a single device.
               </div>
@@ -568,33 +534,33 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
             <div
               className="mode-card"
               aria-disabled="true"
-              style={{ opacity: 0.45, width: '100%', cursor: 'default' }}
+              style={{ opacity: 0.45, width: '100%', cursor: 'var(--cursor-arrow)' }}
             >
               <div
                 className="mode-card-icon"
-                onClick={e => { e.stopPropagation(); openPartyGuestHover(); }}
-                onMouseEnter={openPartyGuestHover}
-                onMouseLeave={closePartyGuestHover}
+                onClick={e => { e.stopPropagation(); partyInfo.open(); }}
+                onMouseEnter={partyInfo.onMouseEnter}
+                onMouseLeave={partyInfo.onMouseLeave}
               >
                 <img src={partyModeImg} alt="Party Mode" />
               </div>
               <div className="mode-card-title">
                 <span
-                  onClick={e => { e.stopPropagation(); openPartyGuestHover(); }}
-                  onMouseEnter={openPartyGuestHover}
-                  onMouseLeave={closePartyGuestHover}
+                  onClick={e => { e.stopPropagation(); partyInfo.open(); }}
+                  onMouseEnter={partyInfo.onMouseEnter}
+                  onMouseLeave={partyInfo.onMouseLeave}
                 >
                   Party Mode
                 </span>
                 <span
                   className="mode-card-info-icon"
-                  onClick={e => { e.stopPropagation(); openPartyGuestHover(); }}
-                  onMouseEnter={openPartyGuestHover}
-                  onMouseLeave={closePartyGuestHover}
+                  onClick={e => { e.stopPropagation(); partyInfo.open(); }}
+                  onMouseEnter={partyInfo.onMouseEnter}
+                  onMouseLeave={partyInfo.onMouseLeave}
                 >ⓘ</span>
               </div>
             </div>
-            {partyGuestHover && (
+            {partyInfo.visible && (
               <div ref={partyDescRef} style={{
                 position: 'absolute', top: '50%', left: '50%',
                 transform: 'translate(-50%, -50%) translateX(var(--tt-shift, 0px))',
