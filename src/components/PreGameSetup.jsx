@@ -22,6 +22,7 @@ import { formatPieceName } from '../utils/formatters';
 import { DEFAULT_EXPANSIONS } from '../data/expansions';
 import { useClampTooltip } from '../hooks/useClampTooltip';
 import { useTapTooltip } from '../hooks/useTapTooltip';
+import { HowToPlayModal } from './HowToGuide';
 
 /**
  * MEEPLE LOADING SYSTEM (STANDARD MEEPLES)
@@ -55,11 +56,13 @@ const FUN_MEEPLES = Object.entries(FUN_MODULES)
     img
   }));
 
-export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeples, defaultExpansions, realms = [], currentRealm = null, onRealmChange, onRealmCreate, startAtRealmCreation = false, isGuest = false }) {
+export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeples, defaultExpansions, realms = [], currentRealm = null, onRealmChange, onRealmCreate, startAtRealmCreation = false, startAtModeSelection = false, isGuest = false }) {
   // Steps: 0=Group selection, 1=Realm creation, 2=Mode selection, 3=Meeples (table only), 4=Expansions
-  // Guests: a `realm` prop means this mount already has their group — skip straight to mode
-  // selection; otherwise (no group yet) they need to create one first.
-  const initialStep = startAtRealmCreation ? 1 : realms.length === 0 ? 1 : isGuest ? (realm ? 2 : 1) : 0;
+  // Every fresh mount starts at group selection (or creation when no groups exist yet), so
+  // navigating away mid-setup and back restarts the flow. startAtModeSelection is the one
+  // exception: right after a guest creates their group the parent remounts us with it set,
+  // continuing the forward flow to mode selection instead of bouncing back to Choose Group.
+  const initialStep = startAtModeSelection ? 2 : startAtRealmCreation ? 1 : realms.length === 0 ? 1 : 0;
   const [step, setStep] = useState(initialStep);
   const [mode, setMode] = useState('table'); // 'table' | 'party'
   const tableInfo = useTapTooltip();
@@ -69,6 +72,7 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
   const { tooltipRef: partyDescRef, tooltipStyle: partyDescStyle } = useClampTooltip(partyInfo.visible);
 
   // Realm creation state (step 1)
+  const [showHowTo, setShowHowTo] = useState(false);
   const [realmName, setRealmName] = useState('');
   const [playerCount, setPlayerCount] = useState(2);
   const [playerNames, setPlayerNames] = useState(['', '']);
@@ -351,9 +355,21 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
     return (
       <div className="pregame-screen">
         <div className="section-title">
-          <h2>Choose Group</h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <h2 style={{ margin: 0 }}>Choose Group</h2>
+            <button
+              type="button"
+              title="Getting started"
+              onClick={() => setShowHowTo(true)}
+              style={{ background: 'none', border: '1px solid var(--warm-gold)', borderRadius: '50%', width: '1.15rem', height: '1.15rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'var(--cursor-pointer)', fontFamily: 'Cinzel, serif', fontSize: '0.62rem', fontWeight: 700, color: 'var(--earth-brown)', padding: 0, flexShrink: 0 }}
+            >
+              ?
+            </button>
+          </div>
           <div className="section-title-line" />
         </div>
+
+        {showHowTo && <HowToPlayModal onClose={() => setShowHowTo(false)} />}
 
         <div className="expansion-chips-carousel" style={{ marginBottom: '1.2rem' }}>
           {realms.map(r => (
@@ -421,9 +437,21 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
     return (
       <div className="pregame-screen">
         <div className="section-title">
-          <h2>Create New Group</h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <h2 style={{ margin: 0 }}>Create New Group</h2>
+            <button
+              type="button"
+              title="Getting started"
+              onClick={() => setShowHowTo(true)}
+              style={{ background: 'none', border: '1px solid var(--warm-gold)', borderRadius: '50%', width: '1.15rem', height: '1.15rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'var(--cursor-pointer)', fontFamily: 'Cinzel, serif', fontSize: '0.62rem', fontWeight: 700, color: 'var(--earth-brown)', padding: 0, flexShrink: 0 }}
+            >
+              ?
+            </button>
+          </div>
           <div className="section-title-line" />
         </div>
+
+        {showHowTo && <HowToPlayModal onClose={() => setShowHowTo(false)} />}
 
         <form onSubmit={handleCreateRealm}>
           <div className="tile-card" style={{ marginBottom: '0.9rem' }}>

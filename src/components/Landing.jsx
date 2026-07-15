@@ -1,5 +1,3 @@
-import { useState } from 'react';
-
 const MeepleIcon = () => (
   <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor">
     <circle cx="12" cy="5" r="3" />
@@ -73,19 +71,19 @@ const features = [
   {
     icon: <ChartIcon />,
     title: 'Stats Worth Bragging About',
-    body: 'Win rates, scoring trends, biggest blowouts, and more. Finally settle who\'s actually the best player.',
+    body: 'Win rates, scoring records, streaks, and more. Finally settle who\'s actually the best player.',
     color: 'var(--forest-green)',
   },
   {
     icon: <HistoryIcon />,
     title: 'A History of Every Battle',
-    body: 'Every game is saved automatically, so rivalries, streaks, and comebacks never disappear.',
+    body: 'Save each game automatically. Rivalries never disappear.',
     color: 'var(--royal-blue)',
   },
   {
     icon: <ShieldIcon />,
     title: 'Built for Game Night',
-    body: 'Create groups for friends, family, and competitive leagues. Keep each group\'s history separate and organized.',
+    body: 'Create different groups for friends, family, and leagues, keeping each group\'s history separate.',
     color: 'var(--deep-red)',
   },
 ];
@@ -94,78 +92,51 @@ const pages = [
   {
     icon: <PlayIcon />,
     name: 'Play',
-    description: 'Set up a live game and use Carcasscore as the scoreboard.',
+    tab: 'board',
     color: 'var(--earth-brown)',
   },
   {
     icon: <BookIcon />,
     name: 'Logbook',
-    description: 'Browse recorded games.',
+    tab: 'history',
     color: 'var(--royal-blue)',
   },
   {
     icon: <StatsPageIcon />,
     name: 'Statistics',
-    description: 'Analyze win rates, streaks, scoring trends, point breakdowns.',
+    tab: 'statistics',
     color: 'var(--forest-green)',
   },
   {
     icon: <CollectionIcon />,
     name: 'Collection',
-    description: 'Mark the expansions you own to unlock their scoring types.',
+    tab: 'collection',
     color: 'var(--deep-red)',
   },
 ];
 
-function PageTile({ icon, name, description, color, hovered, onHover, onLeave }) {
+function PageTile({ icon, name, color, onClick }) {
   return (
-    <div
-      onMouseEnter={onHover}
-      onMouseLeave={onLeave}
-      style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.45rem', flex: 1, cursor: 'var(--cursor-arrow)', padding: '0 0.5rem' }}
+    <button
+      type="button"
+      onClick={onClick}
+      style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.45rem', flex: 1, cursor: 'var(--cursor-pointer)', padding: '0 0.5rem', background: 'none', border: 'none', color }}
     >
-      <div style={{ color: hovered ? 'var(--stone-gray)' : color, opacity: hovered ? 0.2 : 1, transition: 'color 0.2s ease, opacity 0.2s ease' }}>
-        {icon}
-      </div>
+      {icon}
       <span style={{
         fontFamily: 'Cinzel, serif',
         fontSize: 'clamp(0.55rem, 1.5vw, 0.7rem)',
         letterSpacing: '0.08em',
         textTransform: 'uppercase',
-        color: hovered ? 'var(--stone-gray)' : color,
-        opacity: hovered ? 0.2 : 1,
-        transition: 'color 0.2s ease, opacity 0.2s ease',
+        color,
       }}>
         {name}
       </span>
-      <div style={{
-        position: 'absolute',
-        inset: 0,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        opacity: hovered ? 1 : 0,
-        transition: 'opacity 0.2s ease',
-        pointerEvents: 'none',
-      }}>
-        <p style={{
-          fontFamily: "'Crimson Text', Georgia, serif",
-          fontSize: '0.9rem',
-          lineHeight: 1.55,
-          textAlign: 'center',
-          color: 'var(--charcoal)',
-          margin: 0,
-        }}>
-          {description}
-        </p>
-      </div>
-    </div>
+    </button>
   );
 }
 
-export default function Landing() {
-  const [hoveredPage, setHoveredPage] = useState(null);
-
+export default function Landing({ onNavigate }) {
   return (
     <div className="landing-page">
 
@@ -176,13 +147,13 @@ export default function Landing() {
 
       {/* Page navigator icons */}
       <section style={{ display: 'flex', justifyContent: 'center', gap: '0', margin: '2rem auto 4rem', maxWidth: '760px' }}>
-        {pages.map((p, i) => (
+        {pages.map(p => (
           <PageTile
             key={p.name}
-            {...p}
-            hovered={hoveredPage === i}
-            onHover={() => setHoveredPage(i)}
-            onLeave={() => setHoveredPage(null)}
+            icon={p.icon}
+            name={p.name}
+            color={p.color}
+            onClick={() => onNavigate?.(p.tab)}
           />
         ))}
       </section>

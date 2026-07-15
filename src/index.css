@@ -349,6 +349,17 @@ h3 { font-size: clamp(0.9rem, 2.5vw, 1.15rem); font-weight: 600; }
   box-shadow: 2px 3px 0 rgba(0,0,0,0.2);
 }
 
+.btn-ghost-red {
+  background: transparent;
+  border: 1.5px solid var(--deep-red);
+  color: var(--deep-red);
+  box-shadow: 1px 2px 0 rgba(0,0,0,0.2);
+}
+.btn-ghost-red:hover {
+  background: rgba(158,42,43,0.07);
+  box-shadow: 2px 3px 0 rgba(0,0,0,0.2);
+}
+
 .btn-sm { font-size: clamp(0.6rem, 1.5vw, 0.72rem); padding: 0.35rem 0.8rem; }
 
 /* ── Form Elements ── */
@@ -1188,7 +1199,7 @@ input[type="search"], input[type="number"] {
   border: 2px solid var(--warm-gold);
   border-radius: var(--radius-tile);
   box-shadow: var(--shadow-deep);
-  max-width: 1200px;
+  max-width: 720px;
   width: 100%;
   /* Auto margins center the modal when there's room, but collapse when the
      content is taller than the viewport so the top stays scrollable. */

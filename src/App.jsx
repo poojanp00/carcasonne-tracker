@@ -10,6 +10,7 @@ import PreGameSetup  from './components/PreGameSetup';
 import Auth          from './components/Auth';
 import ChipGroup     from './components/ChipGroup';
 import Landing       from './components/Landing';
+import { HowToPlayModal } from './components/HowToGuide';
 import { useGameData } from './hooks/useGameData';
 import { useAuth }     from './hooks/useAuth';
 import { resetBoard }  from './data/boardStorage';
@@ -42,6 +43,11 @@ export default function App() {
   // Board) so switching tabs away and back to the same game doesn't re-trigger it, while a
   // genuinely new game (new gameKey) still gets a fresh auto-show.
   const howToShownForGameRef = useRef(null);
+  // Guest-only "How to Play" modal — re-shown every time a guest navigates to the play tab.
+  const [showHowToPlay, setShowHowToPlay] = useState(false);
+  // Set right after a guest creates their group so PreGameSetup continues forward to mode
+  // selection; cleared on any navigation away so a fresh visit restarts at Choose Group.
+  const [guestResumeAtMode, setGuestResumeAtMode] = useState(false);
 
   // Check for recovery mode once on mount
   const [isRecoveryMode, setIsRecoveryMode] = useState(() => {
@@ -137,6 +143,7 @@ export default function App() {
     setSession(null);
     setTab('home');
     setRealmPickerKey(k => k + 1);
+    setGuestResumeAtMode(false);
   }, []);
 
   const showToast = useCallback((msg) => {
@@ -154,11 +161,12 @@ export default function App() {
       const realm = await appOperations.addRealm(data);
       setSession({ realm, showRealmCreation: false });
       setRealmPickerKey(k => k + 1);
+      if (isGuest) setGuestResumeAtMode(true);
     } catch (err) {
       console.error('create realm failed', err);
       showToast(`Failed to create group: ${err?.message || 'Unknown error'}`);
     }
-  }, [appOperations.addRealm, showToast]);
+  }, [appOperations.addRealm, showToast, isGuest]);
 
 
   const handleGameStart = useCallback(async (setup) => {
@@ -282,12 +290,16 @@ export default function App() {
 
   const handleTabChange = useCallback((id) => {
     if (id === 'statistics') setRealmPickerKey(k => k + 1);
+    // Guests get the "How to Play" popup on every visit to the play tab
+    if (id === 'board' && isGuest) setShowHowToPlay(true);
+    // Leaving the play tab abandons any in-progress pregame setup, so the next visit restarts
+    if (id !== 'board') setGuestResumeAtMode(false);
     // Clear postgame state and players when leaving board tab to return to pregame setup
     if (id !== 'board' && session?.finalScores) {
       setSession(prev => ({ ...prev, finalScores: null, scoreBreakdown: null, players: null }));
     }
     setTab(id);
-  }, [session]);
+  }, [session, isGuest]);
 
   // When demo mode is on for guests, swap in the demo dataset
   const demoOn = isGuest && showDemoData;
@@ -439,6 +451,7 @@ export default function App() {
                         currentRealm={session?.realm || null}
                         onRealmChange={handleRealmSelect}
                         onRealmCreate={handleRealmCreate}
+                        startAtModeSelection={isGuest && guestResumeAtMode}
                         isGuest={isGuest}
                       />
                 : appData.realms.length === 0
@@ -492,7 +505,10 @@ export default function App() {
                     </div>
                   )
             )}
-            {tab === 'home' && <Landing />}
+            {tab === 'board' && isGuest && showHowToPlay && !session?.players && !session?.finalScores && (
+              <HowToPlayModal onClose={() => setShowHowToPlay(false)} />
+            )}
+            {tab === 'home' && <Landing onNavigate={handleTabChange} />}
             {tab === 'history' && <Logbook games={displayGames} realms={displayRealms} currentRealm={displayCurrentRealm} onRealmChange={handleRealmSelect} onDelete={handleDelete} isGuest={isGuest} showDemoData={showDemoData} onToggleDemoData={isGuest ? toggleDemo : null} openGame={openGame} onOpenGameClear={() => setOpenGame(null)} />}
             {tab === 'statistics' && (
               <>

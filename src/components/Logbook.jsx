@@ -63,15 +63,15 @@ export default function GameHistory({ games, realms = [], currentRealm = null, o
         <div className="section-title-line" />
         {currentRealm && <span className="game-count">{realmGames.length} {realmGames.length === 1 ? 'game' : 'games'}</span>}
         {onToggleDemoData && (
-          <button type="button" className={`expansion-chip${showDemoData ? ' selected' : ''}`} onClick={onToggleDemoData} style={{ fontSize: 'clamp(0.55rem, 1.8vw, 0.72rem)', marginLeft: '0.5rem' }}>
-            {showDemoData ? '✦ Demo · click to exit' : 'Demo'}
+          <button type="button" className={`expansion-chip${showDemoData ? ' selected' : ''}`} onClick={onToggleDemoData} style={{ fontSize: 'clamp(0.72rem, 2.2vw, 0.9rem)', padding: '0.5rem 1.1rem', marginLeft: '0.5rem' }}>
+            {showDemoData ? 'Click to exit' : 'See how it works!'}
           </button>
         )}
       </div>
 
       {isGuest && !showDemoData ? (
         <div className="empty-state">
-          Sign in to access logbook and save your progress.
+          Sign in to access the logbook.
         </div>
       ) : (
         <>
