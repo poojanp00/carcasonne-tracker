@@ -509,6 +509,7 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
 
         <div className="mode-selection-grid">
           <button
+            ref={tableInfo.triggerRef}
             type="button"
             className={`mode-card${mode === 'table' ? ' selected' : ''}`}
             onClick={() => setMode('table')}
@@ -532,6 +533,7 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
 
           <div style={{ position: 'relative', width: '100%' }}>
             <div
+              ref={partyInfo.triggerRef}
               className="mode-card"
               aria-disabled="true"
               style={{ opacity: 0.45, width: '100%', cursor: 'var(--cursor-arrow)' }}

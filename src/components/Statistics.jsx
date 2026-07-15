@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, useRef } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { usePortalTooltip } from '../hooks/usePortalTooltip';
 import { useTapTooltip } from '../hooks/useTapTooltip';
@@ -206,8 +206,7 @@ function calcStats(games, name) {
  * coordinates instead, so it always sits on top regardless of which card it's opened from.
  */
 function ValInfo({ tip, children, style }) {
-  const triggerRef = useRef(null);
-  const { visible, open, onMouseEnter, onMouseLeave } = useTapTooltip();
+  const { visible, open, onMouseEnter, onMouseLeave, triggerRef } = useTapTooltip();
   const { tooltipRef, portalStyle } = usePortalTooltip(visible, triggerRef);
 
   if (!tip) return <span className="val-info-wrap" style={style}>{children}</span>;
@@ -298,8 +297,7 @@ const TYPE_LABELS = {
 };
 
 function MilestoneBadge({ badge, unit, unlocked }) {
-  const triggerRef = useRef(null);
-  const { visible, open, onMouseEnter, onMouseLeave } = useTapTooltip();
+  const { visible, open, onMouseEnter, onMouseLeave, triggerRef } = useTapTooltip();
   const { tooltipRef, portalStyle } = usePortalTooltip(visible, triggerRef, 'above');
 
   return (

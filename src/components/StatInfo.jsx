@@ -7,11 +7,12 @@ import { useTapTooltip } from '../hooks/useTapTooltip';
  * either way, instead of the tooltip jumping to a different spot only once clicked.
  */
 export default function StatInfo({ children, className }) {
-  const { visible, open, onMouseEnter, onMouseLeave } = useTapTooltip();
+  const { visible, open, onMouseEnter, onMouseLeave, triggerRef } = useTapTooltip();
   const { tooltipRef, tooltipStyle } = useClampTooltip(visible);
 
   return (
     <span
+      ref={triggerRef}
       className={`stat-info-wrap${className ? ` ${className}` : ''}`}
       onClick={e => { e.stopPropagation(); open(); }}
       onMouseEnter={onMouseEnter}
