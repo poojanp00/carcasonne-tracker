@@ -1,5 +1,6 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useRef, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { usePortalTooltip } from '../hooks/usePortalTooltip';
 
 const MEEPLE_MODULES = import.meta.glob('../../images/meeples/*.png',     { eager: true, import: 'default' });
 const FUN_MODULES    = import.meta.glob('../../images/meeples/fun/*.png', { eager: true, import: 'default' });
@@ -15,6 +16,7 @@ import { TrashIcon } from './icons';
 import crownImg from '../../images/icons/crown.png';
 import PointBreakdownChart from './PointBreakdownChart';
 import Lightbox from './Lightbox';
+import StatInfo from './StatInfo';
 
 function calcFavMeeple(games, name) {
   const low = name.toLowerCase();
@@ -191,31 +193,51 @@ function calcStats(games, name) {
 }
 
 /**
- * TOOLTIP INFORMATION COMPONENT
- * 
- * Provides contextual help for statistics that may not be immediately clear.
- * Shows info icon with hover tooltip containing detailed explanations.
- */
-function StatInfo({ children, className }) {
-  return (
-    <span className={`stat-info-wrap${className ? ` ${className}` : ''}`}>
-      <span className="stat-info-icon">ⓘ</span>
-      <span className="stat-info-tooltip">{children}</span>
-    </span>
-  );
-}
-
-/**
  * VALUE WITH CONTEXTUAL TOOLTIP
- * 
+ *
  * Displays a clickable value with additional context in a tooltip.
  * Used for showing details like game dates, margin breakdowns, etc.
+ *
+ * The card back (`.player-card-back`) is permanently `transform: rotateY(...)`'d for the
+ * flip effect, which makes it a stacking context — a locally-positioned tooltip there can
+ * never paint above a sibling player card. Rendered through a portal with viewport-fixed
+ * coordinates instead, so it always sits on top regardless of which card it's opened from.
  */
 function ValInfo({ tip, children, style }) {
+  const [tapped, setTapped] = useState(false);
+  const [hover, setHover] = useState(false);
+  const timerRef = useRef(null);
+  const triggerRef = useRef(null);
+  const visible = tapped || hover;
+  const { tooltipRef, portalStyle } = usePortalTooltip(visible, triggerRef);
+
+  useEffect(() => () => clearTimeout(timerRef.current), []);
+
+  if (!tip) return <span className="val-info-wrap" style={style}>{children}</span>;
+
+  // Stop the tap from bubbling up to the flip-card's click handler — otherwise tapping
+  // the value (no hover-out on touch) flips the card instead of showing the tooltip.
+  const handleClick = (e) => {
+    e.stopPropagation();
+    clearTimeout(timerRef.current);
+    setTapped(true);
+    timerRef.current = setTimeout(() => setTapped(false), 3000);
+  };
+
   return (
-    <span className="val-info-wrap" style={style}>
+    <span
+      ref={triggerRef}
+      className="val-info-wrap"
+      style={style}
+      onClick={handleClick}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+    >
       {children}
-      <span className="val-info-tooltip">{tip}</span>
+      {visible && portalStyle && createPortal(
+        <div ref={tooltipRef} className="val-info-tooltip" style={portalStyle}>{tip}</div>,
+        document.body
+      )}
     </span>
   );
 }
@@ -267,18 +289,48 @@ const TYPE_LABELS = {
   abbey: 'Abbey', barn: 'Barn', abbot: 'Abbot', wagon: 'Wagon',
 };
 
+// Touch has no hover, so a single tap can't distinguish "show me what this is" from
+// "open it". First tap (or real mouse hover) just reveals the tooltip; a second tap, or a
+// click while already hovering on desktop, is treated as the deliberate "open" action.
 function MilestoneBadge({ badge, unit, unlocked, onSelect }) {
+  const [tapped, setTapped] = useState(false);
+  const [hover, setHover] = useState(false);
+  const timerRef = useRef(null);
+  const triggerRef = useRef(null);
+  const visible = tapped || hover;
+  const { tooltipRef, portalStyle } = usePortalTooltip(visible, triggerRef, 'above');
+
+  useEffect(() => () => clearTimeout(timerRef.current), []);
+
+  const handleClick = () => {
+    if (visible) {
+      clearTimeout(timerRef.current);
+      setTapped(false);
+      if (unlocked) onSelect();
+    } else {
+      clearTimeout(timerRef.current);
+      setTapped(true);
+      timerRef.current = setTimeout(() => setTapped(false), 3000);
+    }
+  };
+
   return (
     <button
+      ref={triggerRef}
       type="button"
-      onClick={unlocked ? onSelect : undefined}
+      onClick={handleClick}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
       className={`milestone-badge${unlocked ? '' : ' milestone-locked'}`}
     >
       <img src={badge.img} alt={badge.name} draggable={false} />
       <span className="milestone-badge-name">{badge.name}</span>
-      <div className="milestone-tooltip">
-        <div className="milestone-tooltip-req">Earn {badge.threshold.toLocaleString()} {unit}</div>
-      </div>
+      {visible && portalStyle && createPortal(
+        <div ref={tooltipRef} className="milestone-tooltip" style={portalStyle}>
+          <div className="milestone-tooltip-req">Earn {badge.threshold.toLocaleString()} {unit}</div>
+        </div>,
+        document.body
+      )}
     </button>
   );
 }

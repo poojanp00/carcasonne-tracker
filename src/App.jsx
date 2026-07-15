@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import PostGameForm  from './components/PostGameForm';
 import Logbook       from './components/Logbook';
 import Statistics    from './components/Statistics';
@@ -38,9 +38,10 @@ export default function App() {
   const [toast,          setToast]          = useState(null);
   const [realmPickerKey, setRealmPickerKey] = useState(0);
   const [openGame,       setOpenGame]       = useState(null);
-  // Guest "own the game?" pre-game gate — lives here (not in PreGameSetup) so it survives
-  // that component remounting mid-flow, and resets whenever the guest leaves the Play tab.
-  const [guestGateAnswered, setGuestGateAnswered] = useState(false);
+  // Which gameKey the guest how-to guide has already auto-shown for — lives here (not in
+  // Board) so switching tabs away and back to the same game doesn't re-trigger it, while a
+  // genuinely new game (new gameKey) still gets a fresh auto-show.
+  const howToShownForGameRef = useRef(null);
 
   // Check for recovery mode once on mount
   const [isRecoveryMode, setIsRecoveryMode] = useState(() => {
@@ -131,11 +132,6 @@ export default function App() {
     const realm  = appData.realms.find(r => r.id === latest?.realmId);
     if (realm) setSession({ realm });
   }, [appData.loading, authLoading, user, isGuest]);  // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Leaving the Play tab re-arms the guest gate so returning always re-asks the question
-  useEffect(() => {
-    if (tab !== 'board') setGuestGateAnswered(false);
-  }, [tab]);
 
   const goHome = useCallback(() => {
     setSession(null);
@@ -398,7 +394,16 @@ export default function App() {
                     />
                   : session.players
                     ? <>
-                        <Board key={gameKey} userId={userId} isGuest={isGuest} session={session} onFinish={handleFinishGame} onReset={handleBoardReset} />
+                        <Board
+                          key={gameKey}
+                          userId={userId}
+                          isGuest={isGuest}
+                          session={session}
+                          onFinish={handleFinishGame}
+                          onReset={handleBoardReset}
+                          autoShowHowTo={howToShownForGameRef.current !== gameKey}
+                          onHowToShown={() => { howToShownForGameRef.current = gameKey; }}
+                        />
                         {session.mode === 'party' && !session.partyStarted && session.partySessionId && (
                           <Lobby
                             session={session}
@@ -422,8 +427,6 @@ export default function App() {
                           onRealmCreate={handleRealmCreate}
                           startAtRealmCreation={true}
                           isGuest={isGuest}
-                          guestGateAnswered={guestGateAnswered}
-                          onGuestGateAnswered={() => setGuestGateAnswered(true)}
                         />
                       : <PreGameSetup
                         key={session.realm.id}
@@ -437,8 +440,6 @@ export default function App() {
                         onRealmChange={handleRealmSelect}
                         onRealmCreate={handleRealmCreate}
                         isGuest={isGuest}
-                        guestGateAnswered={guestGateAnswered}
-                        onGuestGateAnswered={() => setGuestGateAnswered(true)}
                       />
                 : appData.realms.length === 0
                   ? <PreGameSetup
@@ -454,8 +455,6 @@ export default function App() {
                       onRealmCreate={handleRealmCreate}
                       startAtRealmCreation={true}
                       isGuest={isGuest}
-                      guestGateAnswered={guestGateAnswered}
-                      onGuestGateAnswered={() => setGuestGateAnswered(true)}
                     />
                   : isGuest
                     ? <PreGameSetup
@@ -470,8 +469,6 @@ export default function App() {
                         onRealmChange={handleRealmSelect}
                         onRealmCreate={handleRealmCreate}
                         isGuest={isGuest}
-                        guestGateAnswered={guestGateAnswered}
-                        onGuestGateAnswered={() => setGuestGateAnswered(true)}
                       />
                     : (
                     <div>
