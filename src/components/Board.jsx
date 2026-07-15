@@ -100,7 +100,7 @@ const STACK_OFFSETS = [
   { x: 0,  y: -5 }, // Player 6: more upward
 ];
 
-export default function Board({ userId, isGuest, session, onFinish, onReset }) {
+export default function Board({ userId, isGuest, session, onFinish, onReset, autoShowHowTo, onHowToShown }) {
   const players   = session?.players  || [];
   const meepleMap = session?.meeples  || {};
 
@@ -114,11 +114,20 @@ export default function Board({ userId, isGuest, session, onFinish, onReset }) {
   const [leadersAtFinish,  setLeadersAtFinish]  = useState([]);
   const [showTraders,   setShowTraders]   = useState(false);
   const [confirmFinish, setConfirmFinish] = useState(false); // Finish game confirmation
-  const [showHowTo, setShowHowTo] = useState(isGuest); // "?" how-to guide modal — guests see it on arrival
+  // "?" how-to guide modal — guests see it once per game on arrival; suppressed on later
+  // remounts of the same game (e.g. switching tabs away and back to Play).
+  const [showHowTo, setShowHowTo] = useState(() => isGuest && !!autoShowHowTo);
   const [confirmReset,         setConfirmReset]         = useState(false); // Reset board confirmation
   const [warning,             setWarning]             = useState(null); // Warning toast (e.g. monastery/abbot/abbey point cap)
   const logContainerRef  = useRef(null);
   const boardPopoutChRef = useRef(null);
+
+  // Tell the parent this game's how-to has been shown, so it isn't auto-shown again on
+  // remount (tab switch) — but a genuinely new game gets a fresh auto-show.
+  useEffect(() => {
+    if (isGuest && autoShowHowTo) onHowToShown?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Generate log from moves and undo events merged chronologically
   const log = board && board.moves

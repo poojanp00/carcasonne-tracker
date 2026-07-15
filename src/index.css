@@ -707,8 +707,9 @@ h3 { font-size: clamp(0.9rem, 2.5vw, 1.15rem); font-weight: 600; }
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 0.4rem;
   font-family: 'Cinzel', serif;
-  font-size: 0.68rem;
+  font-size: clamp(0.5rem, 0.4rem + 0.55vw, 0.68rem);
   font-weight: 600;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -717,12 +718,19 @@ h3 { font-size: clamp(0.9rem, 2.5vw, 1.15rem); font-weight: 600; }
   padding-bottom: 0.25rem;
   margin-bottom: 0.55rem;
 }
+.milestone-section-header > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
 .milestone-section-total {
   font-family: 'Cinzel', serif;
   font-weight: 700;
-  font-size: 0.72rem;
+  font-size: clamp(0.54rem, 0.44rem + 0.55vw, 0.72rem);
   letter-spacing: 0.02em;
   color: var(--charcoal);
+  flex-shrink: 0;
 }
 .milestone-grid {
   display: grid;
@@ -815,22 +823,18 @@ h3 { font-size: clamp(0.9rem, 2.5vw, 1.15rem); font-weight: 600; }
   margin-top: 0.9rem;
 }
 .milestone-tooltip {
-  display: none;
-  position: absolute;
-  bottom: calc(100% + 6px);
-  left: 50%;
-  transform: translateX(-50%);
+  /* Position (fixed/top/bottom/left/transform/z-index) is set inline by usePortalTooltip,
+     since it's rendered through a portal to escape the flip-card's stacking context. */
   background: var(--earth-brown);
   color: var(--parchment);
   padding: 0.4rem 0.65rem;
   border-radius: 6px;
   white-space: nowrap;
+  max-width: calc(100vw - 20px);
   text-align: center;
-  z-index: 200;
   pointer-events: none;
   box-shadow: 0 3px 12px rgba(0,0,0,0.35);
 }
-.milestone-badge:hover .milestone-tooltip { display: block; }
 .milestone-tooltip-req {
   font-family: 'Crimson Text', serif;
   font-style: italic;
@@ -885,16 +889,15 @@ h3 { font-size: clamp(0.9rem, 2.5vw, 1.15rem); font-weight: 600; }
   font-style: normal;
   color: var(--stone-gray);
   opacity: 0.55;
-  cursor: default;
+  cursor: pointer;
   line-height: 1;
   user-select: none;
 }
 .stat-info-tooltip {
-  display: none;
   position: absolute;
   left: 1.2rem;
   top: 50%;
-  transform: translateY(-50%);
+  transform: translateY(-50%) translateX(var(--tt-shift, 0px));
   background: var(--earth-brown);
   color: var(--parchment);
   font-family: 'Crimson Text', serif;
@@ -905,6 +908,7 @@ h3 { font-size: clamp(0.9rem, 2.5vw, 1.15rem); font-weight: 600; }
   border-radius: 4px;
   white-space: normal;
   width: 210px;
+  max-width: calc(100vw - 20px);
   z-index: 200;
   pointer-events: none;
   box-shadow: 0 2px 8px rgba(0,0,0,0.25);
@@ -913,15 +917,13 @@ h3 { font-size: clamp(0.9rem, 2.5vw, 1.15rem); font-weight: 600; }
 /* Longer tooltip for infrastructure formulas */
 .stat-info-wrap.infrastructure-info .stat-info-tooltip {
   width: 350px;
+  max-width: calc(100vw - 20px);
   text-align: left;
 }
 /* Short one-liner tooltip that sizes to its text */
 .stat-info-wrap.compact-info .stat-info-tooltip {
   width: auto;
   white-space: nowrap;
-}
-.stat-info-wrap:hover .stat-info-tooltip {
-  display: block;
 }
 /* Stat value hover tooltip */
 .val-info-wrap {
@@ -930,11 +932,8 @@ h3 { font-size: clamp(0.9rem, 2.5vw, 1.15rem); font-weight: 600; }
   cursor: default;
 }
 .val-info-tooltip {
-  display: none;
-  position: absolute;
-  right: calc(100% + 8px);
-  top: 50%;
-  transform: translateY(-50%);
+  /* Position (fixed/top/left/transform/z-index) is set inline by usePortalTooltip, since
+     it's rendered through a portal to escape the flip-card's stacking context. */
   background: var(--earth-brown);
   color: var(--parchment);
   font-family: 'Crimson Text', serif;
@@ -943,12 +942,9 @@ h3 { font-size: clamp(0.9rem, 2.5vw, 1.15rem); font-weight: 600; }
   padding: 0.3rem 0.55rem;
   border-radius: 4px;
   white-space: nowrap;
-  z-index: 20;
+  max-width: calc(100vw - 20px);
   pointer-events: none;
   box-shadow: 0 2px 8px rgba(0,0,0,0.25);
-}
-.val-info-wrap:hover .val-info-tooltip {
-  display: block;
 }
 .stat-value {
   font-family: 'Cinzel', serif;
@@ -1952,10 +1948,6 @@ input[type="file"] { display: none; }
   margin-bottom: 0.5rem;
 }
 
-@media (max-width: 520px) {
-  .mode-selection-grid { grid-template-columns: 1fr; }
-}
-
 .mode-card {
   display: flex;
   flex-direction: column;
@@ -1968,6 +1960,7 @@ input[type="file"] { display: none; }
   cursor: pointer;
   text-align: center;
   position: relative;
+  min-width: 0;
 }
 
 .mode-card:hover { background: none; box-shadow: none; }
@@ -1975,7 +1968,7 @@ input[type="file"] { display: none; }
 .mode-card.selected { background: none; box-shadow: none; }
 
 .mode-card-icon {
-  font-size: clamp(3.5rem, 18vw, 9rem);
+  font-size: clamp(2rem, 18vw, 9rem);
   line-height: 1;
   border-radius: 12px;
   padding: 0.3rem;
@@ -1983,7 +1976,7 @@ input[type="file"] { display: none; }
 }
 
 .mode-card-icon img {
-  height: clamp(3.5rem, 18vw, 9rem);
+  height: clamp(2rem, 18vw, 9rem);
   width: auto;
   max-width: 100%;
 }
@@ -2031,14 +2024,15 @@ input[type="file"] { display: none; }
   position: absolute;
   top: calc(100% + 6px);
   left: 50%;
-  transform: translateX(-50%);
+  transform: translateX(-50%) translateX(var(--tt-shift, 0px));
   font-family: 'Crimson Text', serif;
-  font-size: 1.05rem;
+  font-size: clamp(0.85rem, 0.68rem + 0.53vw, 1.05rem);
   color: var(--stone-gray);
   background: var(--aged-paper);
   border: 1px solid var(--border-light);
   line-height: 1.45;
-  width: 260px;
+  width: min(260px, 45vw);
+  max-width: calc(100vw - 20px);
   padding: 0.6rem 0.8rem;
   border-radius: 8px;
   box-shadow: 0 4px 14px rgba(0,0,0,0.3);

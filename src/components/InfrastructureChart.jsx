@@ -1,15 +1,6 @@
 import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, Legend, Tooltip, ResponsiveContainer } from 'recharts';
 import { calculateInfrastructureMetrics } from '../utils/chartCalculations';
-
-// StatInfo component - same as in Statistics
-function StatInfo({ children }) {
-  return (
-    <span className="stat-info-wrap">
-      <span className="stat-info-icon">ⓘ</span>
-      <span className="stat-info-tooltip">{children}</span>
-    </span>
-  );
-}
+import StatInfo from './StatInfo';
 
 const PLAYER_COLORS = [
   '#9E2A2B', '#2C5AA0', '#3A7D44', '#D4A017', '#7B2D8B', '#1A8080',
@@ -32,10 +23,9 @@ export default function InfrastructureChart({ players }) {
     <div className="chart-wrapper">
       <div className="chart-container" style={{ paddingBottom: '1rem' }}>
         <div className="chart-header" style={{ marginBottom: '0.5rem' }}>
-          Your Board Footprint <span className="stat-info-wrap infrastructure-info">
-            <span className="stat-info-icon">ⓘ</span>
-            <span className="stat-info-tooltip">Road = Road + Inn<br/>City = City + Cathedral<br/>Monastery = Monastery + Abbot + Abbey<br/>Agriculture = Field + Pig + Barn</span>
-          </span>
+          Your Board Footprint <StatInfo className="infrastructure-info">
+            Road = Road + Inn<br/>City = City + Cathedral<br/>Monastery = Monastery + Abbot + Abbey<br/>Agriculture = Field + Pig + Barn
+          </StatInfo>
         </div>
         <ResponsiveContainer width="100%" height={700}>
           <RadarChart data={chartData} margin={{ top: 0, right: 10, bottom: 5, left: 10 }}>
