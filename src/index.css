@@ -29,12 +29,27 @@
 
   --transition-slow: 0.35s cubic-bezier(0.4, 0, 0.2, 1);
   --transition-lift: 0.22s ease;
+
+  /* Carved-wood custom cursors (images/cursors/*.png) — hotspot is the tip/fingertip/
+     center of each image, with a matching native fallback for browsers that can't load it.
+     arrow points mostly-north (slight NW lean), pointer points north, both 26x26;
+     text is a 14x21 I-beam. */
+  --cursor-arrow:   url('../images/cursors/arrow-cursor.png') 8 2, auto;
+  --cursor-pointer: url('../images/cursors/pointer-cursor.png') 11 3, pointer;
+  --cursor-text:    url('../images/cursors/text-cursor.png') 7 10, text;
 }
 
 /* ── Reset ── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 html { font-size: 16px; scroll-behavior: smooth; }
+
+/* Baseline pointer cursor for semantically-clickable elements that don't already set one
+   via a more specific class rule (those were updated to var(--cursor-pointer) above). */
+button, a, select, summary, label[for], input[type="checkbox"], input[type="radio"] {
+  cursor: var(--cursor-pointer);
+}
+button:disabled { cursor: var(--cursor-arrow); }
 
 body {
   font-family: 'Crimson Text', Georgia, serif;
@@ -43,6 +58,7 @@ body {
   color: var(--charcoal);
   background-color: var(--parchment);
   min-height: 100vh;
+  cursor: var(--cursor-arrow);
   /* Paper texture via repeating micro-gradient */
   background-image:
     repeating-linear-gradient(
@@ -61,23 +77,12 @@ body {
     );
 }
 
-/* Vignette overlay */
-#root::after {
-  content: '';
-  position: fixed;
-  inset: 0;
-  background: radial-gradient(ellipse at 50% 40%, transparent 55%, rgba(30,18,5,0.28) 100%);
-  pointer-events: none;
-  z-index: 9000;
-}
-
 /* Projector mode — strip parchment theme for dark projection display */
 body.projector-mode {
   background: #120d06;
   background-image: none;
   overflow: hidden;
 }
-body.projector-mode #root::after { display: none; }
 
 /* ── Typography ── */
 h1, h2, h3, h4 {
@@ -149,13 +154,13 @@ h3 { font-size: clamp(0.9rem, 2.5vw, 1.15rem); font-weight: 600; }
 }
 
 .header-title {
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
 }
 
 .header-auth-btn {
   background: none;
   border: none;
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   font-family: 'Cinzel', serif;
   font-size: 0.62rem;
   letter-spacing: 0.06em;
@@ -216,7 +221,7 @@ h3 { font-size: clamp(0.9rem, 2.5vw, 1.15rem); font-weight: 600; }
   border: 1.5px solid var(--charcoal);
   border-bottom: none;
   color: var(--charcoal);
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   position: relative;
   top: 2.5px;
   border-radius: var(--radius-tile) var(--radius-tile) 0 0;
@@ -297,7 +302,7 @@ h3 { font-size: clamp(0.9rem, 2.5vw, 1.15rem); font-weight: 600; }
   font-size: clamp(0.68rem, 1.8vw, 0.82rem);
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   padding: 0.6rem 1.5rem;
   border-radius: var(--radius-tile);
   border: 2px solid #6B4F10;
@@ -320,7 +325,7 @@ h3 { font-size: clamp(0.9rem, 2.5vw, 1.15rem); font-weight: 600; }
 }
 .btn:disabled {
   opacity: 0.42;
-  cursor: default;
+  cursor: var(--cursor-arrow);
   transform: none !important;
   box-shadow: 1px 2px 0 #5A3E08, inset 0 1px 0 rgba(255,255,255,0.15) !important;
 }
@@ -370,6 +375,11 @@ h3 { font-size: clamp(0.9rem, 2.5vw, 1.15rem); font-weight: 600; }
   color: var(--charcoal);
   transition: border-color var(--transition-slow), box-shadow var(--transition-slow);
   outline: none;
+  cursor: var(--cursor-text);
+}
+textarea, input[type="text"], input[type="email"], input[type="password"],
+input[type="search"], input[type="number"] {
+  cursor: var(--cursor-text);
 }
 .form-input:focus {
   border-color: var(--warm-gold);
@@ -438,7 +448,7 @@ h3 { font-size: clamp(0.9rem, 2.5vw, 1.15rem); font-weight: 600; }
   border-radius: var(--radius-sm);
   background: var(--parchment);
   color: var(--charcoal);
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   transition: transform var(--transition-lift), box-shadow var(--transition-lift), background var(--transition-lift), color var(--transition-lift);
   user-select: none;
   box-shadow: 1px 2px 3px rgba(0,0,0,0.14);
@@ -457,7 +467,7 @@ h3 { font-size: clamp(0.9rem, 2.5vw, 1.15rem); font-weight: 600; }
   box-shadow: 1px 2px 5px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.18);
 }
 .expansion-chip.display-only {
-  cursor: default;
+  cursor: var(--cursor-arrow);
   font-size: 0.78rem;
   padding: 0.18rem 0.55rem;
   background: var(--aged-paper);
@@ -598,6 +608,13 @@ h3 { font-size: clamp(0.9rem, 2.5vw, 1.15rem); font-weight: 600; }
   flex-shrink: 0;
 }
 
+.board-log-meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.4rem;
+}
+
 @media (max-width: 880px) {
   .board-ui {
     grid-template-columns: 1fr;
@@ -679,7 +696,7 @@ h3 { font-size: clamp(0.9rem, 2.5vw, 1.15rem); font-weight: 600; }
 .player-card-flip.flipped .player-card-flip-inner { transform: rotateY(180deg); }
 .player-card-flip .player-card {
   grid-area: 1 / 1;
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
 }
@@ -748,10 +765,10 @@ h3 { font-size: clamp(0.9rem, 2.5vw, 1.15rem); font-weight: 600; }
   background: none;
   border: none;
   padding: 0;
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
 }
 /* Badge name beneath the artwork; locked names are dimmed like their silhouette */
-.milestone-badge.milestone-locked .milestone-badge-name { opacity: 0.45; }
+.milestone-badge.milestone-locked .milestone-badge-name { opacity: 0.5; }
 .milestone-badge-name {
   font-family: 'Cinzel', serif;
   /* Flexes with viewport like the badge art so thin screens don't overflow */
@@ -773,54 +790,13 @@ h3 { font-size: clamp(0.9rem, 2.5vw, 1.15rem); font-weight: 600; }
   transition: transform 0.15s ease;
 }
 .milestone-badge:hover img { transform: scale(1.08); }
-/* Locked badges aren't clickable — no lightbox until earned */
-.milestone-badge.milestone-locked { cursor: default; }
+.milestone-badge.milestone-locked { cursor: var(--cursor-arrow); }
 .milestone-badge.milestone-locked:hover img { transform: none; }
-/* Locked badges render as dark silhouettes */
-.milestone-badge.milestone-locked img,
-.milestone-lightbox-img.milestone-locked img {
-  filter: grayscale(1) brightness(0.22) contrast(0.85);
-  opacity: 0.45;
-}
-
-/* Badge lightbox (opened by clicking a badge) */
-.milestone-lightbox {
-  width: min(340px, 92vw);
-  text-align: center;
-}
-.milestone-lightbox-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 1rem;
-  margin-bottom: 0.9rem;
-}
-.milestone-lightbox-title {
-  font-family: 'Cinzel', serif;
-  font-weight: 700;
-  font-size: 1rem;
-  color: var(--earth-brown);
-  text-align: left;
-}
-.milestone-lightbox-req {
-  font-family: 'Cinzel', serif;
-  font-weight: 600;
-  font-size: 0.78rem;
-  color: var(--stone-gray);
-  white-space: nowrap;
-}
-.milestone-lightbox-img img {
-  width: min(200px, 60vw);
-  height: auto;
-  filter: drop-shadow(0 4px 10px rgba(0,0,0,0.3));
-}
-.milestone-lightbox-desc {
-  font-family: 'Crimson Text', serif;
-  font-style: italic;
-  font-size: 0.95rem;
-  line-height: 1.5;
-  color: var(--charcoal);
-  margin-top: 0.9rem;
+/* Locked badges render as solid black silhouettes — opacity stays high so the shape
+   reads clearly; it's the near-zero brightness that mutes them, not transparency. */
+.milestone-badge.milestone-locked img {
+  filter: grayscale(1) brightness(0.03) contrast(1.2);
+  opacity: 0.9;
 }
 .milestone-tooltip {
   /* Position (fixed/top/bottom/left/transform/z-index) is set inline by usePortalTooltip,
@@ -889,7 +865,7 @@ h3 { font-size: clamp(0.9rem, 2.5vw, 1.15rem); font-weight: 600; }
   font-style: normal;
   color: var(--stone-gray);
   opacity: 0.55;
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   line-height: 1;
   user-select: none;
 }
@@ -929,7 +905,7 @@ h3 { font-size: clamp(0.9rem, 2.5vw, 1.15rem); font-weight: 600; }
 .val-info-wrap {
   position: relative;
   display: inline-flex;
-  cursor: default;
+  cursor: var(--cursor-arrow);
 }
 .val-info-tooltip {
   /* Position (fixed/top/left/transform/z-index) is set inline by usePortalTooltip, since
@@ -1096,7 +1072,7 @@ h3 { font-size: clamp(0.9rem, 2.5vw, 1.15rem); font-weight: 600; }
   border: 1.5px solid rgba(43,43,43,0.38);
   border-radius: var(--radius-sm);
   color: var(--charcoal);
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   flex: 1;
   min-width: 180px;
   max-width: 420px;
@@ -1169,7 +1145,7 @@ h3 { font-size: clamp(0.9rem, 2.5vw, 1.15rem); font-weight: 600; }
   object-fit: cover;
   border-radius: 2px;
   border: 1px solid var(--charcoal);
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   transition: transform var(--transition-lift), box-shadow var(--transition-lift);
   display: block;
 }
@@ -1279,7 +1255,7 @@ h3 { font-size: clamp(0.9rem, 2.5vw, 1.15rem); font-weight: 600; }
   border: 1.5px solid var(--charcoal);
   border-radius: var(--radius-sm);
   background: var(--aged-paper);
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   transition: transform var(--transition-lift), box-shadow var(--transition-lift), background var(--transition-lift);
   box-shadow: 1px 2px 4px rgba(0,0,0,0.14);
   font-size: clamp(0.78rem, 2vw, 0.93rem);
@@ -1299,8 +1275,8 @@ h3 { font-size: clamp(0.9rem, 2.5vw, 1.15rem); font-weight: 600; }
   border-color: var(--stone-gray);
 }
 .expansion-item.unowned:hover { opacity: 0.8; }
-.expansion-item.read-only { cursor: default; pointer-events: none; }
-.expansion-item.dev-tooltip { pointer-events: auto; cursor: default; position: relative; }
+.expansion-item.read-only { cursor: var(--cursor-arrow); pointer-events: none; }
+.expansion-item.dev-tooltip { pointer-events: auto; cursor: var(--cursor-arrow); position: relative; }
 .expansion-item.dev-tooltip::after {
   content: attr(data-tooltip);
   position: absolute;
@@ -1355,7 +1331,7 @@ h3 { font-size: clamp(0.9rem, 2.5vw, 1.15rem); font-weight: 600; }
   display: flex;
   align-items: center;
   justify-content: space-between;
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   user-select: none;
   padding: 0.3rem 0;
 }
@@ -1596,7 +1572,7 @@ input[type="file"] { display: none; }
 .realm-trash-btn {
   background: none;
   border: none;
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   color: var(--stone-gray);
   padding: 0.25rem;
   border-radius: var(--radius-sm);
@@ -1677,7 +1653,7 @@ input[type="file"] { display: none; }
   border-radius: var(--radius-tile);
   box-shadow: var(--shadow-tile);
   padding: 1rem 1.3rem;
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   transition: transform var(--transition-lift), box-shadow var(--transition-lift), background var(--transition-lift);
 }
 
@@ -1776,7 +1752,7 @@ input[type="file"] { display: none; }
   border-radius: var(--radius-sm);
   border: 2px solid rgba(43,43,43,0.3);
   background: var(--parchment);
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1957,7 +1933,7 @@ input[type="file"] { display: none; }
   background: none;
   border: none;
   box-shadow: none;
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   text-align: center;
   position: relative;
   min-width: 0;
@@ -2011,7 +1987,7 @@ input[type="file"] { display: none; }
   font-size: 0.85rem;
   font-weight: 400;
   color: var(--stone-gray);
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   opacity: 0.7;
   line-height: 1;
   flex-shrink: 0;
@@ -2305,7 +2281,7 @@ input[type="file"] { display: none; }
   border: 2px solid transparent;
   border-radius: var(--radius-tile);
   background: var(--parchment);
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   padding: 0.3rem;
   transition: border-color 0.15s ease, opacity 0.15s ease;
 }
@@ -2327,7 +2303,7 @@ input[type="file"] { display: none; }
 
 .play-meeple-option.taken {
   opacity: 0.3;
-  cursor: default;
+  cursor: var(--cursor-arrow);
 }
 
 /* Player header strip on controller */
@@ -2445,7 +2421,7 @@ input[type="file"] { display: none; }
 
 .goods-token-btn:disabled {
   opacity: 0.3;
-  cursor: default;
+  cursor: var(--cursor-arrow);
 }
 
 .play-submit-confirm {

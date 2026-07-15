@@ -22,7 +22,7 @@ const EyeBtn = ({ show, onToggle }) => (
     onClick={onToggle}
     style={{
       position: 'absolute', right: '0.65rem', top: '50%', transform: 'translateY(-50%)',
-      background: 'none', border: 'none', cursor: 'pointer',
+      background: 'none', border: 'none', cursor: 'var(--cursor-pointer)',
       color: 'var(--stone-gray)', padding: 0, display: 'flex', alignItems: 'center',
     }}
   >
@@ -222,7 +222,7 @@ export default function Auth({ onSuccess, onGuestMode }) {
   };
 
   const linkStyle = {
-    background: 'none', border: 'none', cursor: 'pointer',
+    background: 'none', border: 'none', cursor: 'var(--cursor-pointer)',
     color: 'var(--earth-brown)', fontFamily: 'inherit', fontSize: 'inherit',
     textDecoration: 'underline', padding: 0,
   };
@@ -387,31 +387,10 @@ export default function Auth({ onSuccess, onGuestMode }) {
                 {mode === 'signin' && !forgotMode && (
                   <button
                     type="button"
+                    className="btn btn-ghost"
                     onClick={() => onGuestMode?.()}
                     disabled={loading || magicLinkLoading || resetPasswordLoading}
-                    style={{ 
-                      marginTop: '0.5rem', 
-                      backgroundColor: 'transparent', 
-                      border: '1px solid var(--warm-gold)', 
-                      color: 'var(--charcoal)',
-                      fontFamily: 'Cinzel, serif',
-                      fontWeight: '600',
-                      letterSpacing: '0.05em',
-                      fontSize: '0.95rem',
-                      padding: '0.7rem 1.4rem',
-                      borderRadius: 'var(--radius-sm)',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s ease',
-                      width: '100%'
-                    }}
-                    onMouseOver={(e) => {
-                      e.target.style.backgroundColor = 'var(--warm-gold)';
-                      e.target.style.color = 'white';
-                    }}
-                    onMouseOut={(e) => {
-                      e.target.style.backgroundColor = 'transparent';
-                      e.target.style.color = 'var(--charcoal)';
-                    }}
+                    style={{ marginTop: '0.5rem' }}
                   >
                     Continue as Guest
                   </button>

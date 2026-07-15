@@ -120,7 +120,7 @@ export default function GameHistory({ games, realms = [], currentRealm = null, o
                 const winner     = topPlayers.length === 1 ? game.players.find(p => topPlayers.includes(p.name)) : null;
                 const margin     = topPlayers.length === 1 ? maxScore - (scores[1] ?? 0) : 0;
                 return (
-                  <tr key={game.id} onClick={() => setSelectedGame(game)} style={{ cursor: 'pointer' }}>
+                  <tr key={game.id} onClick={() => setSelectedGame(game)} style={{ cursor: 'var(--cursor-pointer)' }}>
                     <td className="cell-date">{formatDate(game.date)}</td>
 
                     <td style={{

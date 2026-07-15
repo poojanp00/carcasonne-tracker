@@ -13,13 +13,14 @@
  * - Real-time score logging and persistence
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import BOARD_PATH from '../data/boardCoords';
 import { getBoard, saveBoard, resetBoard } from '../data/boardStorage';
 import { computeWinners } from '../utils/scoring';
 import { fetchNewEvents, subscribeEvents, setPhase, endSession, deleteSession, unsubscribe, submitEvent } from '../data/partySession';
 import { MONASTERY_LIKE_TYPES, MONASTERY_LIKE_MAX, LIVE_PLAY_ONLY_RECORD_TYPES, MONASTERY_RECORD_TYPES } from '../constants';
 import HowToModal from './HowToGuide';
+import { TrashIcon } from './icons';
 import boardImg from '../../images/score-board.jpg';
 
 /**
@@ -119,8 +120,18 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, aut
   const [showHowTo, setShowHowTo] = useState(() => isGuest && !!autoShowHowTo);
   const [confirmReset,         setConfirmReset]         = useState(false); // Reset board confirmation
   const [warning,             setWarning]             = useState(null); // Warning toast (e.g. monastery/abbot/abbey point cap)
+  const [editMode, setEditMode] = useState(false); // Score log edit mode — reveals a delete icon on each entry
+  const [pendingDeleteMoveIdx, setPendingDeleteMoveIdx] = useState(null); // moves[] index, or 'final-scoring', awaiting delete confirmation
   const logContainerRef  = useRef(null);
   const boardPopoutChRef = useRef(null);
+
+  // Edit mode auto-closes after 6s of inactivity, so a stray tap doesn't leave trash icons
+  // exposed on the score log indefinitely.
+  useEffect(() => {
+    if (!editMode) return;
+    const timer = setTimeout(() => setEditMode(false), 6000);
+    return () => clearTimeout(timer);
+  }, [editMode]);
 
   // Tell the parent this game's how-to has been shown, so it isn't auto-shown again on
   // remount (tab switch) — but a genuinely new game gets a fresh auto-show.
@@ -129,8 +140,11 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, aut
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Generate log from moves and undo events merged chronologically
-  const log = board && board.moves
+  // Generate log from moves and undo events merged chronologically.
+  // Memoized so its identity is stable across unrelated renders (e.g. the 1s `now` timer
+  // tick below) — the log auto-scroll effect depends on this array, and without memoizing
+  // it would force-scroll to the bottom every second, fighting manual scrolling in edit mode.
+  const log = useMemo(() => (board && board.moves
     ? (() => {
         const entries = [];
 
@@ -153,6 +167,7 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, aut
               time: new Date(move.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
               timestamp: move.timestamp,
               id: `move-${i}`,
+              moveIdx: i, // back-reference into board.moves, used by the edit-mode delete button
             });
 
             // Check if this move completed a lap (skip for goods token moves)
@@ -209,7 +224,7 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, aut
         // Sort by timestamp
         return entries.sort((a, b) => a.timestamp - b.timestamp);
       })()
-    : [];
+    : []), [board, players]);
 
 
   useEffect(() => {
@@ -258,9 +273,11 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, aut
     setSelectedPlayer(null);
   }, [finishStep]);
 
-  // Recalculate board state from moves when moveIndex changes (for undo/redo)
+  // Recalculate board state from moves when moveIndex changes (for undo/redo/delete).
+  // No `moves.length === 0` short-circuit — deleting every move must still rebuild down
+  // to an all-zero state instead of leaving stale totals behind.
   useEffect(() => {
-    if (!board || board.moves.length === 0) return;
+    if (!board) return;
 
     // Rebuild board state from moves[0..moveIndex]
     const rebuilt = {
@@ -465,59 +482,22 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, aut
   }
 
   /**
-   * UNDO SYSTEM
+   * EDIT / DELETE SYSTEM
    *
-   * Reverts to previous move considering final scoring context.
-   * If in final scoring, undoes final scoring moves first.
-   * Only exits final scoring after undoing all final scoring moves.
+   * Permanently removes an arbitrary historical entry from board.moves (not just the most
+   * recent one), then lets moveIndex/finalScoringIndex point at the same logical position
+   * they did before — the replay effect below recomputes positions/laps/scoreTotals/
+   * goodsTokens/maxFeatures from scratch from the shortened moves array.
    */
-  function undoLastMove() {
-    if (!board) return;
-    if (board.moveIndex < 0) return; // No moves to undo
-
-    const currentMove = board.moves[board.moveIndex];
-    const isInFinalScoring = board.finalScoringIndex !== null;
-    const isCurrentMoveInFinalScoring = currentMove?.inFinalScoring;
-
-    // If in final scoring and current move is in final scoring, just undo the move
-    if (isInFinalScoring && isCurrentMoveInFinalScoring) {
-      setBoard(prev => ({
-        ...prev,
-        moveIndex: prev.moveIndex - 1,
-        undoLog: [
-          ...prev.undoLog,
-          {
-            player: currentMove.player,
-            amount: -currentMove.amount,
-            label: currentMove.label,
-            timestamp: Date.now(),
-          },
-        ],
-      }));
-      return;
-    }
-
-    // If in final scoring but current move is NOT in final scoring, exit final scoring
-    if (isInFinalScoring && !isCurrentMoveInFinalScoring) {
-      setFinishStep(0);
-      setBoard(prev => ({ ...prev, finalScoringIndex: null }));
-      return;
-    }
-
-    // Regular game undo - add to undoLog
-    setBoard(prev => ({
-      ...prev,
-      moveIndex: prev.moveIndex - 1,
-      undoLog: [
-        ...prev.undoLog,
-        {
-          player: currentMove.player,
-          amount: -currentMove.amount,
-          label: currentMove.label,
-          timestamp: Date.now(),
-        },
-      ],
-    }));
+  function deleteMoveAt(i) {
+    setBoard(prev => {
+      const moves = prev.moves.filter((_, idx) => idx !== i);
+      const moveIndex = i <= prev.moveIndex ? prev.moveIndex - 1 : prev.moveIndex;
+      const finalScoringIndex = prev.finalScoringIndex !== null && i < prev.finalScoringIndex
+        ? prev.finalScoringIndex - 1
+        : prev.finalScoringIndex;
+      return { ...prev, moves, moveIndex, finalScoringIndex };
+    });
   }
 
   /**
@@ -876,6 +856,45 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, aut
     </div>
   );
 
+  // Confirms whatever entry is pending deletion — either a regular moves[] index, or the
+  // special 'final-scoring' sentinel (trashing the divider undoes Final Scoring and returns
+  // to live play, same as the old undo system's "exit final scoring" branch).
+  function confirmDeleteEntry() {
+    if (pendingDeleteMoveIdx === 'final-scoring') {
+      setFinishStep(0);
+      setBoard(prev => ({ ...prev, finalScoringIndex: null, finalScoringTime: null }));
+    } else {
+      deleteMoveAt(pendingDeleteMoveIdx);
+    }
+    setPendingDeleteMoveIdx(null);
+    setEditMode(false); // one deletion at a time — back to the normal log view
+  }
+
+  // Dismisses the confirm modal without deleting anything — also exits edit mode, so
+  // cancelling always lands back on the normal (non-editing) log view.
+  function cancelDeleteEntry() {
+    setPendingDeleteMoveIdx(null);
+    setEditMode(false);
+  }
+
+  // Delete score-log entry confirmation modal (edit mode)
+  const deleteMoveModal = pendingDeleteMoveIdx !== null && (
+    <div className="realm-modal-overlay" onClick={cancelDeleteEntry}>
+      <div className="realm-modal tile-card" onClick={e => e.stopPropagation()}>
+        <h3 style={{ color: 'var(--deep-red)', marginBottom: '0.5rem' }}>Are you sure?</h3>
+        <p style={{ fontSize: '0.95rem', marginBottom: '1.2rem', lineHeight: 1.5 }}>
+          {pendingDeleteMoveIdx === 'final-scoring'
+            ? 'This will undo Final Scoring and return to live play.'
+            : 'Are you sure you want to delete the points?'}
+        </p>
+        <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'flex-end' }}>
+          <button className="btn btn-ghost btn-sm" onClick={cancelDeleteEntry}>Cancel</button>
+          <button className="btn btn-danger btn-sm" onClick={confirmDeleteEntry}>Delete</button>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div>
       {/* Finish game confirmation modal */}
@@ -883,6 +902,9 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, aut
 
       {/* Reset board confirmation modal */}
       {resetModal}
+
+      {/* Delete score-log entry confirmation modal */}
+      {deleteMoveModal}
 
       {/* Traders & Builders — Harvest dialog */}
       {showTraders && (
@@ -961,7 +983,7 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, aut
               type="button"
               title="How it works"
               onClick={() => setShowHowTo(true)}
-              style={{ background: 'none', border: '1px solid var(--warm-gold)', borderRadius: '50%', width: '1.15rem', height: '1.15rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontFamily: 'Cinzel, serif', fontSize: '0.62rem', fontWeight: 700, color: 'var(--earth-brown)', padding: 0, flexShrink: 0 }}
+              style={{ background: 'none', border: '1px solid var(--warm-gold)', borderRadius: '50%', width: '1.15rem', height: '1.15rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'var(--cursor-pointer)', fontFamily: 'Cinzel, serif', fontSize: '0.62rem', fontWeight: 700, color: 'var(--earth-brown)', padding: 0, flexShrink: 0 }}
             >
               ?
             </button>
@@ -1018,7 +1040,19 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, aut
                       )}
                       {entry.msg}
                     </span>
-                    <span className="board-log-time">{entry.time}</span>
+                    <div className="board-log-meta">
+                      <span className="board-log-time">{entry.time}</span>
+                      {editMode && (entry.type === 'move' || entry.type === 'goods' || isFinalScoring) && (
+                        <button
+                          type="button"
+                          className="realm-trash-btn"
+                          onClick={() => setPendingDeleteMoveIdx(isFinalScoring ? 'final-scoring' : entry.moveIdx)}
+                          aria-label={isFinalScoring ? 'Undo Final Scoring' : 'Delete this entry'}
+                        >
+                          <TrashIcon />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 );
               })}
@@ -1029,10 +1063,10 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, aut
               type="button"
               className="btn btn-ghost btn-sm"
               style={{ flex: '1 1 0', justifyContent: 'center' }}
-              onClick={undoLastMove}
+              onClick={() => setEditMode(e => !e)}
               disabled={board.moveIndex < 0}
             >
-              Undo
+              {editMode ? 'Done' : 'Edit'}
             </button>
             <button
               type="button"
@@ -1116,7 +1150,7 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, aut
                       border: isSelected ? `2px solid ${color}` : '2px solid transparent',
                       borderRadius: '12px',
                       background: isSelected ? `${color}15` : 'transparent',
-                      cursor: 'pointer',
+                      cursor: 'var(--cursor-pointer)',
                       transition: 'all 0.2s ease',
                     }}
                   >
@@ -1294,7 +1328,7 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, aut
                           border: 'none',
                           padding: '0.2rem',
                           borderRadius: '10px',
-                          cursor: 'pointer',
+                          cursor: 'var(--cursor-pointer)',
                           opacity: remaining <= 0 ? 0.35 : 1,
                           display: 'flex',
                           flexDirection: 'column',

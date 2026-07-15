@@ -574,7 +574,7 @@ export default function Play() {
                 {orderedTypes.map(t => (
                   <div
                     key={t}
-                    style={{ flex: myBreakdown[t] / total, backgroundColor: SCORE_TYPE_COLORS[t], cursor: 'default' }}
+                    style={{ flex: myBreakdown[t] / total, backgroundColor: SCORE_TYPE_COLORS[t], cursor: 'var(--cursor-arrow)' }}
                     onMouseEnter={(e) => {
                       if (!barRef.current) return;
                       const sr = e.currentTarget.getBoundingClientRect();

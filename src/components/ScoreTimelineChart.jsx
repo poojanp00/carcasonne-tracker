@@ -39,7 +39,7 @@ export default function ScoreTimelineChart({ timeline, players, duration = 0, bo
     <>
       <div className="chart-header" style={{ margin: '0 0 1.2rem', textAlign: 'left' }}>Score Timeline</div>
       <ResponsiveContainer width="100%" height={260}>
-        <LineChart data={rows} margin={{ top: 8, right: 12, bottom: 0, left: -18 }}>
+        <LineChart data={rows} margin={{ top: 8, right: 12, bottom: 0, left: -18 }} style={{ cursor: 'var(--cursor-arrow)' }}>
           <CartesianGrid stroke="rgba(139,94,60,0.18)" vertical={false} />
           <XAxis
             dataKey="t"
