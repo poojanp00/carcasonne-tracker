@@ -19,7 +19,8 @@ export default function RealmPicker({ realms, currentRealm = null, onSelect, onC
 
   const handleCreate = (e) => {
     e.preventDefault();
-    if (!isGuest && realms.length >= MAX_REALMS) {
+    // Shared groups don't count toward the cap — only groups the user owns.
+    if (!isGuest && realms.filter(r => r.isOwner !== false).length >= MAX_REALMS) {
       setNameError(`Group limit reached. Delete an existing group to create a new one.`);
       return;
     }

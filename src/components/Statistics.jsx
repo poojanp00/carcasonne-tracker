@@ -432,18 +432,19 @@ function PlayerCard({ name, stats, breakdown, favMeeple, favMeepleCount, colorCl
   );
 }
 
-export default function Stats({ games, realms = [], currentRealm = null, onRealmChange, onDelete, isGuest = false, showDemoData = false, onToggleDemoData = null }) {
+export default function Stats({ games, realms = [], currentRealm = null, onRealmChange, onDelete, onLeave, isGuest = false, showDemoData = false, onToggleDemoData = null }) {
   const realmGames = currentRealm ? games.filter(g => g.realmId === currentRealm.id) : [];
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmLeave, setConfirmLeave] = useState(false);
   const [selectedGame, setSelectedGame] = useState(null);
 
   const openGameLightbox = (game) => setSelectedGame(game);
 
   useEffect(() => {
-    const isOpen = confirmDelete || !!selectedGame;
+    const isOpen = confirmDelete || confirmLeave || !!selectedGame;
     document.body.style.overflow = isOpen ? 'hidden' : '';
     return () => { document.body.style.overflow = ''; };
-  }, [confirmDelete, selectedGame]);
+  }, [confirmDelete, confirmLeave, selectedGame]);
 
   const BASE_BREAKDOWN = { road: 0, city: 0, monastery: 0, field: 0 };
 
@@ -541,6 +542,23 @@ export default function Stats({ games, realms = [], currentRealm = null, onRealm
                 <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'flex-end' }}>
                   <button className="btn btn-ghost btn-sm" onClick={() => setConfirmDelete(false)}>Cancel</button>
                   <button className="btn btn-danger btn-sm" onClick={() => { setConfirmDelete(false); onDelete?.(currentRealm.id); }}>Delete</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Leave-group confirmation modal (shared realms only) */}
+          {confirmLeave && (
+            <div className="realm-modal-overlay" onClick={() => setConfirmLeave(false)}>
+              <div className="realm-modal tile-card" onClick={e => e.stopPropagation()}>
+                <h3 style={{ color: 'var(--earth-brown)', marginBottom: '0.5rem' }}>Leave this group?</h3>
+                <p style={{ fontSize: '0.95rem', marginBottom: '1.2rem', lineHeight: 1.5 }}>
+                  <strong>{currentRealm.name}</strong> and its games will disappear from your account.
+                  The owner's data is unaffected, and they can invite you again later.
+                </p>
+                <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'flex-end' }}>
+                  <button className="btn btn-ghost btn-sm" onClick={() => setConfirmLeave(false)}>Cancel</button>
+                  <button className="btn btn-danger btn-sm" onClick={() => { setConfirmLeave(false); onLeave?.(currentRealm.id); }}>Leave</button>
                 </div>
               </div>
             </div>
@@ -661,16 +679,28 @@ export default function Stats({ games, realms = [], currentRealm = null, onRealm
             );
           })()}
 
+          {/* Owners can delete the group; members of a shared group can only leave it */}
           {!showDemoData && (
             <div style={{ marginTop: '3rem', display: 'flex', justifyContent: 'center' }}>
-              <button
-                className="realm-trash-btn"
-                onClick={() => setConfirmDelete(true)}
-                title="Delete group"
-                style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--stone-gray)', fontSize: 'clamp(0.68rem, 1.8vw, 0.82rem)', fontFamily: 'Cinzel, serif', letterSpacing: '0.06em' }}
-              >
-                <TrashIcon /> Delete Group
-              </button>
+              {currentRealm.isOwner !== false ? (
+                <button
+                  className="realm-trash-btn"
+                  onClick={() => setConfirmDelete(true)}
+                  title="Delete group"
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--stone-gray)', fontSize: 'clamp(0.68rem, 1.8vw, 0.82rem)', fontFamily: 'Cinzel, serif', letterSpacing: '0.06em' }}
+                >
+                  <TrashIcon /> Delete Group
+                </button>
+              ) : (
+                <button
+                  className="realm-trash-btn"
+                  onClick={() => setConfirmLeave(true)}
+                  title="Leave this shared group"
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--stone-gray)', fontSize: 'clamp(0.68rem, 1.8vw, 0.82rem)', fontFamily: 'Cinzel, serif', letterSpacing: '0.06em' }}
+                >
+                  Leave Group
+                </button>
+              )}
             </div>
           )}
         </>

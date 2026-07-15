@@ -10,11 +10,12 @@ import PreGameSetup  from './components/PreGameSetup';
 import Auth          from './components/Auth';
 import ChipGroup     from './components/ChipGroup';
 import Landing       from './components/Landing';
+import InvitePrompt  from './components/InvitePrompt';
 import { HowToPlayModal } from './components/HowToGuide';
 import { useGameData } from './hooks/useGameData';
 import { useAuth }     from './hooks/useAuth';
 import { resetBoard }  from './data/boardStorage';
-import { deleteAccount } from './data/storage';
+import { deleteAccount, sendRealmInvite, claimRealmPlayer } from './data/storage';
 import { DEFAULT_EXPANSIONS } from './data/expansions';
 import { DEMO_REALM, DEMO_GAMES } from './data/demoData';
 import { TABS, APP_CONFIG, EXPANSION_TYPES, PINNED_EXPANSIONS } from './constants';
@@ -71,7 +72,7 @@ export default function App() {
 
   const { user, authLoading, signOut, completeRecovery, isGuest, enableGuestMode, signOutGuest, guestUserId } = useAuth();
   const userId = isGuest ? guestUserId : user?.id;
-  const { games, expansions, realms, loading, addGame, deleteGame, toggleExpansion, addRealm, updateRealm, removeRealm } = useGameData(isGuest ? null : user, authLoading || (isGuest && false));
+  const { games, expansions, realms, pendingInvites, loading, addGame, deleteGame, toggleExpansion, addRealm, updateRealm, removeRealm, acceptInvite, declineInvite, leaveSharedRealm } = useGameData(isGuest ? null : user, authLoading || (isGuest && false));
 
   // Guest mode state
   const [guestRealms,   setGuestRealms]   = useState([]);
@@ -98,11 +99,12 @@ export default function App() {
       setGuestExpansionOverrides(prev => ({ ...prev, [name]: !(prev[name] ?? true) }));
     } : toggleExpansion,
     addRealm: isGuest ? (data) => {
-      const guestRealm = { 
-        id: `guest-realm-${Date.now()}`, 
-        name: data.name || 'Guest Realm', 
+      const guestRealm = {
+        id: `guest-realm-${Date.now()}`,
+        name: data.name || 'Guest Realm',
         players: data.players || [],
-        created_at: new Date().toISOString()
+        created_at: new Date().toISOString(),
+        isOwner: true, // Uniform owner-gating shape with DB realms
       };
       setGuestRealms([guestRealm]);
       return Promise.resolve(guestRealm);
@@ -159,6 +161,12 @@ export default function App() {
   const handleRealmCreate = useCallback(async (data) => {
     try {
       const realm = await appOperations.addRealm(data);
+      // Link the creator to the player they said they are — powers the
+      // "who is who" tags and names them in invites. Non-fatal if it fails.
+      if (!isGuest && data.selfPlayer) {
+        try { await claimRealmPlayer(realm.id, data.selfPlayer); }
+        catch (err) { console.error('claim player failed', err); }
+      }
       setSession({ realm, showRealmCreation: false });
       setRealmPickerKey(k => k + 1);
       if (isGuest) setGuestResumeAtMode(true);
@@ -279,8 +287,41 @@ export default function App() {
         setTab('statistics');
       }
     }
+    window.scrollTo(0, 0); // Delete button sits at the page bottom
     showToast('Group deleted.');
   }, [appOperations.removeRealm, session, appData.realms, showToast]);
+
+  // ── Realm sharing ──
+  const handleExportGroup = useCallback(
+    (realmId, email, playerName) => sendRealmInvite(realmId, email, playerName),
+    []
+  );
+
+  const handleInviteAccept = useCallback(async (inviteId) => {
+    await acceptInvite(inviteId);
+    showToast('Group added to your account.');
+  }, [acceptInvite, showToast]);
+
+  const handleInviteDecline = useCallback(
+    (inviteId) => declineInvite(inviteId),
+    [declineInvite]
+  );
+
+  const handleRealmLeave = useCallback(async (realmId) => {
+    await leaveSharedRealm(realmId);
+    // Fall back to the first remaining group so the stats page doesn't go blank
+    const remaining = appData.realms.filter(r => r.id !== realmId);
+    if (session?.realm?.id === realmId) {
+      if (remaining.length > 0) {
+        setSession({ realm: remaining[0] });
+      } else {
+        setSession(null);
+        setRealmPickerKey(k => k + 1);
+      }
+    }
+    window.scrollTo(0, 0); // Leave button sits at the page bottom
+    showToast('You left the group.');
+  }, [leaveSharedRealm, session, appData.realms, showToast]);
 
   const handleUpdateRealm = useCallback((patch) => {
     if (!session?.realm?.id) return;
@@ -391,6 +432,16 @@ export default function App() {
             ))}
           </nav>
 
+          {/* Pending group invite — must be answered explicitly; chains through
+              multiple invites by always showing the first outstanding one. */}
+          {!isGuest && pendingInvites.length > 0 && (
+            <InvitePrompt
+              invite={pendingInvites[0]}
+              onAccept={handleInviteAccept}
+              onDecline={handleInviteDecline}
+            />
+          )}
+
           <div className="app-wrapper">
           <div className="section-panel">
             {tab === 'board' && (
@@ -437,6 +488,7 @@ export default function App() {
                           currentRealm={null}
                           onRealmChange={handleRealmSelect}
                           onRealmCreate={handleRealmCreate}
+                          onExportGroup={isGuest ? null : handleExportGroup}
                           startAtRealmCreation={true}
                           isGuest={isGuest}
                         />
@@ -451,6 +503,7 @@ export default function App() {
                         currentRealm={session?.realm || null}
                         onRealmChange={handleRealmSelect}
                         onRealmCreate={handleRealmCreate}
+                        onExportGroup={isGuest ? null : handleExportGroup}
                         startAtModeSelection={isGuest && guestResumeAtMode}
                         isGuest={isGuest}
                       />
@@ -466,6 +519,7 @@ export default function App() {
                       currentRealm={null}
                       onRealmChange={handleRealmSelect}
                       onRealmCreate={handleRealmCreate}
+                      onExportGroup={isGuest ? null : handleExportGroup}
                       startAtRealmCreation={true}
                       isGuest={isGuest}
                     />
@@ -529,6 +583,7 @@ export default function App() {
                     currentRealm={displayCurrentRealm}
                     onRealmChange={handleRealmSelect}
                     onDelete={handleRealmDelete}
+                    onLeave={handleRealmLeave}
                     isGuest={isGuest}
                     showDemoData={showDemoData}
                     onToggleDemoData={isGuest ? toggleDemo : null}
