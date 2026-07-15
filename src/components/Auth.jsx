@@ -378,19 +378,17 @@ export default function Auth({ onSuccess, onGuestMode }) {
                   type="submit"
                   className="btn"
                   disabled={loading}
-                  style={{ marginTop: '0.3rem' }}
+                  style={{ marginTop: '0.3rem', justifyContent: 'center' }}
                 >
                   {loading ? 'Please wait...' : mode === 'signin' ? 'Sign In' : 'Create Account'}
                 </button>
-                
-                {/* Continue as Guest button - only show on signin mode */}
-                {mode === 'signin' && !forgotMode && (
+                {mode === 'signin' && (
                   <button
                     type="button"
                     className="btn btn-ghost"
                     onClick={() => onGuestMode?.()}
                     disabled={loading || magicLinkLoading || resetPasswordLoading}
-                    style={{ marginTop: '0.5rem' }}
+                    style={{ justifyContent: 'center' }}
                   >
                     Continue as Guest
                   </button>
@@ -403,10 +401,17 @@ export default function Auth({ onSuccess, onGuestMode }) {
         {!recoveryMode && (
           <div style={{ marginTop: '1.1rem', fontSize: '0.88rem', color: 'var(--stone-gray)', fontFamily: 'Crimson Text, serif', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
-              {mode === 'signin' ? (
-                <>No account?{' '}<button type="button" style={linkStyle} onClick={() => switchMode('signup')}>Create one</button></>
-              ) : (
+              {mode === 'signup' ? (
                 <>Already have an account?{' '}<button type="button" style={linkStyle} onClick={() => switchMode('signin')}>Sign in</button></>
+              ) : (
+                <button
+                  type="button"
+                  style={linkStyle}
+                  onClick={() => switchMode('signup')}
+                  disabled={loading || magicLinkLoading || resetPasswordLoading}
+                >
+                  Create account
+                </button>
               )}
             </div>
             <div>

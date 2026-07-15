@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { ACHIEVEMENT_DISPLAY_ORDER } from './GameHighlights';
 import RecordBadge from './RecordBadge';
+import ValInfo from './ValInfo';
 import PointBreakdownChart from './PointBreakdownChart';
 import ScoreTimelineChart from './ScoreTimelineChart';
 import { transformMaxFeaturesToUI } from '../utils/achievements';
@@ -120,16 +121,14 @@ export default function GameLogForm({ session, ownedExpansions, onSubmit, onCanc
           <div style={{ width: '1px', height: '20px', background: 'var(--stone-gray)', opacity: 0.3 }} />
         )}
         {isClutch && (
-          <span className="val-info-wrap">
+          <ValInfo tip="Clutch win" placement="above">
             <img src={cImg} alt="clutch" style={{ height: 20, width: 'auto', opacity: 0.85, display: 'block' }} />
-            <span className="val-info-tooltip" style={{ right: 'auto', left: '50%', top: 'auto', bottom: 'calc(100% + 6px)', transform: 'translateX(-50%)', whiteSpace: 'nowrap' }}>Clutch win</span>
-          </span>
+          </ValInfo>
         )}
         {autoFarmWin && (
-          <span className="val-info-wrap">
+          <ValInfo tip="Farm win" placement="above">
             <img src={pigImg} alt="farm win" style={{ height: 16, width: 'auto', opacity: 0.85, display: 'block' }} />
-            <span className="val-info-tooltip" style={{ right: 'auto', left: '50%', top: 'auto', bottom: 'calc(100% + 6px)', transform: 'translateX(-50%)', whiteSpace: 'nowrap' }}>Farm win</span>
-          </span>
+          </ValInfo>
         )}
       </div>
 

@@ -227,3 +227,58 @@ export const DEMO_GAMES = [
     },
   },
 ];
+
+// ── Synthetic score timelines ──────────────────────────────────────────────
+// The demo games predate score-timeline tracking, so their timelines are
+// synthesized from each player's breakdown: category totals are chunked into
+// realistic scoring events and spread across the game clock, with final-scoring
+// categories (fields, pigs, barns, trade goods) landing in the last stretch.
+// Chunks partition each total exactly, so every line ends at the final score.
+// Seeded per game id so the demo renders identically on every load.
+
+function mulberry32(seed) {
+  return function () {
+    seed = (seed + 0x6D2B79F5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// Per category: [min chunk, max chunk, scores during final scoring]
+const TIMELINE_RULES = {
+  road:      [2, 6, false],
+  inn:       [4, 16, false],
+  city:      [4, 14, false],
+  cathedral: [12, 36, false],
+  monastery: [9, 9, false],
+  abbey:     [8, 9, false],
+  abbot:     [3, 9, false],
+  field:     [3, 12, true],
+  pig:       [4, 16, true],
+  barn:      [36, 60, true],
+  wine:      [10, 10, true],
+  grain:     [10, 10, true],
+  cloth:     [10, 10, true],
+};
+
+function synthTimeline(game) {
+  const rand = mulberry32([...game.id].reduce((h, c) => (h * 31 + c.charCodeAt(0)) | 0, 7));
+  const events = [];
+  game.players.forEach(({ name, breakdown = {} }) => {
+    Object.entries(breakdown).forEach(([type, total]) => {
+      const [min, max, endGame] = TIMELINE_RULES[type] || [4, 12, false];
+      let remaining = total;
+      while (remaining > 0) {
+        // Undersized last chunks are fine — incomplete features score small at game end
+        const amount = Math.min(remaining, min + Math.floor(rand() * (max - min + 1)));
+        remaining -= amount;
+        const t = (endGame ? 0.88 + rand() * 0.11 : 0.04 + rand() * 0.82) * game.gameDuration;
+        events.push({ player: name, type, amount, t: Math.round(t) });
+      }
+    });
+  });
+  return events.sort((a, b) => a.t - b.t);
+}
+
+DEMO_GAMES.forEach(g => { g.scoreTimeline = synthTimeline(g); });

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ACHIEVEMENT_DISPLAY_ORDER } from './GameHighlights';
 import RecordBadge from './RecordBadge';
+import ValInfo from './ValInfo';
 import ScoreTimelineChart from './ScoreTimelineChart';
 import { SCORE_TYPE_ORDER, SCORE_TYPE_COLORS, STATISTICS_CONFIG } from '../constants';
 import { getMeepleColor } from '../utils/formatters';
@@ -120,16 +121,14 @@ export default function Lightbox({ game, games = [], onNavigate, onClose, onDele
               <div style={{ width: '1px', height: '20px', background: 'var(--stone-gray)', opacity: 0.3 }} />
             )}
             {isClutch && (
-              <span className="val-info-wrap">
+              <ValInfo tip="Clutch win" placement="above">
                 <img src={cImg} alt="clutch" style={{ height: 20, width: 'auto', opacity: 0.85, display: 'block' }} />
-                <span className="val-info-tooltip" style={{ right: 'auto', left: '50%', top: 'auto', bottom: 'calc(100% + 6px)', transform: 'translateX(-50%)', whiteSpace: 'nowrap' }}>Clutch win</span>
-              </span>
+              </ValInfo>
             )}
             {game.farmWin && topPlayers.length === 1 && (
-              <span className="val-info-wrap">
+              <ValInfo tip="Farm win" placement="above">
                 <img src={pigImg} alt="farm win" style={{ height: 16, width: 'auto', opacity: 0.85, display: 'block' }} />
-                <span className="val-info-tooltip" style={{ right: 'auto', left: '50%', top: 'auto', bottom: 'calc(100% + 6px)', transform: 'translateX(-50%)', whiteSpace: 'nowrap' }}>Farm win</span>
-              </span>
+              </ValInfo>
             )}
           </div>
 

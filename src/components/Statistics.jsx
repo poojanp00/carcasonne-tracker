@@ -18,6 +18,7 @@ import crownImg from '../../images/icons/crown.png';
 import PointBreakdownChart from './PointBreakdownChart';
 import Lightbox from './Lightbox';
 import StatInfo from './StatInfo';
+import ValInfo from './ValInfo';
 import { formatDate } from '../utils/formatters';
 
 function calcFavMeeple(games, name) {
@@ -192,43 +193,6 @@ function calcStats(games, name) {
     biggestBlowout, biggestBlowoutDate, biggestBlowoutGame, // Most dominant victory
     biggestBlowoutMyScore, biggestBlowoutTheirScore,
   };
-}
-
-/**
- * VALUE WITH CONTEXTUAL TOOLTIP
- *
- * Displays a clickable value with additional context in a tooltip.
- * Used for showing details like game dates, margin breakdowns, etc.
- *
- * The card back (`.player-card-back`) is permanently `transform: rotateY(...)`'d for the
- * flip effect, which makes it a stacking context — a locally-positioned tooltip there can
- * never paint above a sibling player card. Rendered through a portal with viewport-fixed
- * coordinates instead, so it always sits on top regardless of which card it's opened from.
- */
-function ValInfo({ tip, children, style }) {
-  const { visible, open, onMouseEnter, onMouseLeave, triggerRef } = useTapTooltip();
-  const { tooltipRef, portalStyle } = usePortalTooltip(visible, triggerRef);
-
-  if (!tip) return <span className="val-info-wrap" style={style}>{children}</span>;
-
-  return (
-    <span
-      ref={triggerRef}
-      className="val-info-wrap"
-      style={style}
-      // Stop the tap from bubbling up to the flip-card's click handler — otherwise tapping
-      // the value (no hover-out on touch) flips the card instead of showing the tooltip.
-      onClick={e => { e.stopPropagation(); open(); }}
-      onMouseEnter={onMouseEnter}
-      onMouseLeave={onMouseLeave}
-    >
-      {children}
-      {visible && portalStyle && createPortal(
-        <div ref={tooltipRef} className="val-info-tooltip" style={portalStyle}>{tip}</div>,
-        document.body
-      )}
-    </span>
-  );
 }
 
 function WinRateBadge({ rate }) {
@@ -537,8 +501,8 @@ export default function Stats({ games, realms = [], currentRealm = null, onRealm
         <div className="section-title-line" />
         {currentRealm && <span className="game-count">{realmGames.length} {realmGames.length === 1 ? 'game' : 'games'}</span>}
         {onToggleDemoData && (
-          <button type="button" className={`expansion-chip${showDemoData ? ' selected' : ''}`} onClick={onToggleDemoData} style={{ fontSize: 'clamp(0.55rem, 1.8vw, 0.72rem)', marginLeft: '0.5rem' }}>
-            {showDemoData ? '✦ Demo · click to exit' : 'Demo'}
+          <button type="button" className={`expansion-chip${showDemoData ? ' selected' : ''}`} onClick={onToggleDemoData} style={{ fontSize: 'clamp(0.72rem, 2.2vw, 0.9rem)', padding: '0.5rem 1.1rem', marginLeft: '0.5rem' }}>
+            {showDemoData ? ' Click to exit' : 'See how it works!'}
           </button>
         )}
       </div>
@@ -551,7 +515,7 @@ export default function Stats({ games, realms = [], currentRealm = null, onRealm
       )}
 
       {isGuest && !showDemoData ? (
-        <div className="empty-state">Sign in to view statistics and track game history.</div>
+        <div className="empty-state">Sign in to view statistics.</div>
       ) : !currentRealm ? (
         <div className="empty-state">Select a group to view statistics.</div>
       ) : (

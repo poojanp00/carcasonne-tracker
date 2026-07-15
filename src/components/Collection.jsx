@@ -86,7 +86,7 @@ function ExpansionGroup({ label, expansions, onToggle, canEdit, isGuest, complet
       <div style={{ marginTop: '1rem' }}>
           {owned.length > 0 && (
             <>
-              <div className="collection-group-label owned-label">In Your Possession</div>
+              <div className="collection-group-label owned-label">Owned</div>
               <div className="collection-grid" style={{ marginBottom: unowned.length > 0 ? '1.5rem' : 0 }}>
                 {owned.map((exp) => {
                   const { editable, tooltip } = getItemState(exp);
