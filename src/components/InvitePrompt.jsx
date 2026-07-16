@@ -16,7 +16,7 @@ export default function InvitePrompt({ invite, onAccept, onDecline }) {
     setBusy(true);
     setError('');
     try {
-      await (accept ? onAccept(invite.id) : onDecline(invite.id));
+      await (accept ? onAccept(invite.realmId) : onDecline(invite.realmId));
     } catch (err) {
       setError(err?.message || 'Something went wrong. Please try again.');
       setBusy(false);
@@ -28,9 +28,9 @@ export default function InvitePrompt({ invite, onAccept, onDecline }) {
       <div className="realm-modal tile-card" style={{ maxWidth: '440px' }}>
         <h3 style={{ color: 'var(--earth-brown)', marginBottom: '0.4rem' }}>Group Invitation</h3>
         <p style={{ fontFamily: 'Crimson Text, serif', fontSize: '0.95rem', color: 'var(--charcoal)', margin: '0 0 1rem' }}>
-          {invite.inviterPlayer
+          {invite.inviterName
             ? <>
-                <strong>{invite.inviterPlayer}</strong>
+                <strong>{invite.inviterName}</strong>
                 {invite.inviterEmail && <span style={{ color: 'var(--stone-gray)' }}> ({invite.inviterEmail})</span>}
                 {' '}has invited you to join <strong>{invite.realmName}</strong>.
               </>
@@ -44,9 +44,9 @@ export default function InvitePrompt({ invite, onAccept, onDecline }) {
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', marginBottom: '1rem' }}>
           {(invite.players || []).map((p, i) => {
-            const isYou = p === invite.playerName;
+            const isYou = p.name === invite.playerName;
             return (
-              <div key={p} style={{
+              <div key={p.name} style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: '0.75rem',
@@ -57,7 +57,7 @@ export default function InvitePrompt({ invite, onAccept, onDecline }) {
                   {i + 1}
                 </span>
                 <span style={{ fontFamily: 'Cinzel, serif', fontSize: '0.95rem', fontWeight: 600, color: 'var(--earth-brown)', letterSpacing: '0.02em' }}>
-                  {p}
+                  {p.name}
                 </span>
                 {isYou && (
                   <span style={{ fontFamily: 'Cinzel, serif', fontSize: '0.62rem', fontWeight: 600, letterSpacing: '0.08em', color: 'var(--parchment)', background: 'var(--earth-brown)', borderRadius: '999px', padding: '0.15rem 0.55rem' }}>

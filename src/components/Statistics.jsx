@@ -458,7 +458,7 @@ export default function Stats({ games, realms = [], currentRealm = null, onRealm
       });
       names = [...seenLower.values()];
     } else {
-      names = currentRealm?.players || [];
+      names = (currentRealm?.players || []).map(p => p.name);
     }
 
     // Collect all scoring types used in any game in the realm
@@ -567,7 +567,7 @@ export default function Stats({ games, realms = [], currentRealm = null, onRealm
           {/* Active group card */}
           {(() => {
             const gs = calcGroupStats(realmGames);
-            const records = calcPlayerRecords(realmGames, currentRealm.players);
+            const records = calcPlayerRecords(realmGames, currentRealm.players.map(p => p.name));
             const EXP_TYPE = Object.fromEntries(DEFAULT_EXPANSIONS.map(e => [e.name, e.type]));
             const { favFull, favFullCount, favMini, favMiniCount } = (() => {
               const full = {}, mini = {};
