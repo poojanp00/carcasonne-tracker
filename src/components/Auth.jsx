@@ -32,6 +32,7 @@ const EyeBtn = ({ show, onToggle }) => (
 
 export default function Auth({ onSuccess, onGuestMode }) {
   const [mode,    setMode]    = useState('signin');  // 'signin' | 'signup'
+  const [name,    setName]    = useState('');        // signup only → display_name metadata
   const [email,   setEmail]   = useState('');
   const [pw,      setPw]      = useState('');
   const [confirm, setConfirm] = useState('');
@@ -95,7 +96,7 @@ export default function Auth({ onSuccess, onGuestMode }) {
   const switchMode = (m) => {
     setMode(m);setForgotMode(false);
     setError(null); setNotice(null);
-    setPw(''); setConfirm('');
+    setName(''); setPw(''); setConfirm('');
     setShowPw(false); setShowCf(false);
   };
 
@@ -147,7 +148,12 @@ export default function Auth({ onSuccess, onGuestMode }) {
     setLoading(true);
 
     if (mode === 'signup') {
-      const { data, error: err } = await supabase.auth.signUp({ email, password: pw });
+      // display_name prefills Player 1 whenever this account creates a group
+      const { data, error: err } = await supabase.auth.signUp({
+        email,
+        password: pw,
+        options: { data: { display_name: name.trim() } },
+      });
       setLoading(false);
       if (err) {
         setError(err.message);
@@ -291,7 +297,23 @@ export default function Auth({ onSuccess, onGuestMode }) {
           // Regular Login/Signup Form
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
 
-            {/* Name was intentionally removed: we no longer collect full name on signup */}
+            {/* Your Name (signup only) — stored as auth display_name and used
+                as the default Player 1 whenever this account creates a group */}
+            {mode === 'signup' && (
+              <div>
+                <label className="form-label" htmlFor="auth-name">Your Name</label>
+                <input
+                  id="auth-name"
+                  className="form-input"
+                  type="text"
+                  value={name}
+                  onChange={e => setName(e.target.value)}
+                  required
+                  autoComplete="name"
+                  autoFocus
+                />
+              </div>
+            )}
 
             {/* Email */}
             <div>

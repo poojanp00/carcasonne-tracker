@@ -12,10 +12,18 @@ export function useAuth() {
     const isRecoveryMode = sessionStorage.getItem('isRecoveryMode') === 'true';
     
     // Resolve existing session immediately
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       // Don't set user if we're in recovery mode, even if there's a session
       if (!isRecoveryMode) {
-        setUser(session?.user ?? null);
+        let sessionUser = session?.user ?? null;
+        // The cached session snapshots user_metadata at sign-in time; fetch
+        // the authoritative user so metadata changes (e.g. display_name
+        // backfills) show up without needing to sign out and back in.
+        if (session) {
+          const { data } = await supabase.auth.getUser();
+          if (data?.user) sessionUser = data.user;
+        }
+        setUser(sessionUser);
       }
       setAuthLoading(false);
     });

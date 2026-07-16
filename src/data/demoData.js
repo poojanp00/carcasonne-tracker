@@ -1,7 +1,11 @@
 export const DEMO_REALM = {
   id: 'demo-realm',
   name: 'Demo Group',
-  players: ['Player 1', 'Player 2'],
+  // Same object shape as DB realms ({ name, userId, status })
+  players: [
+    { name: 'Player 1', userId: null, status: 'uninvited' },
+    { name: 'Player 2', userId: null, status: 'uninvited' },
+  ],
   created_at: '2026-03-25T00:00:00.000Z',
   isOwner: true, // Uniform owner-gating shape with DB realms
 };

@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 import { DEFAULT_EXPANSIONS } from './expansions';
 import { computeWinners } from '../utils/scoring';
+import { normalizePlayers, toDbPlayers } from '../utils/players';
 
 export function generateRealmId() {
   return crypto.randomUUID().toUpperCase();
@@ -18,11 +19,12 @@ export function generateId() {
  * RETRIEVE USER'S REALMS
  *
  * Fetches all game realms visible to the authenticated user: realms they own
- * plus realms shared with them via an accepted realm_members invite.
+ * plus realms shared with them via a membership element in the realm's
+ * players jsonb (status 'owner' or 'member').
  *
- * Security: RLS (migrations/realm_sharing.sql) scopes the select — owners see
- * their realms, accepted members see shared ones. No app-side filter, since
- * that would hide shared realms.
+ * Security: RLS (migrations/realm_members_to_players.sql) scopes the select —
+ * owners see their realms, accepted members see shared ones. No app-side
+ * filter beyond defense in depth, since that would hide shared realms.
  * Ordering: Sorted by creation date for consistent display.
  *
  * @param {string} userId - Supabase auth user ID (used to derive isOwner)
@@ -31,32 +33,25 @@ export function generateId() {
 export async function getRealms(userId) {
   if (!userId) return []; // No user = no realms
 
-  const [{ data }, { data: memberships }] = await Promise.all([
-    supabase.from('realms').select('*').order('created_at'),
-    supabase
-      .from('realm_members')
-      .select('realm_id')
-      .eq('user_id', userId)
-      .eq('status', 'accepted'),
-  ]);
+  const { data } = await supabase.from('realms').select('*').order('created_at');
 
   // Defense in depth: even though RLS should already scope the select, only
-  // keep realms the user owns or has an accepted membership in. A leftover
+  // keep realms the user owns or is linked to as owner/member. A leftover
   // permissive policy (or RLS accidentally disabled) must never leak other
   // people's realms into the UI.
-  const sharedIds = new Set((memberships || []).map(m => m.realm_id));
-
-  // Normalize database structure to application format
   return (data || [])
-    .filter(r => r.user_id === userId || sharedIds.has(r.id))
     .map(r => ({
       id:           r.id,
       name:         r.name,
-      players:      r.players || [],
+      players:      normalizePlayers(r.players),
       createdAt:    r.created_at,
       ownerId:      r.user_id,
-      isOwner:      r.user_id === userId, // Gates delete/export/edit UI for shared realms
-    }));
+      isOwner:      r.user_id === userId, // Gates delete/invite/edit UI for shared realms
+    }))
+    .filter(r =>
+      r.isOwner ||
+      r.players.some(p => p.userId === userId && (p.status === 'owner' || p.status === 'member'))
+    );
 }
 
 /**
@@ -80,7 +75,7 @@ export async function saveRealm(realm, userId) {
   const { data, error } = await supabase.from('realms').upsert({
     id:            realm.id,
     name:          realm.name,
-    players:       realm.players || [],
+    players:       toDbPlayers(realm.players),
     created_at:    realm.createdAt,
     user_id:       userId, // Enforce ownership
   });
@@ -109,16 +104,16 @@ export async function deleteRealm(realmId) {
 }
 
 // ── Realm sharing (invites & membership) ─────────────────────────────────────
-// All writes go through SECURITY DEFINER RPCs (migrations/realm_sharing.sql);
-// the realm_members table has no client-side write policies.
+// Membership lives in the realm's players jsonb; all membership writes go
+// through SECURITY DEFINER RPCs (migrations/realm_members_to_players.sql).
 
 /**
  * SEND A GROUP INVITE
  *
- * Owner invites another account (by email) to their realm, linked to one of
- * the group's players. The RPC validates ownership, the player link, and that
- * the email has an account — errors come back with user-facing messages
- * ("No account found with that email.", "That player is already linked…").
+ * Owner invites another account (by email) to one of the group's uninvited
+ * players. The RPC validates ownership, the player slot, and that the email
+ * has an account — errors come back with user-facing messages ("No account
+ * found with that email.", "That player is already linked…").
  */
 export async function sendRealmInvite(realmId, email, playerName) {
   const { error } = await supabase.rpc('invite_to_realm', {
@@ -130,73 +125,56 @@ export async function sendRealmInvite(realmId, email, playerName) {
 }
 
 /**
- * CLAIM OWN PLAYER LINK (group creator)
- *
- * Records which of the group's players the owner is, as an accepted
- * realm_members row — it then shows in the linkage list, reserves the player
- * in the export modal, and names the inviter in invite prompts.
- */
-export async function claimRealmPlayer(realmId, playerName) {
-  const { error } = await supabase.rpc('claim_realm_player', {
-    p_realm_id: realmId,
-    p_player:   playerName,
-  });
-  if (error) throw new Error(error.message || 'Failed to link player');
-}
-
-/**
  * PENDING INVITES FOR THE SIGNED-IN USER
  *
  * Everything the accept/decline prompt shows: group name, its players, which
- * player this account would be linked to, and who invited them (their claimed
- * player name plus account email).
+ * player this account would be linked to, and who invited them (the owner's
+ * display name plus account email).
  */
 export async function getPendingInvites() {
   const { data, error } = await supabase.rpc('list_my_pending_invites');
   if (error) return [];
   return (data || []).map(i => ({
-    id:            i.invite_id,
-    realmId:       i.realm_id,
-    realmName:     i.realm_name,
-    players:       i.players || [],
-    playerName:    i.player_name,
-    inviterEmail:  i.inviter_email,
-    inviterPlayer: i.inviter_player,
+    realmId:      i.realm_id,
+    realmName:    i.realm_name,
+    players:      normalizePlayers(i.players),
+    playerName:   i.player_name,
+    inviterName:  i.inviter_name,
+    inviterEmail: i.inviter_email,
   }));
 }
 
 /**
  * ACCEPT OR DECLINE AN INVITE
  *
- * Accept marks the membership accepted (the shared realm becomes visible);
- * decline deletes the row, freeing the player link for a future invite.
+ * Keyed by realm — an account has at most one player element per realm.
+ * Accept flips it to 'member' (the shared realm becomes visible); decline
+ * resets it to uninvited, freeing the player slot for a future invite.
  */
-export async function respondToInvite(inviteId, accept) {
+export async function respondToInvite(realmId, accept) {
   const { error } = await supabase.rpc('respond_to_realm_invite', {
-    p_invite_id: inviteId,
-    p_accept:    accept,
+    p_realm_id: realmId,
+    p_accept:   accept,
   });
   if (error) throw new Error(error.message || 'Failed to respond to invite');
 }
 
 /**
- * MEMBERS/INVITES OF A REALM
+ * EMAILS OF A REALM'S LINKED ACCOUNTS
  *
- * Plain select — RLS lets the owner and every accepted member read the full
- * linkage list. Used for the Export modal's player picker (already-linked
- * players are reserved) and the "who is who" tags in the players card.
+ * Read-time lookup for the status-label tooltips — emails are deliberately
+ * not stored in the players jsonb. Returns a { userId: email } map; empty on
+ * error (tooltips just don't show).
  */
-export async function getRealmMembers(realmId) {
-  const { data } = await supabase
-    .from('realm_members')
-    .select('user_id, invited_email, player_name, status')
-    .eq('realm_id', realmId);
-  return (data || []).map(m => ({
-    userId:     m.user_id,
-    email:      m.invited_email,
-    playerName: m.player_name,
-    status:     m.status,
-  }));
+export async function getRealmMemberEmails(realmId) {
+  const { data, error } = await supabase.rpc('get_realm_member_emails', {
+    p_realm_id: realmId,
+  });
+  if (error) {
+    console.warn('getRealmMemberEmails failed (status tooltips disabled):', error.message);
+    return {};
+  }
+  return Object.fromEntries((data || []).map(r => [r.user_id, r.email]));
 }
 
 /**
@@ -350,15 +328,19 @@ export async function saveOwnedExpansions(ownedNames, userId, email) {
 /**
  * DELETE ACCOUNT (GDPR/CCPA right to be forgotten)
  *
- * Cascades: games → realms → user_expansions → auth user.
+ * Cascades: shared-realm links → games → realms → user_expansions → auth user.
  * The auth.users delete is handled by the delete_user() RPC (SECURITY DEFINER).
- * realm_members rows (invites sent/received) clean up via FK on-delete-cascade
- * from both realms and auth.users — no explicit step needed here.
+ * Memberships live in other owners' realms.players jsonb, so they must be
+ * reset explicitly via the unlink RPC — there is no FK cascade for them.
  *
  * @param {string} userId - Supabase auth user ID
  */
 export async function deleteAccount(userId) {
   if (!userId) throw new Error('deleteAccount called without userId');
+
+  // 0. Reset this account's player links in realms it doesn't own, so those
+  //    groups show the slot as uninvited again.
+  await supabase.rpc('unlink_me_from_shared_realms');
 
   // 1. Delete all games belonging to the user's realms
   const { data: realms } = await supabase
@@ -413,7 +395,7 @@ export async function migrateFromLocalStorage(userId, email) {
           realms.map(r => ({
             id:         r.id,
             name:       r.name,
-            players:    r.players || [],
+            players:    toDbPlayers(r.players), // legacy backups store plain name strings
             created_at: r.createdAt || new Date().toISOString().split('T')[0],
             user_id:    userId || null,
           }))

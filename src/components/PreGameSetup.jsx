@@ -20,7 +20,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { MAX_GAME_PLAYERS, MAX_REALMS } from '../constants';
 import { formatPieceName } from '../utils/formatters';
 import { DEFAULT_EXPANSIONS } from '../data/expansions';
-import { getRealmMembers } from '../data/storage';
+import { getRealmMemberEmails } from '../data/storage';
 import { useClampTooltip } from '../hooks/useClampTooltip';
 import { useTapTooltip } from '../hooks/useTapTooltip';
 import { HowToPlayModal } from './HowToGuide';
@@ -57,7 +57,7 @@ const FUN_MEEPLES = Object.entries(FUN_MODULES)
     img
   }));
 
-export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeples, defaultExpansions, realms = [], currentRealm = null, onRealmChange, onRealmCreate, onExportGroup = null, startAtRealmCreation = false, startAtModeSelection = false, isGuest = false }) {
+export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeples, defaultExpansions, realms = [], currentRealm = null, onRealmChange, onRealmCreate, onExportGroup = null, startAtRealmCreation = false, startAtModeSelection = false, isGuest = false, selfName = '' }) {
   // Steps: 0=Group selection, 1=Realm creation, 2=Mode selection, 3=Meeples (table only), 4=Expansions
   // Every fresh mount starts at group selection (or creation when no groups exist yet), so
   // navigating away mid-setup and back restarts the flow. startAtModeSelection is the one
@@ -76,11 +76,11 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
   const [showHowTo, setShowHowTo] = useState(false);
   const [realmName, setRealmName] = useState('');
   const [playerCount, setPlayerCount] = useState(2);
-  const [playerNames, setPlayerNames] = useState(['', '']);
+  // Player 1 is always the creator for signed-in users — prefilled with their
+  // account name but editable (a per-group nickname is fine; the account link
+  // is by slot, not by name).
+  const [playerNames, setPlayerNames] = useState([selfName || '', '']);
   const [nameError, setNameError] = useState('');
-  // Which of the entered players the creator is (index into playerNames).
-  // Signed-in users only — the link powers "who is who" and invite messages.
-  const [selfIdx, setSelfIdx] = useState(null);
 
   // Export Group (step 0) — invite another account to this realm
   const [showExport,   setShowExport]   = useState(false);
@@ -89,22 +89,29 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
   const [inviteBusy,   setInviteBusy]   = useState(false);
   const [inviteSent,   setInviteSent]   = useState(false);
   const [inviteError,  setInviteError]  = useState('');
-  const [members,      setMembers]      = useState([]);
+  // Players invited during this mount — overlays their status as 'pending'
+  // until the realms refetch on next load catches up. (The component remounts
+  // when the selected realm changes, so this never leaks across groups.)
+  const [sentInvites,  setSentInvites]  = useState([]);
 
-  // Load the realm's membership list (linked/invited accounts) for the player
-  // linkage tags and the export modal's player picker. Signed-in only.
+  // Membership now rides on currentRealm.players ({ name, userId, status }),
+  // so no separate members fetch is needed.
+  const playerStatus = (p) =>
+    p.status === 'uninvited' && sentInvites.includes(p.name) ? 'pending' : p.status;
+
+  // Emails of the linked accounts, shown as hover tooltips on the status
+  // labels. Looked up at read time — emails aren't stored on the realm.
+  const [memberEmails, setMemberEmails] = useState({});
   useEffect(() => {
-    if (!onExportGroup || !currentRealm?.id) { setMembers([]); return; }
+    if (isGuest || !currentRealm?.id) { setMemberEmails({}); return; }
     let stale = false;
-    getRealmMembers(currentRealm.id).then(m => { if (!stale) setMembers(m); });
+    getRealmMemberEmails(currentRealm.id).then(m => { if (!stale) setMemberEmails(m); });
     return () => { stale = true; };
-  }, [onExportGroup, currentRealm?.id]);
+  }, [isGuest, currentRealm?.id]);
 
-  const memberByPlayer = Object.fromEntries(members.map(m => [m.playerName, m]));
-
-  const openExport = () => {
+  const openExport = (playerName) => {
     setInviteEmail('');
-    setInvitePlayer(null);
+    setInvitePlayer(playerName);
     setInviteSent(false);
     setInviteError('');
     setShowExport(true);
@@ -112,17 +119,14 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
 
   const handleSendInvite = async (e) => {
     e.preventDefault();
-    if (!invitePlayer) {
-      setInviteError('Choose which player they will be.');
-      return;
-    }
+    if (!invitePlayer) return;
     setInviteBusy(true);
     setInviteError('');
     try {
       await onExportGroup(currentRealm.id, inviteEmail.trim(), invitePlayer);
       setInviteSent(true);
       // Reflect the newly reserved player immediately
-      getRealmMembers(currentRealm.id).then(setMembers);
+      setSentInvites(prev => [...prev, invitePlayer]);
     } catch (err) {
       setInviteError(err?.message || 'Failed to send invite.');
     } finally {
@@ -131,7 +135,7 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
   };
 
   // Limit active players to game maximum and ensure they exist
-  const activePlayers = (realm?.players || playerNames.filter(n => n.trim())).slice(0, MAX_GAME_PLAYERS);
+  const activePlayers = (realm?.players ? realm.players.map(p => p.name) : playerNames.filter(n => n.trim())).slice(0, MAX_GAME_PLAYERS);
 
   const syncCount = (n) => {
     const clamped = Math.max(2, Math.min(6, n));
@@ -141,7 +145,6 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
       while (updated.length < clamped) updated.push('');
       return updated.slice(0, clamped);
     });
-    setSelfIdx(prev => (prev !== null && prev >= clamped ? null : prev));
   };
 
   const handleCreateRealm = async (e) => {
@@ -176,17 +179,13 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
       return;
     }
 
-    if (!isGuest && selfIdx === null) {
-      setNameError('Select which player you are.');
-      return;
-    }
-
     setNameError('');
     if (onRealmCreate) {
       await onRealmCreate({
         name: finalRealmName,
         players: names,
-        selfPlayer: isGuest ? null : names[selfIdx],
+        // Player 1 is always the creator for signed-in users
+        selfPlayer: isGuest ? null : names[0],
       });
       // Don't automatically navigate - let the parent component handle the flow
     } else {
@@ -451,42 +450,62 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
           <div className="tile-card" style={{ marginBottom: '1.2rem' }}>
             <div style={{ fontFamily: 'Cinzel, serif', fontSize: 'clamp(0.62rem, 1.8vw, 0.78rem)', fontWeight: 600, color: 'var(--stone-gray)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '0.8rem' }}>Players</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
-              {(currentRealm.players || []).map((p, i) => (
-                <div key={p} style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.75rem',
-                  padding: '0.55rem 0',
-                  borderBottom: i < (currentRealm.players.length - 1) ? '1px solid var(--border-light)' : 'none',
-                }}>
-                  <span style={{
-                    fontFamily: 'Cinzel, serif',
-                    fontSize: '0.7rem',
-                    color: 'var(--stone-gray)',
-                    opacity: 0.5,
-                    minWidth: '1rem',
-                    textAlign: 'right',
-                  }}>{i + 1}</span>
-                  <span style={{
-                    fontFamily: 'Cinzel, serif',
-                    fontSize: '1rem',
-                    fontWeight: 600,
-                    color: 'var(--earth-brown)',
-                    letterSpacing: '0.02em',
-                  }}>{p}</span>
-                  {memberByPlayer[p] && (
+              {(currentRealm.players || []).map((p, i) => {
+                const status = playerStatus(p);
+                return (
+                  <div key={p.name} style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.75rem',
+                    padding: '0.55rem 0',
+                    borderBottom: i < (currentRealm.players.length - 1) ? '1px solid var(--border-light)' : 'none',
+                  }}>
                     <span style={{
-                      fontFamily: 'Crimson Text, serif',
-                      fontStyle: 'italic',
-                      fontSize: '0.78rem',
+                      fontFamily: 'Cinzel, serif',
+                      fontSize: '0.7rem',
                       color: 'var(--stone-gray)',
-                      marginLeft: 'auto',
-                    }}>
-                      {memberByPlayer[p].status === 'accepted' ? memberByPlayer[p].email : 'invite pending'}
-                    </span>
-                  )}
-                </div>
-              ))}
+                      opacity: 0.5,
+                      minWidth: '1rem',
+                      textAlign: 'right',
+                    }}>{i + 1}</span>
+                    <span style={{
+                      fontFamily: 'Cinzel, serif',
+                      fontSize: '1rem',
+                      fontWeight: 600,
+                      color: 'var(--earth-brown)',
+                      letterSpacing: '0.02em',
+                    }}>{p.name}</span>
+                    {/* Right side: the player's link status — or an Invite
+                        action while the slot is unclaimed (any member) */}
+                    {!isGuest && (
+                      status === 'uninvited' && onExportGroup ? (
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-sm"
+                          style={{ marginLeft: 'auto' }}
+                          title="Share this group with another account as this player"
+                          onClick={() => openExport(p.name)}
+                        >
+                          ↑ Invite
+                        </button>
+                      ) : (
+                        <span
+                          title={p.userId ? memberEmails[p.userId] : undefined}
+                          style={{
+                            fontFamily: 'Crimson Text, serif',
+                            fontStyle: 'italic',
+                            fontSize: '0.78rem',
+                            color: 'var(--stone-gray)',
+                            marginLeft: 'auto',
+                          }}
+                        >
+                          {{ owner: 'Owner', member: 'Member', pending: 'Pending', uninvited: 'Uninvited' }[status] || 'Uninvited'}
+                        </span>
+                      )
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
@@ -494,17 +513,6 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
         <div style={{ display: 'flex', gap: '0.7rem', alignItems: 'center', justifyContent: 'space-between', marginTop: '0.5rem' }}>
           <div style={{ display: 'flex', gap: '0.7rem', flexWrap: 'wrap' }}>
             <button type="button" className="btn btn-ghost" onClick={() => setStep(1)}>+ New</button>
-            {onExportGroup && (
-              <button
-                type="button"
-                className="btn btn-ghost"
-                disabled={!currentRealm || currentRealm.isOwner === false}
-                title={currentRealm?.isOwner === false ? 'Only the group owner can export it' : 'Share this group with another account'}
-                onClick={openExport}
-              >
-                ↑ Export
-              </button>
-            )}
           </div>
           <button
             type="button"
@@ -516,15 +524,18 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
           </button>
         </div>
 
-        {/* Export Group modal — invite another account, linked to one player */}
+        {/* Invite modal — share the group with another account, linked to the
+            player whose row the Invite button was clicked on */}
         {showExport && currentRealm && (
           <div className="realm-modal-overlay" onClick={() => setShowExport(false)}>
             <div className="realm-modal tile-card" onClick={e => e.stopPropagation()} style={{ maxWidth: '440px' }}>
-              <h3 style={{ color: 'var(--earth-brown)', marginBottom: '0.8rem' }}>Invite someone to join {currentRealm.name}?</h3>
+              <h3 style={{ color: 'var(--earth-brown)', marginBottom: '0.8rem' }}>
+                {inviteSent ? 'Invite sent!' : <>Invite {invitePlayer} to join {currentRealm.name}?</>}
+              </h3>
               {inviteSent ? (
                 <>
                   <p style={{ fontFamily: 'Crimson Text, serif', fontSize: '0.95rem', color: 'var(--charcoal)', margin: '0 0 1.2rem' }}>
-                    Invite sent! They'll be asked to join <strong>{currentRealm.name}</strong> as{' '}
+                    They'll be asked to join <strong>{currentRealm.name}</strong> as{' '}
                     <strong>{invitePlayer}</strong> next time they open the app.
                   </p>
                   <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
@@ -534,7 +545,7 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
               ) : (
                 <form onSubmit={handleSendInvite}>
                   <p style={{ fontFamily: 'Crimson Text, serif', fontStyle: 'italic', fontSize: '0.88rem', color: 'var(--stone-gray)', margin: '0 0 1rem' }}>
-                    The group will be shared with them allowing both accounts to use it.
+                    Their account will be linked to the player and group.
                   </p>
                   <div className="form-group">
                     <label className="form-label" htmlFor="export-email">Account email</label>
@@ -547,27 +558,6 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
                       required
                       autoFocus
                     />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Which player are they?</label>
-                    <div className="expansion-chips">
-                      {(currentRealm.players || []).map(p => {
-                        const taken = !!memberByPlayer[p];
-                        return (
-                          <button
-                            key={p}
-                            type="button"
-                            className={`expansion-chip${invitePlayer === p ? ' selected' : ''}`}
-                            disabled={taken}
-                            title={taken ? 'Already linked to an account' : undefined}
-                            style={taken ? { opacity: 0.45 } : undefined}
-                            onClick={() => { setInvitePlayer(p); setInviteError(''); }}
-                          >
-                            {p}
-                          </button>
-                        );
-                      })}
-                    </div>
                   </div>
                   {inviteError && (
                     <p style={{ color: 'var(--deep-red)', fontStyle: 'italic', fontSize: '0.88rem', margin: '0 0 0.6rem' }}>
@@ -650,53 +640,45 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
               </div>
             </div>
             <div className="form-group" style={{ marginBottom: 0, maxWidth: '360px' }}>
-              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
-                <label className="form-label">Player Names</label>
-                {!isGuest && (
-                  <span className="form-label" title="Select which player you are" style={{ width: '2rem', textAlign: 'center' }}>
-                    ME
-                  </span>
-                )}
-              </div>
+              <label className="form-label">Player Names</label>
               <div className="realm-player-inputs">
-                {playerNames.map((name, i) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                    <input
-                      className="form-input"
-                      style={{ flex: 1 }}
-                      value={name}
-                      onChange={e => {
-                        const u = [...playerNames];
-                        u[i] = e.target.value;
-                        setPlayerNames(u);
-                        setNameError('');
-                      }}
-                      placeholder={`Player ${i + 1}`}
-                    />
-                    {!isGuest && (
-                      <span style={{ width: '2rem', display: 'flex', justifyContent: 'center' }}>
-                        <button
-                          type="button"
-                          role="radio"
-                          aria-checked={selfIdx === i}
-                          aria-label={`This is me: ${name.trim() || `Player ${i + 1}`}`}
-                          onClick={() => { setSelfIdx(i); setNameError(''); }}
-                          style={{
-                            width: '1.15rem',
-                            height: '1.15rem',
-                            borderRadius: '50%',
-                            border: '2px solid var(--warm-gold)',
-                            background: selfIdx === i ? 'var(--earth-brown)' : 'transparent',
-                            boxShadow: selfIdx === i ? 'inset 0 0 0 2px var(--parchment)' : 'none',
-                            cursor: 'var(--cursor-pointer)',
-                            padding: 0,
-                            flexShrink: 0,
-                          }}
-                        />
-                      </span>
-                    )}
-                  </div>
-                ))}
+                {playerNames.map((name, i) => {
+                  // Player 1 is always the creator's own slot for signed-in
+                  // users; the name stays editable (per-group nickname). The
+                  // hint floats inside the input so all boxes stay full width.
+                  const isSelf = !isGuest && i === 0;
+                  return (
+                    <div key={i} style={{ position: 'relative' }}>
+                      <input
+                        className="form-input"
+                        style={{ width: '100%', ...(isSelf ? { paddingRight: '3rem' } : {}) }}
+                        value={name}
+                        onChange={e => {
+                          const u = [...playerNames];
+                          u[i] = e.target.value;
+                          setPlayerNames(u);
+                          setNameError('');
+                        }}
+                        placeholder={`Player ${i + 1}`}
+                      />
+                      {isSelf && (
+                        <span style={{
+                          position: 'absolute',
+                          right: '0.65rem',
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          fontFamily: 'Crimson Text, serif',
+                          fontStyle: 'italic',
+                          fontSize: '0.78rem',
+                          color: 'var(--stone-gray)',
+                          pointerEvents: 'none',
+                        }}>
+                          (you)
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>

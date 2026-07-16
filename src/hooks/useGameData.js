@@ -148,7 +148,8 @@ export function useGameData(user, authLoading) {
    * - Auto-generates secure uppercase UUID
    * - Sets creation date for tracking
    * 
-   * @param {Object} data - Realm details (name, players, etc.)
+   * @param {Object} data - Realm details: name, players (name strings), and
+   *                        selfPlayer (which player the creator is, or null)
    * @returns {Object} Created realm with generated ID
    */
   const addRealm = useCallback(async (data) => {
@@ -161,8 +162,14 @@ export function useGameData(user, authLoading) {
     if (realms.filter(r => r.isOwner !== false).length >= MAX_REALMS) {
       throw new Error(`Realm limit reached (${MAX_REALMS})`);
     }
+    const { selfPlayer, ...rest } = data;
     const realm = {
-      ...data,
+      ...rest,
+      // The creator's own slot is written directly as 'owner' — everyone else
+      // starts uninvited until an invite links their account.
+      players: (data.players || []).map(name => name === selfPlayer
+        ? { name, userId: user.id, status: 'owner' }
+        : { name, userId: null, status: 'uninvited' }),
       id:        generateRealmId(), // Uppercase UUID for visual distinction
       createdAt: new Date().toISOString().split('T')[0], // YYYY-MM-DD format
       ownerId:   user.id,
@@ -179,25 +186,25 @@ export function useGameData(user, authLoading) {
    * Accepting makes the shared realm (and its full game history) visible, so
    * both realms and games are refetched. Declining just drops the invite.
    */
-  const acceptInvite = useCallback(async (inviteId) => {
-    await respondToInvite(inviteId, true);
-    setPendingInvites(prev => prev.filter(i => i.id !== inviteId));
+  const acceptInvite = useCallback(async (realmId) => {
+    await respondToInvite(realmId, true);
+    setPendingInvites(prev => prev.filter(i => i.realmId !== realmId));
     const [g, r] = await Promise.all([getGames(), getRealms(user?.id)]);
     const realmIds = new Set(r.map(x => x.id));
     setGames(g.filter(game => realmIds.has(game.realmId)));
     setRealms(r);
   }, [user]);
 
-  const declineInvite = useCallback(async (inviteId) => {
-    await respondToInvite(inviteId, false);
-    setPendingInvites(prev => prev.filter(i => i.id !== inviteId));
+  const declineInvite = useCallback(async (realmId) => {
+    await respondToInvite(realmId, false);
+    setPendingInvites(prev => prev.filter(i => i.realmId !== realmId));
   }, []);
 
   /**
    * LEAVE A SHARED REALM (member side)
    *
-   * Drops the membership row; the realm and its games vanish from this
-   * account's view. The owner's data is untouched.
+   * Resets the member's player slot to uninvited; the realm and its games
+   * vanish from this account's view. The owner's data is untouched.
    */
   const leaveSharedRealm = useCallback(async (realmId) => {
     await leaveRealm(realmId);

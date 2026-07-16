@@ -5,7 +5,6 @@ import Statistics    from './components/Statistics';
 import Collection, { GUEST_ALLOWED_MINIS } from './components/Collection';
 import Board         from './components/Board';
 import Lobby         from './components/Lobby';
-import RealmPicker   from './components/RealmPicker';
 import PreGameSetup  from './components/PreGameSetup';
 import Auth          from './components/Auth';
 import ChipGroup     from './components/ChipGroup';
@@ -15,7 +14,7 @@ import { HowToPlayModal } from './components/HowToGuide';
 import { useGameData } from './hooks/useGameData';
 import { useAuth }     from './hooks/useAuth';
 import { resetBoard }  from './data/boardStorage';
-import { deleteAccount, sendRealmInvite, claimRealmPlayer } from './data/storage';
+import { deleteAccount, sendRealmInvite } from './data/storage';
 import { DEFAULT_EXPANSIONS } from './data/expansions';
 import { DEMO_REALM, DEMO_GAMES } from './data/demoData';
 import { TABS, APP_CONFIG, EXPANSION_TYPES, PINNED_EXPANSIONS } from './constants';
@@ -72,6 +71,9 @@ export default function App() {
 
   const { user, authLoading, signOut, completeRecovery, isGuest, enableGuestMode, signOutGuest, guestUserId } = useAuth();
   const userId = isGuest ? guestUserId : user?.id;
+  // Signup name — prefills Player 1 when creating a group (empty for guests
+  // and for accounts created before the name field existed).
+  const displayName = isGuest ? '' : (user?.user_metadata?.display_name || '');
   const { games, expansions, realms, pendingInvites, loading, addGame, deleteGame, toggleExpansion, addRealm, updateRealm, removeRealm, acceptInvite, declineInvite, leaveSharedRealm } = useGameData(isGuest ? null : user, authLoading || (isGuest && false));
 
   // Guest mode state
@@ -102,7 +104,8 @@ export default function App() {
       const guestRealm = {
         id: `guest-realm-${Date.now()}`,
         name: data.name || 'Guest Realm',
-        players: data.players || [],
+        // Same object shape as DB realms; guest players are never linked
+        players: (data.players || []).map(name => ({ name, userId: null, status: 'uninvited' })),
         created_at: new Date().toISOString(),
         isOwner: true, // Uniform owner-gating shape with DB realms
       };
@@ -160,13 +163,9 @@ export default function App() {
 
   const handleRealmCreate = useCallback(async (data) => {
     try {
+      // addRealm embeds the creator's 'owner' element from data.selfPlayer —
+      // no separate claim step needed anymore.
       const realm = await appOperations.addRealm(data);
-      // Link the creator to the player they said they are — powers the
-      // "who is who" tags and names them in invites. Non-fatal if it fails.
-      if (!isGuest && data.selfPlayer) {
-        try { await claimRealmPlayer(realm.id, data.selfPlayer); }
-        catch (err) { console.error('claim player failed', err); }
-      }
       setSession({ realm, showRealmCreation: false });
       setRealmPickerKey(k => k + 1);
       if (isGuest) setGuestResumeAtMode(true);
@@ -297,13 +296,13 @@ export default function App() {
     []
   );
 
-  const handleInviteAccept = useCallback(async (inviteId) => {
-    await acceptInvite(inviteId);
+  const handleInviteAccept = useCallback(async (realmId) => {
+    await acceptInvite(realmId);
     showToast('Group added to your account.');
   }, [acceptInvite, showToast]);
 
   const handleInviteDecline = useCallback(
-    (inviteId) => declineInvite(inviteId),
+    (realmId) => declineInvite(realmId),
     [declineInvite]
   );
 
@@ -491,6 +490,7 @@ export default function App() {
                           onExportGroup={isGuest ? null : handleExportGroup}
                           startAtRealmCreation={true}
                           isGuest={isGuest}
+                          selfName={displayName}
                         />
                       : <PreGameSetup
                         key={session.realm.id}
@@ -506,6 +506,7 @@ export default function App() {
                         onExportGroup={isGuest ? null : handleExportGroup}
                         startAtModeSelection={isGuest && guestResumeAtMode}
                         isGuest={isGuest}
+                        selfName={displayName}
                       />
                 : appData.realms.length === 0
                   ? <PreGameSetup
@@ -522,6 +523,7 @@ export default function App() {
                       onExportGroup={isGuest ? null : handleExportGroup}
                       startAtRealmCreation={true}
                       isGuest={isGuest}
+                      selfName={displayName}
                     />
                   : isGuest
                     ? <PreGameSetup
@@ -564,33 +566,21 @@ export default function App() {
             )}
             {tab === 'home' && <Landing onNavigate={handleTabChange} />}
             {tab === 'history' && <Logbook games={displayGames} realms={displayRealms} currentRealm={displayCurrentRealm} onRealmChange={handleRealmSelect} onDelete={handleDelete} isGuest={isGuest} showDemoData={showDemoData} onToggleDemoData={isGuest ? toggleDemo : null} openGame={openGame} onOpenGameClear={() => setOpenGame(null)} />}
+            {/* Always rendered, like Logbook — Statistics shows its own
+                "Select a group…" empty state when no group is active */}
             {tab === 'statistics' && (
-              <>
-                {!demoOn && (
-                  <RealmPicker
-                    key={realmPickerKey}
-                    realms={appData.realms}
-                    currentRealm={session?.realm || null}
-                    onSelect={handleRealmSelect}
-                    onCreate={handleRealmCreate}
-                    isGuest={isGuest}
-                  />
-                )}
-                {(session?.realm || isGuest) && (
-                  <Statistics
-                    games={displayGames}
-                    realms={displayRealms}
-                    currentRealm={displayCurrentRealm}
-                    onRealmChange={handleRealmSelect}
-                    onDelete={handleRealmDelete}
-                    onLeave={handleRealmLeave}
-                    isGuest={isGuest}
-                    showDemoData={showDemoData}
-                    onToggleDemoData={isGuest ? toggleDemo : null}
-                    onNavigateToGame={game => { setOpenGame(game); setTab('history'); }}
-                  />
-                )}
-              </>
+              <Statistics
+                games={displayGames}
+                realms={displayRealms}
+                currentRealm={displayCurrentRealm}
+                onRealmChange={handleRealmSelect}
+                onDelete={handleRealmDelete}
+                onLeave={handleRealmLeave}
+                isGuest={isGuest}
+                showDemoData={showDemoData}
+                onToggleDemoData={isGuest ? toggleDemo : null}
+                onNavigateToGame={game => { setOpenGame(game); setTab('history'); }}
+              />
             )}
             {tab === 'collection' && <Collection expansions={appData.expansions} onToggle={appOperations.toggleExpansion} userId={user?.id} isGuest={isGuest} onDeleteAccount={async () => { await deleteAccount(user?.id); signOut(); }} />}
           </div>
