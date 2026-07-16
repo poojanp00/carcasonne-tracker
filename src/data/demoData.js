@@ -3,6 +3,7 @@ export const DEMO_REALM = {
   name: 'Demo Group',
   players: ['Player 1', 'Player 2'],
   created_at: '2026-03-25T00:00:00.000Z',
+  isOwner: true, // Uniform owner-gating shape with DB realms
 };
 
 export const DEMO_GAMES = [

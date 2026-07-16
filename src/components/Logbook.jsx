@@ -54,7 +54,7 @@ export default function GameHistory({ games, realms = [], currentRealm = null, o
           games={realmGames}
           onNavigate={setSelectedGame}
           onClose={() => setSelectedGame(null)}
-          onDeleteRequest={isGuest && showDemoData ? null : () => setConfirmDeleteId(selectedGame.id)}
+          onDeleteRequest={(isGuest && showDemoData) || currentRealm?.isOwner === false ? null : () => setConfirmDeleteId(selectedGame.id)}
         />
       )}
 

@@ -27,6 +27,7 @@ import {
   getGames, insertGame, removeGame,
   getExpansions, saveOwnedExpansions,
   getRealms, saveRealm, deleteRealm,
+  getPendingInvites, respondToInvite, leaveRealm,
   generateId, generateRealmId,
   migrateFromLocalStorage,
 } from '../data/storage';
@@ -36,10 +37,11 @@ export function useGameData(user, authLoading) {
   // within a reasonable number of distinct groups/settings.
   // Business rule: Most users have 2-4 active game groups (family, friends, etc.)
   const MAX_REALMS = 12;
-  const [games,      setGames]      = useState([]);
-  const [expansions, setExpansions] = useState([]);
-  const [realms,     setRealms]     = useState([]);
-  const [loading,    setLoading]    = useState(true);
+  const [games,          setGames]          = useState([]);
+  const [expansions,     setExpansions]     = useState([]);
+  const [realms,         setRealms]         = useState([]);
+  const [pendingInvites, setPendingInvites] = useState([]);
+  const [loading,        setLoading]        = useState(true);
 
   /**
    * DATA INITIALIZATION EFFECT
@@ -62,15 +64,19 @@ export function useGameData(user, authLoading) {
       if (user) await migrateFromLocalStorage(user.id, user.email);
       
       // Load all data in parallel for performance
-      // Note: games load globally for now (filtered by realm in components)
-      const [g, e, r] = await Promise.all([
-        getGames(),                    // All games (TODO: add user filtering)
+      const [g, e, r, inv] = await Promise.all([
+        getGames(),                    // Games in realms the user can access (RLS-scoped)
         getExpansions(user?.id),       // User's expansion preferences
-        getRealms(user?.id)            // User's realms
+        getRealms(user?.id),           // Owned + shared realms
+        user ? getPendingInvites() : Promise.resolve([]), // Group invites awaiting a response
       ]);
-      setGames(g);
+      // Defense in depth: only keep games belonging to visible realms, even if
+      // a DB misconfiguration (leftover permissive policy) returns more rows.
+      const realmIds = new Set(r.map(x => x.id));
+      setGames(g.filter(game => realmIds.has(game.realmId)));
       setExpansions(e);
       setRealms(r);
+      setPendingInvites(inv);
       setLoading(false);
     }
     init();
@@ -151,18 +157,53 @@ export function useGameData(user, authLoading) {
       // realms are saved with a null user_id and disappear after refresh.
       throw new Error('Cannot create realm: user is not authenticated');
     }
-    if (realms.length >= MAX_REALMS) {
+    // Shared realms don't count toward the cap — only groups the user owns.
+    if (realms.filter(r => r.isOwner !== false).length >= MAX_REALMS) {
       throw new Error(`Realm limit reached (${MAX_REALMS})`);
     }
     const realm = {
       ...data,
       id:        generateRealmId(), // Uppercase UUID for visual distinction
       createdAt: new Date().toISOString().split('T')[0], // YYYY-MM-DD format
+      ownerId:   user.id,
+      isOwner:   true,
     };
     await saveRealm(realm, user?.id);
     setRealms(prev => [...prev, realm]);
     return realm;
   }, [user, realms]);
+
+  /**
+   * RESPOND TO A GROUP INVITE
+   *
+   * Accepting makes the shared realm (and its full game history) visible, so
+   * both realms and games are refetched. Declining just drops the invite.
+   */
+  const acceptInvite = useCallback(async (inviteId) => {
+    await respondToInvite(inviteId, true);
+    setPendingInvites(prev => prev.filter(i => i.id !== inviteId));
+    const [g, r] = await Promise.all([getGames(), getRealms(user?.id)]);
+    const realmIds = new Set(r.map(x => x.id));
+    setGames(g.filter(game => realmIds.has(game.realmId)));
+    setRealms(r);
+  }, [user]);
+
+  const declineInvite = useCallback(async (inviteId) => {
+    await respondToInvite(inviteId, false);
+    setPendingInvites(prev => prev.filter(i => i.id !== inviteId));
+  }, []);
+
+  /**
+   * LEAVE A SHARED REALM (member side)
+   *
+   * Drops the membership row; the realm and its games vanish from this
+   * account's view. The owner's data is untouched.
+   */
+  const leaveSharedRealm = useCallback(async (realmId) => {
+    await leaveRealm(realmId);
+    setRealms(prev => prev.filter(r => r.id !== realmId));
+    setGames(prev => prev.filter(g => g.realmId !== realmId));
+  }, []);
 
   /**
    * UPDATE REALM PROPERTIES
@@ -202,10 +243,12 @@ export function useGameData(user, authLoading) {
   }, []);
 
   // Export all data and operations for component consumption
-  return { 
+  return {
     // Data state
-    games, expansions, realms, loading, 
-    // CRUD operations  
-    addGame, deleteGame, toggleExpansion, addRealm, updateRealm, removeRealm 
+    games, expansions, realms, pendingInvites, loading,
+    // CRUD operations
+    addGame, deleteGame, toggleExpansion, addRealm, updateRealm, removeRealm,
+    // Realm sharing
+    acceptInvite, declineInvite, leaveSharedRealm,
   };
 }
