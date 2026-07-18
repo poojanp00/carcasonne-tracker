@@ -58,7 +58,7 @@ function Bookshelf({ realms, games, onOpenBook }) {
   );
 }
 
-function CoverPage({ realm, realmGames, standings, showDemoData, onDeleteRealmRequest, onLeaveRealmRequest }) {
+function CoverPage({ realm, realmGames, standings }) {
   const championNames = realmGames.length > 0 && standings.sorted[0] ? [...standings.leaders].join(' & ') : null;
   return (
     <div className="book-cover">
@@ -91,31 +91,6 @@ function CoverPage({ realm, realmGames, standings, showDemoData, onDeleteRealmRe
           )}
         </div>
       </div>
-
-      {/* Owners can delete the realm; members of a shared realm can only leave it */}
-      {!showDemoData && (
-        <div style={{ marginTop: '2.5rem', display: 'flex', justifyContent: 'center' }}>
-          {realm.isOwner !== false ? (
-            <button
-              className="realm-trash-btn"
-              onClick={onDeleteRealmRequest}
-              title="Delete realm"
-              style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--stone-gray)', fontSize: 'clamp(0.68rem, 1.8vw, 0.82rem)', fontFamily: 'Cinzel, serif', letterSpacing: '0.06em' }}
-            >
-              <TrashIcon /> Delete Realm
-            </button>
-          ) : (
-            <button
-              className="realm-trash-btn"
-              onClick={onLeaveRealmRequest}
-              title="Leave this shared realm"
-              style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--stone-gray)', fontSize: 'clamp(0.68rem, 1.8vw, 0.82rem)', fontFamily: 'Cinzel, serif', letterSpacing: '0.06em' }}
-            >
-              Leave Realm
-            </button>
-          )}
-        </div>
-      )}
     </div>
   );
 }
@@ -165,6 +140,7 @@ function OverviewPage({ realm, realmGames, standings, onOpenGame }) {
     <PointBreakdownChart
       players={[...standings.sorted].sort((a, b) => (records[b.name.toLowerCase()]?.w || 0) - (records[a.name.toLowerCase()]?.w || 0))}
       title={null}
+      bare
       winsByPlayer={Object.fromEntries(standings.sorted.map(ps => [ps.name, records[ps.name.toLowerCase()]?.w || 0]))}
       footerAlways
       footer={(
@@ -424,9 +400,13 @@ export default function Library({ games, realms = [], currentRealm = null, onRea
       )}
 
       <div className="section-title">
-        <h2>Library</h2>
+        {openRealm ? (
+          <button type="button" className="section-title-back" onClick={closeBook} title="Back to the library">‹ Library</button>
+        ) : (
+          <h2>Library</h2>
+        )}
         <div className="section-title-line" />
-        {openRealm && <span className="game-count">{realmGames.length} {realmGames.length === 1 ? 'game' : 'games'}</span>}
+        {openRealm && <span className="game-count">{openRealm.name}</span>}
         {onToggleDemoData && (
           <button type="button" className={`expansion-chip${showDemoData ? ' selected' : ''}`} onClick={onToggleDemoData} style={{ fontSize: 'clamp(0.72rem, 2.2vw, 0.9rem)', padding: '0.5rem 1.1rem', marginLeft: '0.5rem' }}>
             {showDemoData ? 'Click to exit' : 'See how it works!'}
@@ -449,9 +429,7 @@ export default function Library({ games, realms = [], currentRealm = null, onRea
       ) : (
         <div className="realm-book">
           <div className="book-header">
-            <button type="button" className="btn btn-ghost btn-sm" onClick={closeBook}>‹ Library</button>
-            <span className="book-header-title">{openRealm.name}</span>
-            <span className="book-nav-label">{pageLabel}</span>
+            <span className="book-nav-label" style={{ flex: 1 }}>{pageLabel}</span>
           </div>
 
           <div className="book-page" key={page}>
@@ -460,9 +438,6 @@ export default function Library({ games, realms = [], currentRealm = null, onRea
                 realm={openRealm}
                 realmGames={realmGames}
                 standings={standings}
-                showDemoData={showDemoData}
-                onDeleteRealmRequest={() => setConfirmDeleteRealm(true)}
-                onLeaveRealmRequest={() => setConfirmLeave(true)}
               />
             )}
             {page === 1 && (
@@ -485,7 +460,18 @@ export default function Library({ games, realms = [], currentRealm = null, onRea
           </div>
 
           <div className="book-nav">
-            <button type="button" className="btn btn-ghost btn-sm" disabled={page === 0} onClick={() => setPage(p => Math.max(0, p - 1))}>‹ Back</button>
+            {/* On the cover, the dead Back slot hosts delete (owner) / leave (member) instead */}
+            {page === 0 && !showDemoData ? (
+              openRealm.isOwner !== false ? (
+                <button type="button" className="btn btn-danger btn-sm" onClick={() => setConfirmDeleteRealm(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <TrashIcon />
+                </button>
+              ) : (
+                <button type="button" className="btn btn-danger btn-sm" onClick={() => setConfirmLeave(true)}>Leave Realm</button>
+              )
+            ) : (
+              <button type="button" className="btn btn-ghost btn-sm" disabled={page === 0} onClick={() => setPage(p => Math.max(0, p - 1))}>‹ Back</button>
+            )}
             <button type="button" className="btn btn-ghost btn-sm" disabled={page >= totalPages - 1} onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}>Next ›</button>
           </div>
         </div>

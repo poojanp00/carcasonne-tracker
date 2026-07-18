@@ -19,7 +19,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { MAX_GAME_PLAYERS, MAX_REALMS } from '../constants';
 import { formatPieceName } from '../utils/formatters';
-import { DEFAULT_EXPANSIONS } from '../data/expansions';
+import { DEFAULT_EXPANSIONS, GUEST_ALLOWED_MINIS } from '../data/expansions';
 import { getRealmMemberEmails } from '../data/storage';
 import { useClampTooltip } from '../hooks/useClampTooltip';
 import { useTapTooltip } from '../hooks/useTapTooltip';
@@ -57,7 +57,7 @@ const FUN_MEEPLES = Object.entries(FUN_MODULES)
     img
   }));
 
-export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeples, defaultExpansions, realms = [], currentRealm = null, onRealmChange, onRealmCreate, onExportGroup = null, startAtRealmCreation = false, startAtModeSelection = false, isGuest = false, selfName = '' }) {
+export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeples, defaultExpansions, realms = [], currentRealm = null, onRealmChange, onRealmCreate, onExportGroup = null, startAtRealmCreation = false, startAtModeSelection = false, isGuest = false, selfName = '', onToggleOwned = null }) {
   // Steps: 0=Group selection, 1=Realm creation, 2=Mode selection, 3=Meeples (table only), 4=Expansions
   // Every fresh mount starts at group selection (or creation when no groups exist yet), so
   // navigating away mid-setup and back restarts the flow. startAtModeSelection is the one
@@ -309,6 +309,21 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
    */
   const toggleExpansion = (name) =>
     setSelectedExp(prev => prev.includes(name) ? prev.filter(e => e !== name) : [...prev, name]);
+
+  /**
+   * COLLECTION EDITING (absorbed from the old Collection tab)
+   *
+   * Edit mode swaps the owned-expansion chips for the full catalog so
+   * ownership can be toggled in place. Removing an owned expansion also
+   * deselects it from the upcoming game.
+   */
+  const [editCollection, setEditCollection] = useState(false);
+  const toggleOwned = (name) => {
+    if (ownedExpansions.includes(name)) {
+      setSelectedExp(prev => prev.filter(n => n !== name));
+    }
+    onToggleOwned?.(name);
+  };
 
   /**
    * REQUIRED PIECES CALCULATION
@@ -806,13 +821,11 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
     return (
       <div className="pregame-screen">
         <div className="section-title">
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
-            <h2>Choose Your Meeples</h2>
-            <span className="game-count">
-              {mode === 'party' ? 'Party Mode' : 'Table Mode'}
-            </span>
-          </div>
+          <h2>Choose Your Meeples</h2>
           <div className="section-title-line" />
+          <span className="game-count">
+            {mode === 'party' ? 'Party Mode' : 'Table Mode'}
+          </span>
         </div>
 
         {activePlayers.length === 0 ? (
@@ -879,19 +892,69 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
   return (
     <div className="pregame-screen">
       <div className="section-title">
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
-          <h2>Expansions in Play</h2>
-          <span className="game-count">
-            {mode === 'party' ? 'Party Mode' : 'Table Mode'}
-          </span>
-        </div>
+        <h2>Expansions in Play</h2>
         <div className="section-title-line" />
+        <span className="game-count">
+          {mode === 'party' ? 'Party Mode' : 'Table Mode'}
+        </span>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.4rem', marginBottom: '1.4rem' }}>
-        {/* Expansions Selection */}
-        <div className="tile-card">
-          {ownedExpansions.length === 0 ? (
+        {/* Expansions Selection — Edit swaps in the full catalog to manage ownership */}
+        <div className="tile-card" style={{ position: 'relative' }}>
+          {onToggleOwned && (
+            <button
+              type="button"
+              className="settings-edit-btn"
+              onClick={() => setEditCollection(v => !v)}
+              style={{ position: 'absolute', top: '0.9rem', right: '0.9rem', zIndex: 1 }}
+            >
+              {editCollection ? 'Done' : 'Edit'}
+            </button>
+          )}
+
+          {editCollection ? (() => {
+            const itemState = (exp) => {
+              if (isGuest && !(exp.type === 'mini' && GUEST_ALLOWED_MINIS.has(exp.name))) {
+                return { editable: false, tip: 'Sign in to use expansions.' };
+              }
+              if (!exp.complete) return { editable: false, tip: 'Under development. Please check back later.' };
+              return { editable: true };
+            };
+            const renderEditGroup = (label, exps) => exps.length === 0 ? null : (
+              <div style={{ marginBottom: '1rem' }}>
+                <div style={{ fontSize: '0.8rem', fontFamily: 'Cinzel, serif', fontWeight: 600, letterSpacing: '0.06em', color: 'var(--earth-brown)', marginBottom: '0.6rem' }}>
+                  {label}
+                </div>
+                <div className="expansion-chips">
+                  {exps.map(exp => {
+                    const { editable, tip } = itemState(exp);
+                    return (
+                      <button
+                        key={exp.name}
+                        type="button"
+                        className={`expansion-chip ${ownedExpansions.includes(exp.name) ? 'selected' : ''}${editable ? '' : ' settings-dev'}`}
+                        data-tooltip={editable ? undefined : tip}
+                        onClick={editable ? () => toggleOwned(exp.name) : undefined}
+                        style={editable ? undefined : { opacity: 0.55, cursor: 'var(--cursor-arrow)' }}
+                      >
+                        {exp.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+            return (
+              <>
+                <p className="section-intro" style={{ fontSize: '0.85rem', marginBottom: '0.8rem' }}>
+                  Tap an expansion to add or remove it from your collection.
+                </p>
+                {renderEditGroup('Full Expansions', DEFAULT_EXPANSIONS.filter(e => e.type === 'full'))}
+                {renderEditGroup('Mini Expansions', DEFAULT_EXPANSIONS.filter(e => e.type === 'mini'))}
+              </>
+            );
+          })() : ownedExpansions.length === 0 ? (
             <p className="section-intro">No expansions owned — base game only.</p>
           ) : (() => {
             const categoryOf = Object.fromEntries(DEFAULT_EXPANSIONS.map(e => [e.name, e.category]));

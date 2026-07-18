@@ -8,6 +8,7 @@ import { ACHIEVEMENT_DISPLAY_ORDER, ACHIEVEMENT_BADGE, ACHIEVEMENT_LABEL_OVERRID
 import { formatAchievementName } from '../utils/achievements';
 import ValInfo from './ValInfo';
 import Lightbox from './Lightbox';
+import { GearIcon, TrashIcon } from './icons';
 
 function formatDuration(ms) {
   if (!(ms > 0)) return '—';
@@ -100,8 +101,27 @@ function PointsBar({ breakdown }) {
 
 const sectionHeaderStyle = { borderBottom: '1px solid var(--warm-gold)', paddingBottom: '0.5rem', marginBottom: '1rem' };
 
+const DEV_TOOLTIP = 'Under development. Please check back later.';
+
+// Brass-bead switch for the settings rows
+function SettingsToggle({ on, onToggle, label }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      aria-label={label}
+      className={`settings-toggle${on ? ' on' : ''}`}
+      onClick={onToggle}
+    >
+      <span className="settings-toggle-knob" />
+    </button>
+  );
+}
+
 // Trophy cabinet + milestones, side by side. Trophies: one medal per time each
 // best-in-game record was held — 7 Longest Roads shows 7 medals in the row.
+// Currently unrendered (hidden for a later design pass) — see the Profile return.
 function TrophyCase({ account }) {
   const { recordTallies } = account;
   const tallied = ACHIEVEMENT_DISPLAY_ORDER.filter(key => recordTallies[key] > 0);
@@ -160,7 +180,7 @@ function TrophyCase({ account }) {
 
 // The strategy-game hero card: large meeple, name, rank title, and the
 // primary career numbers at a glance.
-function ProfileHero({ account, displayName }) {
+function ProfileHero({ account, displayName, onOpenSettings }) {
   const { stats, favMeeple, favMeepleCount, playingSince, totalPlaytime } = account;
   const meepleImg = favMeeple ? (MEEPLE_IMGS[favMeeple] ?? null) : null;
 
@@ -175,6 +195,11 @@ function ProfileHero({ account, displayName }) {
 
   return (
     <div className="player-card p2 profile-hero" style={{ marginBottom: '1.2rem' }}>
+      {onOpenSettings && (
+        <button type="button" className="profile-settings-btn" onClick={onOpenSettings} title="Account settings" aria-label="Account settings">
+          <GearIcon />
+        </button>
+      )}
       <div className="profile-hero-top">
         {meepleImg && (
           <ValInfo tip={favMeepleCount ? `Used in ${favMeepleCount} ${favMeepleCount === 1 ? 'game' : 'games'}` : null}>
@@ -274,16 +299,60 @@ function CareerHighlights({ account, onNavigateToGame }) {
   );
 }
 
-export default function Profile({ games, realms, userId, displayName, isGuest = false }) {
+export default function Profile({ games, realms, userId, displayName, isGuest = false, onChangeDisplayName, onDeleteAccount, onSignOut }) {
   const account = useMemo(() => calcAccountStats(games, realms, userId), [games, realms, userId]);
   const [selectedGame, setSelectedGame] = useState(null);
 
+  const [settingsView, setSettingsView] = useState(null); // null | 'menu' | 'rename'
+  const [nameInput,    setNameInput]    = useState('');
+  const [saving,       setSaving]       = useState(false);
+  const [renameError,  setRenameError]  = useState('');
+  const [deleteStep,   setDeleteStep]   = useState(0); // 0=hidden, 1=first confirm, 2=final confirm
+  const [deleting,     setDeleting]     = useState(false);
+  const [deleteError,  setDeleteError]  = useState('');
+
+  // Display-only for now — these toggles aren't persisted anywhere yet
+  const [prefs, setPrefs] = useState({ publicStats: true, friendRequests: false });
+  const togglePref = (key) => setPrefs(p => ({ ...p, [key]: !p[key] }));
+
   const openGameLightbox = (game) => setSelectedGame(game);
 
+  const openSettings  = () => setSettingsView('menu');
+  const closeSettings = () => { setSettingsView(null); setRenameError(''); };
+  const startRename   = () => { setNameInput(displayName || ''); setRenameError(''); setSettingsView('rename'); };
+
+  const handleSaveName = async (e) => {
+    e.preventDefault();
+    const trimmed = nameInput.trim();
+    if (!trimmed) { setRenameError('Name cannot be empty.'); return; }
+    if (trimmed === displayName) { closeSettings(); return; }
+    setSaving(true);
+    setRenameError('');
+    try {
+      await onChangeDisplayName?.(trimmed);
+      closeSettings();
+    } catch (err) {
+      setRenameError(err.message || 'Something went wrong. Please try again.');
+    }
+    setSaving(false);
+  };
+
+  const handleDeleteAccount = async () => {
+    setDeleting(true);
+    setDeleteError('');
+    try {
+      await onDeleteAccount?.();
+    } catch (err) {
+      setDeleteError(err.message || 'Something went wrong. Please try again.');
+      setDeleting(false);
+    }
+  };
+
   useEffect(() => {
-    document.body.style.overflow = selectedGame ? 'hidden' : '';
+    const isOpen = !!selectedGame || !!settingsView || deleteStep > 0;
+    document.body.style.overflow = isOpen ? 'hidden' : '';
     return () => { document.body.style.overflow = ''; };
-  }, [selectedGame]);
+  }, [selectedGame, settingsView, deleteStep]);
 
   return (
     <div>
@@ -300,18 +369,173 @@ export default function Profile({ games, realms, userId, displayName, isGuest = 
       <div className="section-title">
         <h2>Profile</h2>
         <div className="section-title-line" />
-        {!isGuest && <span className="game-count">{account.gamesCount} {account.gamesCount === 1 ? 'game' : 'games'} in {account.realmsCount} {account.realmsCount === 1 ? 'realm' : 'realms'}</span>}
       </div>
+
+      {/* Settings page — only Display Name and Delete Account are functional;
+          the rest is frontend-only scaffolding awaiting backend support */}
+      {settingsView === 'menu' && (
+        <div className="realm-modal-overlay" onClick={closeSettings}>
+          <div className="realm-modal tile-card settings-modal" onClick={e => e.stopPropagation()}>
+            <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
+              <GearIcon /> Account Settings
+            </h3>
+
+            <div className="settings-section">
+              <div className="settings-section-header">Profile Identity</div>
+              <div className="settings-row">
+                <span className="settings-row-label">Display Name</span>
+                <span className="settings-row-control">
+                  <span className="settings-row-value">{displayName || 'Adventurer'}</span>
+                  <button type="button" className="settings-edit-btn" onClick={startRename}>Edit</button>
+                </span>
+              </div>
+              <div className="settings-row">
+                <span className="settings-row-label">Avatar Icon</span>
+                <span className="settings-row-control">
+                  <span className="settings-row-value">Classic Meeple</span>
+                  <button type="button" className="settings-edit-btn settings-dev" data-tooltip={DEV_TOOLTIP}>Change</button>
+                </span>
+              </div>
+            </div>
+
+            <div className="settings-section">
+              <div className="settings-section-header">Privacy &amp; Visibility</div>
+              <div className="settings-row">
+                <span className="settings-row-label">Public Leaderboard Stats</span>
+                <SettingsToggle on={prefs.publicStats} onToggle={() => togglePref('publicStats')} label="Public leaderboard stats" />
+              </div>
+              <div className="settings-row">
+                <span className="settings-row-label">Allow Friend Requests</span>
+                <SettingsToggle on={prefs.friendRequests} onToggle={() => togglePref('friendRequests')} label="Allow friend requests" />
+              </div>
+            </div>
+
+            <div className="settings-section">
+              <div className="settings-section-header">Account &amp; Data</div>
+              <div className="settings-row">
+                <span className="settings-row-label">Backup Data</span>
+                <button type="button" className="settings-edit-btn settings-dev" data-tooltip={DEV_TOOLTIP}>Export JSON</button>
+              </div>
+              <div className="settings-row">
+                <span className="settings-row-label">Log out of your account</span>
+                <button type="button" className="settings-edit-btn" onClick={onSignOut}>Log Out</button>
+              </div>
+            </div>
+
+            <div className="settings-section settings-danger">
+              <div className="settings-section-header">Danger Zone</div>
+              <div className="settings-row">
+                <span className="settings-row-label" style={{ color: 'var(--stone-gray)', fontSize: '0.85rem' }}>
+                  Permanently delete your account and all data
+                </span>
+                <button
+                  type="button"
+                  className="settings-delete-btn"
+                  onClick={() => { setSettingsView(null); setDeleteStep(1); setDeleteError(''); }}
+                >
+                  <TrashIcon /> Delete Account
+                </button>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1.4rem' }}>
+              <button className="btn btn-ghost btn-sm" onClick={closeSettings}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Change display name */}
+      {settingsView === 'rename' && (
+        <div className="realm-modal-overlay" onClick={() => !saving && closeSettings()}>
+          <div className="realm-modal tile-card" onClick={e => e.stopPropagation()}>
+            <h3 style={{ marginBottom: '0.5rem' }}>Change Display Name</h3>
+            <p style={{ fontSize: '0.9rem', marginBottom: '1rem', lineHeight: 1.5, color: 'var(--stone-gray)' }}>
+              Your display name prefills your player slot in new realms. Existing realms keep their player names.
+            </p>
+            <form onSubmit={handleSaveName}>
+              <input
+                type="text"
+                className="form-input"
+                value={nameInput}
+                onChange={e => setNameInput(e.target.value)}
+                maxLength={30}
+                autoFocus
+                placeholder="Display name"
+                style={{ width: '100%', marginBottom: '1rem' }}
+              />
+              {renameError && (
+                <p style={{ color: 'var(--deep-red)', fontSize: '0.85rem', marginBottom: '0.8rem' }}>{renameError}</p>
+              )}
+              <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'flex-end' }}>
+                <button type="button" className="btn btn-ghost btn-sm" onClick={closeSettings} disabled={saving}>Cancel</button>
+                <button type="submit" className="btn btn-sm" disabled={saving}>
+                  {saving ? 'Saving…' : 'Save'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete account — step 1 confirmation */}
+      {deleteStep === 1 && (
+        <div className="realm-modal-overlay" onClick={() => setDeleteStep(0)}>
+          <div className="realm-modal tile-card" onClick={e => e.stopPropagation()}>
+            <h3 style={{ color: 'var(--deep-red)', marginBottom: '0.5rem' }}>Delete Account?</h3>
+            <p style={{ fontSize: '0.95rem', marginBottom: '1.2rem', lineHeight: 1.5 }}>
+              This will delete your account and all associated realms, games, and player data.
+            </p>
+            <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'flex-end' }}>
+              <button className="btn btn-ghost btn-sm" onClick={() => setDeleteStep(0)}>Cancel</button>
+              <button className="btn btn-danger btn-sm" onClick={() => setDeleteStep(2)}>Continue</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete account — step 2 final confirmation */}
+      {deleteStep === 2 && (
+        <div className="realm-modal-overlay" onClick={() => !deleting && setDeleteStep(0)}>
+          <div className="realm-modal tile-card" onClick={e => e.stopPropagation()}>
+            <h3 style={{ color: 'var(--deep-red)', marginBottom: '0.5rem' }}>Are you sure?</h3>
+            <p style={{ fontSize: '0.95rem', marginBottom: '1.2rem', lineHeight: 1.5 }}>
+              Your data will be permanently deleted.
+            </p>
+            {deleteError && (
+              <p style={{ color: 'var(--deep-red)', fontSize: '0.85rem', marginBottom: '0.8rem' }}>{deleteError}</p>
+            )}
+            <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'flex-end' }}>
+              <button className="btn btn-ghost btn-sm" onClick={() => setDeleteStep(0)} disabled={deleting}>Cancel</button>
+              <button className="btn btn-danger btn-sm" onClick={handleDeleteAccount} disabled={deleting}>
+                {deleting ? 'Deleting…' : 'Delete Account'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {isGuest ? (
         <div className="empty-state" style={{ marginBottom: '1.5rem' }}>Sign in to view your stats.</div>
       ) : account.gamesCount === 0 ? (
-        <div className="empty-state" style={{ marginBottom: '1.5rem' }}>Play some games to see your stats.</div>
+        <>
+          <div className="empty-state" style={{ marginBottom: '1.5rem' }}>Play some games to see your stats.</div>
+          {/* No hero card yet — keep account settings reachable */}
+          <div style={{ display: 'flex', justifyContent: 'center' }}>
+            <button
+              className="realm-trash-btn"
+              onClick={openSettings}
+              style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--stone-gray)', fontSize: 'clamp(0.68rem, 2vw, 0.82rem)', fontFamily: 'Cinzel, serif', letterSpacing: '0.06em' }}
+            >
+              <GearIcon /> Account Settings
+            </button>
+          </div>
+        </>
       ) : (
         <>
-          <ProfileHero account={account} displayName={displayName} />
+          <ProfileHero account={account} displayName={displayName} onOpenSettings={openSettings} />
           <CareerHighlights account={account} onNavigateToGame={openGameLightbox} />
-          <TrophyCase account={account} />
+          {/* TrophyCase (Trophy Cabinet + Milestones) hidden for now — needs another design pass */}
         </>
       )}
     </div>

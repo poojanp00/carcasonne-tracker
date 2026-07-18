@@ -26,39 +26,6 @@ const HistoryIcon = () => (
   </svg>
 );
 
-const BookIcon = () => (
-  <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
-    <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
-    <line x1="8" y1="7" x2="16" y2="7" />
-    <line x1="8" y1="11" x2="13" y2="11" />
-  </svg>
-);
-
-const ProfileIcon = () => (
-  <svg width="52" height="52" viewBox="0 0 24 24" fill="currentColor">
-    <circle cx="12" cy="5.5" r="3.2" />
-    <path d="M5.5 21.5v-2.2a4.5 4.5 0 0 1 2.3-3.9V13a4.2 4.2 0 0 1 8.4 0v2.4a4.5 4.5 0 0 1 2.3 3.9v2.2H5.5z" />
-  </svg>
-);
-
-const PlayIcon = () => (
-  <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="2" y="3" width="20" height="18" rx="2" />
-    <line x1="12" y1="8" x2="12" y2="16" />
-    <line x1="8"  y1="12" x2="16" y2="12" />
-  </svg>
-);
-
-const CollectionIcon = () => (
-  <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="3"  y="3"  width="7" height="7" rx="1" />
-    <rect x="14" y="3"  width="7" height="7" rx="1" />
-    <rect x="3"  y="14" width="7" height="7" rx="1" />
-    <rect x="14" y="14" width="7" height="7" rx="1" />
-  </svg>
-);
-
 const features = [
   {
     icon: <MeepleIcon />,
@@ -86,74 +53,13 @@ const features = [
   },
 ];
 
-const pages = [
-  {
-    icon: <PlayIcon />,
-    name: 'Play',
-    tab: 'board',
-    color: 'var(--earth-brown)',
-  },
-  {
-    icon: <BookIcon />,
-    name: 'Library',
-    tab: 'history',
-    color: 'var(--royal-blue)',
-  },
-  {
-    icon: <ProfileIcon />,
-    name: 'Profile',
-    tab: 'me',
-    color: 'var(--forest-green)',
-  },
-  {
-    icon: <CollectionIcon />,
-    name: 'Collection',
-    tab: 'collection',
-    color: 'var(--deep-red)',
-  },
-];
-
-function PageTile({ icon, name, color, onClick }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.45rem', flex: 1, cursor: 'var(--cursor-pointer)', padding: '0 0.5rem', background: 'none', border: 'none', color }}
-    >
-      {icon}
-      <span style={{
-        fontFamily: 'Cinzel, serif',
-        fontSize: 'clamp(0.55rem, 1.5vw, 0.7rem)',
-        letterSpacing: '0.08em',
-        textTransform: 'uppercase',
-        color,
-      }}>
-        {name}
-      </span>
-    </button>
-  );
-}
-
-export default function Landing({ onNavigate }) {
+export default function Landing() {
   return (
     <div className="landing-page">
 
       {/* Hero */}
       <section className="landing-hero">
         <h2 className="landing-welcome">Carcasscore is the ultimate Carcassonne companion.</h2>
-      </section>
-
-      {/* Page navigator icons */}
-      <section style={{ display: 'flex', justifyContent: 'center', gap: '0', margin: '2rem auto 4rem', maxWidth: '760px' }}>
-        {pages.map(p => (
-          <PageTile
-            key={p.name}
-            icon={p.icon}
-            name={p.name}
-            color={p.color}
-            onClick={() => onNavigate?.(p.tab)}
-          />
-        ))}
       </section>
 
       {/* Divider */}
