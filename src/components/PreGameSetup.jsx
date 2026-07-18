@@ -901,17 +901,7 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.4rem', marginBottom: '1.4rem' }}>
         {/* Expansions Selection — Edit swaps in the full catalog to manage ownership */}
-        <div className="tile-card" style={{ position: 'relative' }}>
-          {onToggleOwned && (
-            <button
-              type="button"
-              className="settings-edit-btn"
-              onClick={() => setEditCollection(v => !v)}
-              style={{ position: 'absolute', top: '0.9rem', right: '0.9rem', zIndex: 1 }}
-            >
-              {editCollection ? 'Done' : 'Edit'}
-            </button>
-          )}
+        <div className="tile-card" style={{ display: 'flex', flexDirection: 'column' }}>
 
           {editCollection ? (() => {
             const itemState = (exp) => {
@@ -986,6 +976,15 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
               </>
             );
           })()}
+
+          {/* margin-top auto pins the button to the very bottom of the card */}
+          {onToggleOwned && (
+            <div style={{ marginTop: 'auto', paddingTop: '0.8rem', display: 'flex', justifyContent: 'flex-end' }}>
+              <button type="button" className="settings-edit-btn" onClick={() => setEditCollection(v => !v)}>
+                {editCollection ? 'Done' : 'Edit'}
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Required Pieces Checklist */}
