@@ -1,3 +1,6 @@
+// The only expansions guests can toggle without an account
+export const GUEST_ALLOWED_MINIS = new Set(['The River', 'The Abbot']);
+
 // complete: true = fully supported in the tracker; false = UI disabled with "under development" tooltip
 export const DEFAULT_EXPANSIONS = [
   // Major expansions (numbered in official release order)

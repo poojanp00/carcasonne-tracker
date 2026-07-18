@@ -29,8 +29,9 @@ SCORE_GROUPS.forEach(g => g.types.forEach(t => { TYPE_TO_GROUP[t] = g; }));
  * @param {Object}    winsByPlayer - Optional {name: wins}; renders a win count before each name
  * @param {ReactNode} footer       - Optional content rendered below the bars/table (e.g. realm stats)
  * @param {boolean}   footerAlways - Show the footer outright instead of tucking it behind the dropdown
+ * @param {boolean}   bare         - Render without the card box, directly on the page background
  */
-export default function PointBreakdownChart({ players, showLegend = false, title = 'Complete Points Breakdown', winsByPlayer = null, footer = null, footerAlways = false }) {
+export default function PointBreakdownChart({ players, showLegend = false, title = 'Complete Points Breakdown', winsByPlayer = null, footer = null, footerAlways = false, bare = false }) {
   const [tooltip, setTooltip] = useState(null);
   const [showTable, setShowTable] = useState(false);
   const [combined, setCombined] = useState(false);
@@ -87,7 +88,7 @@ export default function PointBreakdownChart({ players, showLegend = false, title
 
   return (
     <div className="chart-wrapper">
-      <div className="chart-container" style={{ borderTop: '4px solid var(--warm-gold)', paddingTop: '1.25rem' }}>
+      <div className={`chart-container${bare ? ' chart-container-bare' : ''}`} style={bare ? undefined : { borderTop: '4px solid var(--warm-gold)', paddingTop: '1.25rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.2rem' }}>
           <div className="chart-header" style={{ margin: 0, textAlign: 'left' }}>{title}</div>
           <button

@@ -323,6 +323,21 @@ export async function saveOwnedExpansions(ownedNames, userId, email) {
     .upsert(row, { onConflict: 'user_id' });
 }
 
+// ── Account settings ──────────────────────────────────────────────────────────
+
+/**
+ * Update the account's display name (auth user_metadata.display_name).
+ * The USER_UPDATED auth event refreshes the app-wide user state, so the new
+ * name shows up everywhere without a re-login. Existing realm player slots
+ * keep their names — display_name only prefills future realms.
+ *
+ * @param {string} name - New display name (caller trims/validates)
+ */
+export async function updateDisplayName(name) {
+  const { error } = await supabase.auth.updateUser({ data: { display_name: name } });
+  if (error) throw new Error(error.message || 'Failed to update display name');
+}
+
 // ── Account deletion ──────────────────────────────────────────────────────────
 
 /**

@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import PostGameForm  from './components/PostGameForm';
 import Library       from './components/Library';
 import Profile       from './components/Profile';
-import Collection, { GUEST_ALLOWED_MINIS } from './components/Collection';
+import { GUEST_ALLOWED_MINIS } from './data/expansions';
 import Board         from './components/Board';
 import Lobby         from './components/Lobby';
 import PreGameSetup  from './components/PreGameSetup';
@@ -14,7 +14,7 @@ import { HowToPlayModal } from './components/HowToGuide';
 import { useGameData } from './hooks/useGameData';
 import { useAuth }     from './hooks/useAuth';
 import { resetBoard }  from './data/boardStorage';
-import { deleteAccount, sendRealmInvite } from './data/storage';
+import { deleteAccount, sendRealmInvite, updateDisplayName } from './data/storage';
 import { DEFAULT_EXPANSIONS } from './data/expansions';
 import { DEMO_REALM, DEMO_GAMES } from './data/demoData';
 import { TABS, APP_CONFIG, EXPANSION_TYPES, PINNED_EXPANSIONS } from './constants';
@@ -362,20 +362,17 @@ export default function App() {
         <div className="app-wrapper">
           <div className="header-layout">
             <div className="header-left">
-              {(user || isGuest) && (
+              {/* Signed-in users log out from Profile → Account Settings */}
+              {isGuest && (
                 <button
                   type="button"
                   onClick={() => {
-                    if (user) {
-                      signOut();
-                    } else {
-                      signOutGuest();
-                    }
+                    signOutGuest();
                     goHome();
                   }}
                   className="header-auth-btn"
                 >
-                  {isGuest ? 'Sign In' : 'Sign Out'}
+                  Sign In
                 </button>
               )}
             </div>
@@ -483,6 +480,7 @@ export default function App() {
                           startAtRealmCreation={true}
                           isGuest={isGuest}
                           selfName={displayName}
+                          onToggleOwned={appOperations.toggleExpansion}
                         />
                       : <PreGameSetup
                         key={session.realm.id}
@@ -499,6 +497,7 @@ export default function App() {
                         startAtModeSelection={isGuest && guestResumeAtMode}
                         isGuest={isGuest}
                         selfName={displayName}
+                        onToggleOwned={appOperations.toggleExpansion}
                       />
                 : appData.realms.length === 0
                   ? <PreGameSetup
@@ -516,6 +515,7 @@ export default function App() {
                       startAtRealmCreation={true}
                       isGuest={isGuest}
                       selfName={displayName}
+                      onToggleOwned={appOperations.toggleExpansion}
                     />
                   : isGuest
                     ? <PreGameSetup
@@ -530,6 +530,7 @@ export default function App() {
                         onRealmChange={handleRealmSelect}
                         onRealmCreate={handleRealmCreate}
                         isGuest={isGuest}
+                        onToggleOwned={appOperations.toggleExpansion}
                       />
                     : (
                     <div>
@@ -556,7 +557,7 @@ export default function App() {
             {tab === 'board' && isGuest && showHowToPlay && !session?.players && !session?.finalScores && (
               <HowToPlayModal onClose={() => setShowHowToPlay(false)} />
             )}
-            {tab === 'home' && <Landing onNavigate={handleTabChange} />}
+            {tab === 'home' && <Landing />}
             {tab === 'history' && (
               <Library
                 games={displayGames}
@@ -580,15 +581,9 @@ export default function App() {
                 userId={user?.id}
                 displayName={displayName}
                 isGuest={isGuest}
-              />
-            )}
-            {tab === 'collection' && (
-              <Collection
-                expansions={appData.expansions}
-                onToggle={appOperations.toggleExpansion}
-                userId={user?.id}
-                isGuest={isGuest}
+                onChangeDisplayName={updateDisplayName}
                 onDeleteAccount={async () => { await deleteAccount(user?.id); signOut(); }}
+                onSignOut={() => { signOut(); goHome(); }}
               />
             )}
           </div>
