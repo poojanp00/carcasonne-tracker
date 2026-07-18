@@ -21,7 +21,7 @@ export default function RealmPicker({ realms, currentRealm = null, onSelect, onC
     e.preventDefault();
     // Shared groups don't count toward the cap — only groups the user owns.
     if (!isGuest && realms.filter(r => r.isOwner !== false).length >= MAX_REALMS) {
-      setNameError(`Group limit reached. Delete an existing group to create a new one.`);
+      setNameError(`Realm limit reached. Delete an existing realm to create a new one.`);
       return;
     }
     const names = playerNames.map((name, i) => name.trim() || `Player ${i + 1}`);
@@ -34,7 +34,7 @@ export default function RealmPicker({ realms, currentRealm = null, onSelect, onC
       return;
     }
     if (!isGuest && realms.some(r => r.name.toLowerCase() === finalRealmName.toLowerCase())) {
-      setNameError('A group with this name already exists.');
+      setNameError('A realm with this name already exists.');
       return;
     }
     setNameError('');

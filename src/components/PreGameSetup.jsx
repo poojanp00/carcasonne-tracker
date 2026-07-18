@@ -151,7 +151,7 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
     e.preventDefault();
     // Shared groups don't count toward the cap — only groups the user owns.
     if (!isGuest && realms.filter(r => r.isOwner !== false).length >= MAX_REALMS) {
-      setNameError(`Group limit reached. Delete an existing group to create a new one.`);
+      setNameError(`Realm limit reached. Delete an existing realm to create a new one.`);
       return;
     }
 
@@ -175,7 +175,7 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
     }
 
     if (!isGuest && realms.some(r => r.name.toLowerCase() === finalRealmName.toLowerCase())) {
-      setNameError('A group with this name already exists.');
+      setNameError('A realm with this name already exists.');
       return;
     }
 
@@ -418,7 +418,7 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
       <div className="pregame-screen">
         <div className="section-title">
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <h2 style={{ margin: 0 }}>Choose Group</h2>
+            <h2 style={{ margin: 0 }}>Choose Realm</h2>
             <button
               type="button"
               title="Getting started"
@@ -483,7 +483,7 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
                           type="button"
                           className="btn btn-ghost btn-sm"
                           style={{ marginLeft: 'auto' }}
-                          title="Share this group with another account as this player"
+                          title="Share this realm with another account as this player"
                           onClick={() => openExport(p.name)}
                         >
                           ↑ Invite
@@ -545,7 +545,7 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
               ) : (
                 <form onSubmit={handleSendInvite}>
                   <p style={{ fontFamily: 'Crimson Text, serif', fontStyle: 'italic', fontSize: '0.88rem', color: 'var(--stone-gray)', margin: '0 0 1rem' }}>
-                    Their account will be linked to the player and group.
+                    Their account will be linked to the player and realm.
                   </p>
                   <div className="form-group">
                     <label className="form-label" htmlFor="export-email">Account email</label>
@@ -587,7 +587,7 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
       <div className="pregame-screen">
         <div className="section-title">
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <h2 style={{ margin: 0 }}>Create New Group</h2>
+            <h2 style={{ margin: 0 }}>Create New Realm</h2>
             <button
               type="button"
               title="Getting started"
@@ -606,7 +606,7 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
           <div className="tile-card" style={{ marginBottom: '0.9rem' }}>
             {!isGuest && (
               <div className="form-group" style={{ maxWidth: '360px' }}>
-                <label className="form-label">Group Name</label>
+                <label className="form-label">Realm Name</label>
                 <input
                   className="form-input"
                   value={realmName}
@@ -818,7 +818,7 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
         {activePlayers.length === 0 ? (
           <div className="tile-card" style={{ marginBottom: '1.4rem', textAlign: 'center' }}>
             <p style={{ fontFamily: 'Crimson Text, serif', fontStyle: 'italic', color: 'var(--stone-gray)', margin: 0 }}>
-              Create a group first to configure players and meeples.
+              Create a realm first to configure players and meeples.
             </p>
           </div>
         ) : (

@@ -1,6 +1,6 @@
 export const DEMO_REALM = {
   id: 'demo-realm',
-  name: 'Demo Group',
+  name: 'Demo Realm',
   // Same object shape as DB realms ({ name, userId, status })
   players: [
     { name: 'Player 1', userId: null, status: 'uninvited' },

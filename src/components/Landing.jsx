@@ -35,12 +35,10 @@ const BookIcon = () => (
   </svg>
 );
 
-const StatsPageIcon = () => (
-  <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <line x1="18" y1="20" x2="18" y2="8" />
-    <line x1="12" y1="20" x2="12" y2="4" />
-    <line x1="6"  y1="20" x2="6"  y2="13" />
-    <line x1="2"  y1="20" x2="22" y2="20" />
+const ProfileIcon = () => (
+  <svg width="52" height="52" viewBox="0 0 24 24" fill="currentColor">
+    <circle cx="12" cy="5.5" r="3.2" />
+    <path d="M5.5 21.5v-2.2a4.5 4.5 0 0 1 2.3-3.9V13a4.2 4.2 0 0 1 8.4 0v2.4a4.5 4.5 0 0 1 2.3 3.9v2.2H5.5z" />
   </svg>
 );
 
@@ -83,7 +81,7 @@ const features = [
   {
     icon: <ShieldIcon />,
     title: 'Built for Game Night',
-    body: 'Create different groups for friends, family, and leagues, keeping each group\'s history separate.',
+    body: 'Create different realms for friends, family, and leagues, keeping each realm\'s history separate.',
     color: 'var(--deep-red)',
   },
 ];
@@ -97,14 +95,14 @@ const pages = [
   },
   {
     icon: <BookIcon />,
-    name: 'Logbook',
+    name: 'Library',
     tab: 'history',
     color: 'var(--royal-blue)',
   },
   {
-    icon: <StatsPageIcon />,
-    name: 'Statistics',
-    tab: 'statistics',
+    icon: <ProfileIcon />,
+    name: 'Profile',
+    tab: 'me',
     color: 'var(--forest-green)',
   },
   {

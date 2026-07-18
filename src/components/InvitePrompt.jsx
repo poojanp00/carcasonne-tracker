@@ -26,7 +26,7 @@ export default function InvitePrompt({ invite, onAccept, onDecline }) {
   return (
     <div className="realm-modal-overlay">
       <div className="realm-modal tile-card" style={{ maxWidth: '440px' }}>
-        <h3 style={{ color: 'var(--earth-brown)', marginBottom: '0.4rem' }}>Group Invitation</h3>
+        <h3 style={{ color: 'var(--earth-brown)', marginBottom: '0.4rem' }}>Realm Invitation</h3>
         <p style={{ fontFamily: 'Crimson Text, serif', fontSize: '0.95rem', color: 'var(--charcoal)', margin: '0 0 1rem' }}>
           {invite.inviterName
             ? <>

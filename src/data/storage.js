@@ -185,7 +185,7 @@ export async function getRealmMemberEmails(realmId) {
  */
 export async function leaveRealm(realmId) {
   const { error } = await supabase.rpc('leave_realm', { p_realm_id: realmId });
-  if (error) throw new Error(error.message || 'Failed to leave group');
+  if (error) throw new Error(error.message || 'Failed to leave realm');
 }
 
 // ── Games ─────────────────────────────────────────────────────────────────────

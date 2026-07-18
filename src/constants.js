@@ -9,9 +9,9 @@
 export const TABS = [
   { id: 'home',       label: 'About'       },
   { id: 'board',      label: 'Play'        },
-  { id: 'history',    label: 'Logbook'     },
-  { id: 'statistics', label: 'Statistics'  },
+  { id: 'history',    label: 'Library'     },
   { id: 'collection', label: 'Collection'  },
+  { id: 'me',         label: 'Profile'     },
 ];
 
 // ── Configuration ──
