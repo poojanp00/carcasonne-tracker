@@ -2,7 +2,7 @@ import { useMemo, useState, useEffect, useRef } from 'react';
 import { SCORE_TYPE_ORDER, SCORE_TYPE_COLORS } from '../constants';
 import { calcAccountStats, getPlayerTitle } from '../utils/stats';
 import { ACCOUNT_MILESTONES, accountMilestoneProgress } from '../data/accountMilestones';
-import { MEEPLE_IMGS, WinRateBadge, TYPE_LABELS } from './StatWidgets';
+import { MEEPLE_IMGS, TYPE_LABELS } from './StatWidgets';
 import { ACHIEVEMENT_DISPLAY_ORDER, ACHIEVEMENT_BADGE, ACHIEVEMENT_LABEL_OVERRIDE } from './GameHighlights';
 
 import { formatAchievementName } from '../utils/achievements';
@@ -186,8 +186,8 @@ function ProfileHero({ account, displayName, onOpenSettings }) {
 
   const primaryStats = [
     ['Games Played', <span className="profile-stat-value">{account.gamesCount}</span>],
-    ['Victories', <span className="profile-stat-value" style={{ color: 'var(--forest-green)' }}>{stats.wins}</span>],
-    ['Win Rate', <ValInfo tip={`${stats.wins} won / ${stats.total} total`}><WinRateBadge rate={stats.winRate} /></ValInfo>],
+    ['Victories', <ValInfo tip={`${stats.winRate}% win rate`}><span className="profile-stat-value" style={{ color: 'var(--forest-green)' }}>{stats.wins}</span></ValInfo>],
+    ['Realms', <span className="profile-stat-value">{account.realmsCount}</span>],
     ['Career Points', <span className="profile-stat-value">{stats.totalPoints.toLocaleString()}</span>],
     ['Time Played', <span className="profile-stat-value">{formatDuration(totalPlaytime)}</span>],
     ['Playing Since', <span className="profile-stat-value">{formatMonthYear(playingSince)}</span>],
@@ -232,9 +232,8 @@ function CareerHighlights({ account, onNavigateToGame }) {
 
   return (
     <div className="tile-card" style={{ marginBottom: '1.2rem' }}>
-      <div className="tile-card-header" style={sectionHeaderStyle}>Career Highlights</div>
-
-      <div>
+      <div className="stat-rows-narrow">
+          <div className="tile-card-header" style={sectionHeaderStyle}>Career Highlights</div>
           <div className="stat-row">
             <span className="stat-label">Personal Best</span>
             <GameLinkValue game={stats.highScoreGame} onNavigateToGame={onNavigateToGame}>
@@ -266,10 +265,6 @@ function CareerHighlights({ account, onNavigateToGame }) {
             </span>
           </div>
           <div className="stat-row">
-            <span className="stat-label">Defeats</span>
-            <span className="stat-value" style={{ color: 'var(--deep-red)' }}>{stats.losses}</span>
-          </div>
-          <div className="stat-row">
             <span className="stat-label">Rival</span>
             <ValInfo tip={rival ? `Faced in ${rival.count} ${rival.count === 1 ? 'game' : 'games'}` : null}>
               <span className="stat-value">{rival ? rival.name : '—'}</span>
@@ -288,7 +283,7 @@ function CareerHighlights({ account, onNavigateToGame }) {
                 <div key={label} className="stat-row" style={{ margin: 0 }}>
                   <span className="stat-label" style={{ color: 'var(--stone-gray)' }}>{label}</span>
                   <ValInfo tip={fav ? `Played in ${fav.count} ${fav.count === 1 ? 'game' : 'games'}` : null}>
-                    <span className="stat-value" style={{ fontSize: 'clamp(0.6rem, 1.5vw, 0.78rem)', fontWeight: 500 }}>{fav ? fav.name : '—'}</span>
+                    <span className="stat-value" style={{ fontSize: 'clamp(0.72rem, 1.8vw, 0.92rem)', fontWeight: 500 }}>{fav ? fav.name : '—'}</span>
                   </ValInfo>
                 </div>
               ))}
@@ -299,7 +294,7 @@ function CareerHighlights({ account, onNavigateToGame }) {
   );
 }
 
-export default function Profile({ games, realms, userId, displayName, isGuest = false, onChangeDisplayName, onDeleteAccount, onSignOut }) {
+export default function Profile({ games, realms, userId, displayName, isGuest = false, showDemoData = false, onToggleDemoData = null, onChangeDisplayName, onDeleteAccount, onSignOut }) {
   const account = useMemo(() => calcAccountStats(games, realms, userId), [games, realms, userId]);
   const [selectedGame, setSelectedGame] = useState(null);
 
@@ -369,6 +364,11 @@ export default function Profile({ games, realms, userId, displayName, isGuest = 
       <div className="section-title">
         <h2>Profile</h2>
         <div className="section-title-line" />
+        {onToggleDemoData && (
+          <button type="button" className={`expansion-chip${showDemoData ? ' selected' : ''}`} onClick={onToggleDemoData} style={{ fontSize: 'clamp(0.72rem, 2.2vw, 0.9rem)', padding: '0.5rem 1.1rem', marginLeft: '0.5rem' }}>
+            {showDemoData ? 'Click to exit' : 'See how it works!'}
+          </button>
+        )}
       </div>
 
       {/* Settings page — only Display Name and Delete Account are functional;
@@ -515,7 +515,7 @@ export default function Profile({ games, realms, userId, displayName, isGuest = 
         </div>
       )}
 
-      {isGuest ? (
+      {isGuest && !showDemoData ? (
         <div className="empty-state" style={{ marginBottom: '1.5rem' }}>Sign in to view your stats.</div>
       ) : account.gamesCount === 0 ? (
         <>
@@ -533,7 +533,7 @@ export default function Profile({ games, realms, userId, displayName, isGuest = 
         </>
       ) : (
         <>
-          <ProfileHero account={account} displayName={displayName} onOpenSettings={openSettings} />
+          <ProfileHero account={account} displayName={displayName} onOpenSettings={isGuest ? null : openSettings} />
           <CareerHighlights account={account} onNavigateToGame={openGameLightbox} />
           {/* TrophyCase (Trophy Cabinet + Milestones) hidden for now — needs another design pass */}
         </>
