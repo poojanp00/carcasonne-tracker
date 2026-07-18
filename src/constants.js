@@ -20,7 +20,7 @@ export const APP_CONFIG = {
 
 // ── Carcassonne Game Rules ──
 export const MAX_GAME_PLAYERS = 6;
-export const MAX_REALMS = 12;
+export const MAX_REALMS = 24;
 
 // Monastery, Abbot, and Abbey all score a max of 9 points per completed feature
 // (1 point for the tile itself + up to 8 surrounding neighbors).

@@ -47,6 +47,7 @@ export async function getRealms(userId) {
       createdAt:    r.created_at,
       ownerId:      r.user_id,
       isOwner:      r.user_id === userId, // Gates delete/invite/edit UI for shared realms
+      spine:        r.spine, // Book art index, fixed at creation (null on legacy realms)
     }))
     .filter(r =>
       r.isOwner ||
@@ -78,6 +79,7 @@ export async function saveRealm(realm, userId) {
     players:       toDbPlayers(realm.players),
     created_at:    realm.createdAt,
     user_id:       userId, // Enforce ownership
+    spine:         realm.spine ?? null, // Fixed at creation; legacy realms stay null
   });
 
   if (error) {

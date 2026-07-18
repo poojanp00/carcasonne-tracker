@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 import { DEFAULT_EXPANSIONS } from '../data/expansions';
 import { calcGroupStats, calcPlayerRecords, calcRealmStandings } from '../utils/stats';
 import PlayerCard, { PLAYER_COLOR_CLASSES } from './PlayerCard';
@@ -9,21 +9,10 @@ import ValInfo from './ValInfo';
 import { TrashIcon } from './icons';
 import crownImg from '../../images/icons/crown.png';
 import { formatDate } from '../utils/formatters';
+import { spineFor } from '../data/spines';
 
 const GAMES_PER_PAGE = 25;
 const FIRST_LOG_PAGE = 3; // 0 cover, 1 overview, 2 fellowship, 3.. game log
-
-// Book spine art, one per realm — numerically sorted so spine N stays stable
-const SPINE_MODULES = import.meta.glob('../../images/logbook/*.png', { eager: true, import: 'default' });
-const SPINES = Object.entries(SPINE_MODULES)
-  .sort((a, b) => parseInt(a[0].match(/(\d+)\.png$/)?.[1] ?? 0, 10) - parseInt(b[0].match(/(\d+)\.png$/)?.[1] ?? 0, 10))
-  .map(([, img]) => img);
-
-// Stable id hash so a realm keeps its binding when other realms are deleted
-function spineFor(realm) {
-  const hash = [...String(realm.id)].reduce((s, c) => s + c.charCodeAt(0), 0);
-  return SPINES[hash % SPINES.length];
-}
 
 function formatDuration(ms) {
   if (!(ms > 0)) return '—';
@@ -44,9 +33,45 @@ function formatEstablished(realm) {
 }
 
 function Bookshelf({ realms, games, onOpenBook }) {
+  const shelfRef = useRef(null);
+  const [plankTops, setPlankTops] = useState([]);
+
+  // Oldest realm first — the shelf fills left to right in creation order,
+  // regardless of the order realms arrived in state (new realms and accepted
+  // invites append mid-session)
+  const shelfRealms = useMemo(
+    () => [...realms].sort((a, b) => new Date(a.createdAt || a.created_at) - new Date(b.createdAt || b.created_at)),
+    [realms]
+  );
+
+  // Books wrap naturally; a full-width plank is drawn under every wrapped row.
+  // Rows are found by measuring the books' bottom edges (align-items: flex-end
+  // lines them up), re-measured whenever the shelf resizes or art loads.
+  useEffect(() => {
+    const el = shelfRef.current;
+    if (!el) return;
+    const measure = () => {
+      const bottoms = new Set();
+      for (const book of el.querySelectorAll('.book-spine')) {
+        bottoms.add(book.offsetTop + book.offsetHeight);
+      }
+      setPlankTops(prev => {
+        const next = [...bottoms].sort((a, b) => a - b);
+        return prev.length === next.length && prev.every((v, i) => v === next[i]) ? prev : next;
+      });
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [realms]);
+
   return (
-    <div className="library-shelf">
-      {realms.map(realm => (
+    <div ref={shelfRef} className="library-shelf">
+      {plankTops.map(top => (
+        <div key={top} className="shelf-plank" style={{ top }} aria-hidden="true" />
+      ))}
+      {shelfRealms.map(realm => (
         <button key={realm.id} type="button" className="book-spine" onClick={() => onOpenBook(realm)}>
           <div className="book-spine-art">
             <img src={spineFor(realm)} alt="" draggable={false} />
@@ -127,7 +152,7 @@ function OverviewPage({ realm, realmGames, standings, onOpenGame }) {
         {info && <StatInfo>{info}</StatInfo>}
       </span>
       {gameObj
-        ? <button type="button" onClick={() => onOpenGame(gameObj)} style={{ background: 'none', border: 'none', padding: 0, cursor: 'var(--cursor-pointer)', fontFamily: 'Cinzel, serif', fontWeight: 600, color: 'var(--charcoal)', textDecoration: 'underline dotted' }}>{val}</button>
+        ? <button type="button" className="stat-value" onClick={() => onOpenGame(gameObj)} style={{ background: 'none', border: 'none', padding: 0, cursor: 'var(--cursor-pointer)', color: 'var(--charcoal)', textDecoration: 'underline dotted' }}>{val}</button>
         : <span className="stat-value">{val}</span>
       }
     </div>
@@ -144,8 +169,8 @@ function OverviewPage({ realm, realmGames, standings, onOpenGame }) {
       winsByPlayer={Object.fromEntries(standings.sorted.map(ps => [ps.name, records[ps.name.toLowerCase()]?.w || 0]))}
       footerAlways
       footer={(
-        <>
-          <div className="milestones-subtitle">Realm Highlights</div>
+        <div className="stat-rows-narrow">
+          <div className="tile-card-header" style={{ borderBottom: '1px solid var(--warm-gold)', paddingBottom: '0.5rem', marginBottom: '1rem' }}>Realm Highlights</div>
           {[
             ['Highest Combined Score', gs.highestPoints > 0 ? gs.highestPoints : '—', gs.highestPointsObj, null],
             ['Closest Finish', gs.closestFinishObj ? `+${gs.closestFinishMargin}` : '—', gs.closestFinishObj, 'Smallest winning margin in the realm.'],
@@ -176,13 +201,13 @@ function OverviewPage({ realm, realmGames, standings, onOpenGame }) {
                 <div key={label} className="stat-row" style={{ margin: 0 }}>
                   <span className="stat-label" style={{ color: 'var(--stone-gray)' }}>{label}</span>
                   <ValInfo tip={count !== null ? `Played in ${count} ${count === 1 ? 'game' : 'games'}` : null}>
-                    <span className="stat-value" style={{ fontSize: 'clamp(0.6rem, 1.5vw, 0.78rem)', fontWeight: 500 }}>{val}</span>
+                    <span className="stat-value" style={{ fontSize: 'clamp(0.72rem, 1.8vw, 0.92rem)', fontWeight: 500 }}>{val}</span>
                   </ValInfo>
                 </div>
               ))}
             </div>
           </div>
-        </>
+        </div>
       )}
     />
   );

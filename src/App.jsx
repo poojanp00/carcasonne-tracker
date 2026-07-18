@@ -3,6 +3,7 @@ import PostGameForm  from './components/PostGameForm';
 import Library       from './components/Library';
 import Profile       from './components/Profile';
 import { GUEST_ALLOWED_MINIS } from './data/expansions';
+import { pickSpine } from './data/spines';
 import Board         from './components/Board';
 import Lobby         from './components/Lobby';
 import PreGameSetup  from './components/PreGameSetup';
@@ -16,7 +17,7 @@ import { useAuth }     from './hooks/useAuth';
 import { resetBoard }  from './data/boardStorage';
 import { deleteAccount, sendRealmInvite, updateDisplayName } from './data/storage';
 import { DEFAULT_EXPANSIONS } from './data/expansions';
-import { DEMO_REALM, DEMO_GAMES } from './data/demoData';
+import { DEMO_REALMS, DEMO_GAMES, DEMO_USER_ID, DEMO_USER_NAME } from './data/demoData';
 import { TABS, APP_CONFIG, EXPANSION_TYPES, PINNED_EXPANSIONS } from './constants';
 import { normalizeMeeples } from './utils/formatters';
 import { createSession, endSession, deleteSession } from './data/partySession';
@@ -106,6 +107,7 @@ export default function App() {
         players: (data.players || []).map(name => ({ name, userId: null, status: 'uninvited' })),
         created_at: new Date().toISOString(),
         isOwner: true, // Uniform owner-gating shape with DB realms
+        spine: pickSpine([]), // Random book art for the guest's single realm
       };
       setGuestRealms([guestRealm]);
       return Promise.resolve(guestRealm);
@@ -330,14 +332,16 @@ export default function App() {
     if (id !== 'board' && session?.finalScores) {
       setSession(prev => ({ ...prev, finalScores: null, scoreBreakdown: null, players: null }));
     }
+    // Demo mode is per-visit — switching tabs always exits it
+    setShowDemoData(false);
     setTab(id);
   }, [session, isGuest]);
 
   // When demo mode is on for guests, swap in the demo dataset
   const demoOn = isGuest && showDemoData;
   const displayGames        = demoOn ? DEMO_GAMES        : appData.games;
-  const displayRealms       = demoOn ? [DEMO_REALM]      : appData.realms;
-  const displayCurrentRealm = demoOn ? DEMO_REALM        : (session?.realm || null);
+  const displayRealms       = demoOn ? DEMO_REALMS       : appData.realms;
+  const displayCurrentRealm = demoOn ? DEMO_REALMS[0]    : (session?.realm || null);
   const toggleDemo          = () => setShowDemoData(v => !v);
 
   // Carcassonne expansion priority: Always show River and Abbot first since they're
@@ -576,11 +580,13 @@ export default function App() {
             )}
             {tab === 'me' && (
               <Profile
-                games={appData.games}
-                realms={appData.realms}
-                userId={user?.id}
-                displayName={displayName}
+                games={demoOn ? DEMO_GAMES : appData.games}
+                realms={demoOn ? DEMO_REALMS : appData.realms}
+                userId={demoOn ? DEMO_USER_ID : user?.id}
+                displayName={demoOn ? DEMO_USER_NAME : displayName}
                 isGuest={isGuest}
+                showDemoData={showDemoData}
+                onToggleDemoData={isGuest ? toggleDemo : null}
                 onChangeDisplayName={updateDisplayName}
                 onDeleteAccount={async () => { await deleteAccount(user?.id); signOut(); }}
                 onSignOut={() => { signOut(); goHome(); }}

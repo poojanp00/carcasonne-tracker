@@ -31,12 +31,10 @@ import {
   generateId, generateRealmId,
   migrateFromLocalStorage,
 } from '../data/storage';
+import { pickSpine } from '../data/spines';
+import { MAX_REALMS } from '../constants';
 
 export function useGameData(user, authLoading) {
-  // Realm limit to prevent database bloat and encourage focused gameplay
-  // within a reasonable number of distinct groups/settings.
-  // Business rule: Most users have 2-4 active game groups (family, friends, etc.)
-  const MAX_REALMS = 12;
   const [games,          setGames]          = useState([]);
   const [expansions,     setExpansions]     = useState([]);
   const [realms,         setRealms]         = useState([]);
@@ -174,6 +172,7 @@ export function useGameData(user, authLoading) {
       createdAt: new Date().toISOString().split('T')[0], // YYYY-MM-DD format
       ownerId:   user.id,
       isOwner:   true,
+      spine:     pickSpine(realms), // Book art: least-used first, fixed forever
     };
     await saveRealm(realm, user?.id);
     setRealms(prev => [...prev, realm]);

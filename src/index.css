@@ -2632,6 +2632,10 @@ input[type="file"] { display: none; }
   color: var(--earth-brown);
   transform: rotate(60deg);
 }
+.profile-settings-btn svg {
+  width: 24px;
+  height: 24px;
+}
 
 .profile-hero-top {
   display: flex;
@@ -2696,16 +2700,25 @@ input[type="file"] { display: none; }
 
 /* Library bookshelf */
 .library-shelf {
+  position: relative; /* anchors the measured full-width planks */
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
   justify-content: center;
   gap: clamp(0.6rem, 2.5vw, 1.4rem);
   row-gap: 2.2rem;
-  padding: 1.5rem clamp(0.5rem, 2vw, 1.5rem) 0;
-  border-bottom: 12px solid var(--earth-brown);
-  box-shadow: 0 14px 12px -10px rgba(43, 27, 10, 0.35);
+  padding: 1.5rem clamp(0.5rem, 2vw, 1.5rem) 12px;
   margin-bottom: 2rem;
+}
+/* Full-width shelf plank under each wrapped row — positioned from JS measurement */
+.shelf-plank {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 12px;
+  background: var(--earth-brown);
+  box-shadow: 0 14px 12px -10px rgba(43, 27, 10, 0.35);
+  pointer-events: none;
 }
 .book-spine {
   background: none;
@@ -2716,10 +2729,13 @@ input[type="file"] { display: none; }
   flex-direction: column;
   align-items: center;
   gap: 0.4rem;
+}
+.book-spine:hover .book-spine-art { transform: translateY(-6px); }
+.book-spine-art {
+  position: relative;
+  display: block;
   transition: transform var(--transition-lift);
 }
-.book-spine:hover { transform: translateY(-6px); }
-.book-spine-art { position: relative; display: block; }
 .book-spine-art img {
   display: block;
   height: clamp(160px, 26vw, 230px);
@@ -2787,7 +2803,7 @@ input[type="file"] { display: none; }
 }
 .book-nav-label {
   font-family: 'Cinzel', serif;
-  font-size: clamp(0.62rem, 1.8vw, 0.78rem);
+  font-size: clamp(0.85rem, 2.4vw, 1.1rem);
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--earth-brown);
@@ -2815,6 +2831,15 @@ input[type="file"] { display: none; }
   color: var(--earth-brown);
   margin: 0.7rem 0;
 }
+/* Stat lists constrained like the book-cover rows: narrow and centered,
+   with a larger type size to fill the column */
+.stat-rows-narrow {
+  max-width: 480px;
+  margin: 0 auto;
+}
+.stat-rows-narrow .stat-label { font-size: clamp(0.95rem, 2.4vw, 1.2rem); }
+.stat-rows-narrow .stat-value { font-size: clamp(0.85rem, 2.2vw, 1.1rem); }
+
 .book-cover-rows {
   margin-top: 1.8rem;
   text-align: left;
