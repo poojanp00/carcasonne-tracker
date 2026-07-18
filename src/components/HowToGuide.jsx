@@ -7,7 +7,7 @@ const STEPS = [
 ];
 
 const PLAY_STEPS = [
-  'Create a group.',
+  'Create a realm.',
   'Choose a play mode',
   'Select each player\'s meeple color.',
   'Choose your expansions.',

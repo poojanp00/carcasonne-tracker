@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import PostGameForm  from './components/PostGameForm';
-import Logbook       from './components/Logbook';
-import Statistics    from './components/Statistics';
+import Library       from './components/Library';
+import Profile       from './components/Profile';
 import Collection, { GUEST_ALLOWED_MINIS } from './components/Collection';
 import Board         from './components/Board';
 import Lobby         from './components/Lobby';
@@ -20,7 +20,6 @@ import { DEMO_REALM, DEMO_GAMES } from './data/demoData';
 import { TABS, APP_CONFIG, EXPANSION_TYPES, PINNED_EXPANSIONS } from './constants';
 import { normalizeMeeples } from './utils/formatters';
 import { createSession, endSession, deleteSession } from './data/partySession';
-import crownImg from '../images/icons/crown.png';
 
 
 function Toast({ message }) {
@@ -37,7 +36,6 @@ export default function App() {
   const [tab,            setTab]            = useState('home');
   const [gameKey,        setGameKey]        = useState(0);
   const [toast,          setToast]          = useState(null);
-  const [realmPickerKey, setRealmPickerKey] = useState(0);
   const [openGame,       setOpenGame]       = useState(null);
   // Which gameKey the guest how-to guide has already auto-shown for — lives here (not in
   // Board) so switching tabs away and back to the same game doesn't re-trigger it, while a
@@ -147,7 +145,6 @@ export default function App() {
   const goHome = useCallback(() => {
     setSession(null);
     setTab('home');
-    setRealmPickerKey(k => k + 1);
     setGuestResumeAtMode(false);
   }, []);
 
@@ -158,7 +155,6 @@ export default function App() {
 
   const handleRealmSelect = useCallback((realm) => {
     setSession({ realm });
-    setRealmPickerKey(k => k + 1);
   }, []);
 
   const handleRealmCreate = useCallback(async (data) => {
@@ -167,11 +163,10 @@ export default function App() {
       // no separate claim step needed anymore.
       const realm = await appOperations.addRealm(data);
       setSession({ realm, showRealmCreation: false });
-      setRealmPickerKey(k => k + 1);
       if (isGuest) setGuestResumeAtMode(true);
     } catch (err) {
       console.error('create realm failed', err);
-      showToast(`Failed to create group: ${err?.message || 'Unknown error'}`);
+      showToast(`Failed to create realm: ${err?.message || 'Unknown error'}`);
     }
   }, [appOperations.addRealm, showToast, isGuest]);
 
@@ -242,7 +237,7 @@ export default function App() {
     if (isGuest) {
       // For guests, redirect to sign-in instead of recording
       setSession(null);
-      setTab('statistics');
+      setTab('history');
       signOutGuest();
       return;
     }
@@ -282,12 +277,11 @@ export default function App() {
         setSession({ realm: remaining[0] });
       } else {
         setSession(null);
-        setRealmPickerKey(k => k + 1);
-        setTab('statistics');
+        setTab('history');
       }
     }
     window.scrollTo(0, 0); // Delete button sits at the page bottom
-    showToast('Group deleted.');
+    showToast('Realm deleted.');
   }, [appOperations.removeRealm, session, appData.realms, showToast]);
 
   // ── Realm sharing ──
@@ -298,7 +292,7 @@ export default function App() {
 
   const handleInviteAccept = useCallback(async (realmId) => {
     await acceptInvite(realmId);
-    showToast('Group added to your account.');
+    showToast('Realm added to your account.');
   }, [acceptInvite, showToast]);
 
   const handleInviteDecline = useCallback(
@@ -315,11 +309,10 @@ export default function App() {
         setSession({ realm: remaining[0] });
       } else {
         setSession(null);
-        setRealmPickerKey(k => k + 1);
       }
     }
     window.scrollTo(0, 0); // Leave button sits at the page bottom
-    showToast('You left the group.');
+    showToast('You left the realm.');
   }, [leaveSharedRealm, session, appData.realms, showToast]);
 
   const handleUpdateRealm = useCallback((patch) => {
@@ -329,7 +322,6 @@ export default function App() {
   }, [session, appOperations.updateRealm]);
 
   const handleTabChange = useCallback((id) => {
-    if (id === 'statistics') setRealmPickerKey(k => k + 1);
     // Guests get the "How to Play" popup on every visit to the play tab
     if (id === 'board' && isGuest) setShowHowToPlay(true);
     // Leaving the play tab abandons any in-progress pregame setup, so the next visit restarts
@@ -421,7 +413,7 @@ export default function App() {
             {TABS.map(({ id, label }) => (
               <button
                 key={id}
-                className={`tab-btn${tab === id ? ' active' : ''}${id === 'collection' ? ' tab-btn-right' : ''}`}
+                className={`tab-btn${tab === id ? ' active' : ''}${id === 'me' ? ' tab-btn-right' : ''}`}
                 onClick={() => handleTabChange(id)}
                 role="tab"
                 aria-selected={tab === id}
@@ -556,7 +548,7 @@ export default function App() {
                         </div>
                       )}
                       <div className="empty-state">
-                        Select a group to begin playing.
+                        Select a realm to begin playing.
                       </div>
                     </div>
                   )
@@ -565,24 +557,40 @@ export default function App() {
               <HowToPlayModal onClose={() => setShowHowToPlay(false)} />
             )}
             {tab === 'home' && <Landing onNavigate={handleTabChange} />}
-            {tab === 'history' && <Logbook games={displayGames} realms={displayRealms} currentRealm={displayCurrentRealm} onRealmChange={handleRealmSelect} onDelete={handleDelete} isGuest={isGuest} showDemoData={showDemoData} onToggleDemoData={isGuest ? toggleDemo : null} openGame={openGame} onOpenGameClear={() => setOpenGame(null)} />}
-            {/* Always rendered, like Logbook — Statistics shows its own
-                "Select a group…" empty state when no group is active */}
-            {tab === 'statistics' && (
-              <Statistics
+            {tab === 'history' && (
+              <Library
                 games={displayGames}
                 realms={displayRealms}
                 currentRealm={displayCurrentRealm}
                 onRealmChange={handleRealmSelect}
-                onDelete={handleRealmDelete}
-                onLeave={handleRealmLeave}
+                onDeleteGame={handleDelete}
+                onDeleteRealm={handleRealmDelete}
+                onLeaveRealm={handleRealmLeave}
                 isGuest={isGuest}
                 showDemoData={showDemoData}
                 onToggleDemoData={isGuest ? toggleDemo : null}
-                onNavigateToGame={game => { setOpenGame(game); setTab('history'); }}
+                openGame={openGame}
+                onOpenGameClear={() => setOpenGame(null)}
               />
             )}
-            {tab === 'collection' && <Collection expansions={appData.expansions} onToggle={appOperations.toggleExpansion} userId={user?.id} isGuest={isGuest} onDeleteAccount={async () => { await deleteAccount(user?.id); signOut(); }} />}
+            {tab === 'me' && (
+              <Profile
+                games={appData.games}
+                realms={appData.realms}
+                userId={user?.id}
+                displayName={displayName}
+                isGuest={isGuest}
+              />
+            )}
+            {tab === 'collection' && (
+              <Collection
+                expansions={appData.expansions}
+                onToggle={appOperations.toggleExpansion}
+                userId={user?.id}
+                isGuest={isGuest}
+                onDeleteAccount={async () => { await deleteAccount(user?.id); signOut(); }}
+              />
+            )}
           </div>
           </div>
         </>

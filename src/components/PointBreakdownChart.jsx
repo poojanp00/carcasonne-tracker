@@ -25,11 +25,12 @@ SCORE_GROUPS.forEach(g => g.types.forEach(t => { TYPE_TO_GROUP[t] = g; }));
 /**
  * Proportional per-player point bars with a Combine toggle and expandable table.
  *
- * @param {string}    title        - Card header (e.g. a group name when used as the standings box)
+ * @param {string}    title        - Card header (e.g. a realm name when used as the standings box)
  * @param {Object}    winsByPlayer - Optional {name: wins}; renders a win count before each name
- * @param {ReactNode} footer       - Optional content rendered below the bars/table (e.g. group stats)
+ * @param {ReactNode} footer       - Optional content rendered below the bars/table (e.g. realm stats)
+ * @param {boolean}   footerAlways - Show the footer outright instead of tucking it behind the dropdown
  */
-export default function PointBreakdownChart({ players, showLegend = false, title = 'Complete Points Breakdown', winsByPlayer = null, footer = null }) {
+export default function PointBreakdownChart({ players, showLegend = false, title = 'Complete Points Breakdown', winsByPlayer = null, footer = null, footerAlways = false }) {
   const [tooltip, setTooltip] = useState(null);
   const [showTable, setShowTable] = useState(false);
   const [combined, setCombined] = useState(false);
@@ -245,8 +246,8 @@ export default function PointBreakdownChart({ players, showLegend = false, title
           </table>
         </div>}
 
-        {/* Footer tucks behind the dropdown; shown outright only when there's no dropdown to expand */}
-        {footer && (showTable || displayTypes.length === 0) && (
+        {/* Footer tucks behind the dropdown; shown outright when requested or when there's no dropdown to expand */}
+        {footer && (footerAlways || showTable || displayTypes.length === 0) && (
           <div style={{ marginTop: '1.2rem', borderTop: '1px solid rgba(201,163,74,0.35)', paddingTop: '1.2rem' }}>
             {footer}
           </div>

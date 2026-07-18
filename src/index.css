@@ -829,6 +829,55 @@ input[type="search"], input[type="number"] {
 }
 .player-card:has(.milestone-badge:hover) { z-index: 10; }
 
+/* ── Me page hero card ── */
+.me-hero-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem 2rem;
+  align-items: start;
+}
+@media (max-width: 640px) {
+  .me-hero-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ── Account milestone tiers (Me page) ── */
+.account-tier-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+.account-tier {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  min-width: 0;
+  padding: 0.45rem 0.35rem;
+  border: 1px solid rgba(139,94,60,0.3);
+  border-radius: 6px;
+  text-align: center;
+}
+.account-tier-name {
+  font-family: 'Cinzel', serif;
+  font-size: clamp(0.5rem, 1.6vw, 0.68rem);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1.25;
+  color: var(--stone-gray);
+}
+.account-tier-threshold {
+  font-family: 'Crimson Text', serif;
+  font-style: italic;
+  font-size: clamp(0.55rem, 1.5vw, 0.72rem);
+  color: var(--stone-gray);
+  opacity: 0.8;
+}
+.account-tier.achieved {
+  border-color: var(--warm-gold);
+  background: rgba(201,163,74,0.12);
+}
+.account-tier.achieved .account-tier-name { color: var(--earth-brown); }
+
 .leader-banner {
   font-family: 'Cinzel', serif;
   font-size: 0.7rem;
@@ -2479,4 +2528,213 @@ input[type="file"] { display: none; }
 
 .lb-badge-col {
   padding-left: 0.5rem;
+}
+
+/* ── Library & Profile ─────────────────────────────────────────────────────── */
+
+/* Profile hero card */
+.profile-hero-top {
+  display: flex;
+  align-items: center;
+  gap: clamp(0.8rem, 3vw, 1.4rem);
+  margin: 0.8rem 0 1.2rem;
+}
+.profile-hero-meeple {
+  height: clamp(72px, 14vw, 110px);
+  width: auto;
+  filter: drop-shadow(2px 3px 4px rgba(43, 27, 10, 0.35));
+}
+.profile-hero-name {
+  font-family: 'Cinzel', serif;
+  font-size: clamp(1.4rem, 4.5vw, 2.1rem);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--charcoal);
+  line-height: 1.15;
+}
+.profile-hero-title {
+  font-family: 'Cinzel', serif;
+  font-size: clamp(0.75rem, 2vw, 0.95rem);
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--warm-gold);
+  margin-top: 0.25rem;
+}
+.profile-hero-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: clamp(0.5rem, 2vw, 0.9rem);
+  margin-top: 1.1rem;
+}
+.profile-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  padding: clamp(0.6rem, 2vw, 0.9rem) 0.4rem;
+  background: rgba(139, 94, 60, 0.07);
+  border-radius: 10px;
+}
+.profile-stat-value {
+  font-family: 'Cinzel', serif;
+  font-weight: 700;
+  font-size: clamp(1.05rem, 3vw, 1.5rem);
+  color: var(--charcoal);
+  line-height: 1;
+}
+.profile-stat-label {
+  font-family: 'Cinzel', serif;
+  font-size: clamp(0.55rem, 1.5vw, 0.7rem);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--stone-gray);
+  text-align: center;
+}
+
+/* Library bookshelf */
+.library-shelf {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: center;
+  gap: clamp(0.6rem, 2.5vw, 1.4rem);
+  row-gap: 2.2rem;
+  padding: 1.5rem clamp(0.5rem, 2vw, 1.5rem) 0;
+  border-bottom: 12px solid var(--earth-brown);
+  box-shadow: 0 14px 12px -10px rgba(43, 27, 10, 0.35);
+  margin-bottom: 2rem;
+}
+.book-spine {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: var(--cursor-pointer);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  transition: transform var(--transition-lift);
+}
+.book-spine:hover { transform: translateY(-6px); }
+.book-spine-art { position: relative; display: block; }
+.book-spine-art img {
+  display: block;
+  height: clamp(160px, 26vw, 230px);
+  width: auto;
+  filter: drop-shadow(3px 4px 6px rgba(43, 27, 10, 0.4));
+}
+.book-spine-title {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  writing-mode: vertical-rl;
+  max-height: 82%;
+  overflow: hidden;
+  font-family: 'Cinzel', serif;
+  font-weight: 600;
+  font-size: clamp(0.6rem, 1.8vw, 0.8rem);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--parchment);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
+  pointer-events: none;
+  white-space: nowrap;
+}
+.book-spine-count {
+  font-family: 'Cinzel', serif;
+  font-size: clamp(0.58rem, 1.5vw, 0.7rem);
+  letter-spacing: 0.08em;
+  color: var(--stone-gray);
+}
+
+/* Open realm book */
+.realm-book {
+  background: var(--parchment);
+  border: var(--border-gold);
+  border-radius: 12px;
+  box-shadow: var(--shadow-tile);
+  padding: clamp(0.9rem, 3vw, 2rem);
+}
+.book-header {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  margin-bottom: 1.2rem;
+  padding-bottom: 0.8rem;
+  border-bottom: 1px dashed var(--warm-gold);
+}
+.book-header-title {
+  flex: 1;
+  text-align: center;
+  font-family: 'Cinzel', serif;
+  font-weight: 700;
+  font-size: clamp(0.85rem, 2.5vw, 1.05rem);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--earth-brown);
+}
+.book-page { animation: bookPageIn 0.28s ease; }
+@keyframes bookPageIn {
+  from { opacity: 0; transform: translateX(12px); }
+  to   { opacity: 1; transform: none; }
+}
+.book-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  margin-top: 1.6rem;
+  padding-top: 1rem;
+  border-top: 1px dashed var(--warm-gold);
+}
+.book-nav button:disabled {
+  opacity: 0.35;
+  pointer-events: none;
+}
+.book-nav-label {
+  font-family: 'Cinzel', serif;
+  font-size: clamp(0.62rem, 1.8vw, 0.78rem);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--earth-brown);
+  text-align: center;
+}
+
+/* Book cover page */
+.book-cover {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: clamp(1.2rem, 4vw, 2.2rem) 0 0.8rem;
+  text-align: center;
+}
+.book-cover-ornament {
+  color: var(--warm-gold);
+  font-size: 1.35rem;
+  line-height: 1;
+}
+.book-cover-name {
+  font-family: 'Cinzel', serif;
+  font-size: clamp(1.5rem, 5vw, 2.2rem);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--earth-brown);
+  margin: 0.7rem 0;
+}
+.book-cover-rows {
+  margin-top: 1.8rem;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+@media (max-width: 640px) {
+  .profile-hero-stats { grid-template-columns: repeat(2, 1fr); }
+  .library-shelf { row-gap: 1.6rem; }
+  .book-spine-art img { height: clamp(130px, 34vw, 180px); }
 }
