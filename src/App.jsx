@@ -482,7 +482,6 @@ export default function App() {
                           startAtRealmCreation={true}
                           isGuest={isGuest}
                           selfName={displayName}
-                          userId={userId}
                           onToggleOwned={appOperations.toggleExpansion}
                         />
                       : <PreGameSetup
@@ -500,7 +499,6 @@ export default function App() {
                         startAtModeSelection={isGuest && guestResumeAtMode}
                         isGuest={isGuest}
                         selfName={displayName}
-                        userId={userId}
                         onToggleOwned={appOperations.toggleExpansion}
                       />
                 : appData.realms.length === 0
@@ -519,7 +517,6 @@ export default function App() {
                       startAtRealmCreation={true}
                       isGuest={isGuest}
                       selfName={displayName}
-                      userId={userId}
                       onToggleOwned={appOperations.toggleExpansion}
                     />
                   : <PreGameSetup
@@ -536,7 +533,6 @@ export default function App() {
                       onExportGroup={isGuest ? null : handleExportGroup}
                       isGuest={isGuest}
                       selfName={displayName}
-                      userId={userId}
                       onToggleOwned={appOperations.toggleExpansion}
                     />
             )}

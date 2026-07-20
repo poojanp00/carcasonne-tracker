@@ -67,7 +67,7 @@ const FUN_MEEPLES = Object.entries(FUN_MODULES)
     img
   }));
 
-export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeples, defaultExpansions, realms = [], currentRealm = null, onRealmChange, onRealmCreate, onExportGroup = null, startAtRealmCreation = false, startAtModeSelection = false, isGuest = false, selfName = '', userId = null, onToggleOwned = null }) {
+export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeples, defaultExpansions, realms = [], currentRealm = null, onRealmChange, onRealmCreate, onExportGroup = null, startAtRealmCreation = false, startAtModeSelection = false, isGuest = false, selfName = '', onToggleOwned = null }) {
   // Steps: 0=Bookshelf, 1=Players, 2=Realm creation, 3=Mode selection,
   // 4=Meeples (table only), 5=Expansions.
   // Every fresh mount starts at the bookshelf (or creation when no realms
