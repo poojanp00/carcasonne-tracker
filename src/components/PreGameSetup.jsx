@@ -5,9 +5,13 @@
  * Remembers previous game settings for continuity and convenience.
  * 
  * Setup Flow:
- * Step 2: Meeple Selection - Each player chooses their game piecer
- * Step 3: Expansion Selection - Choose which expansions to include
- * 
+ * Step 0: Bookshelf - Pick an existing realm, or start a new one
+ * Step 1: Players - Roster and invite status for the chosen realm
+ * Step 2: Realm Creation - Name, players, chest, and logbook
+ * Step 3: Mode Selection - Table or Party mode
+ * Step 4: Meeple Selection - Each player chooses their game piece
+ * Step 5: Expansion Selection - Choose which expansions to include, then Begin
+ *
  * Business Rules:
  * - Max 6 players per game (standard Carcassonne limit)
  * - Each player must have unique meeple (no duplicates)
@@ -16,7 +20,7 @@
  * - Previous game settings used as smart defaults
  */
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { MAX_GAME_PLAYERS, MAX_REALMS } from '../constants';
 import { formatPieceName } from '../utils/formatters';
 import { DEFAULT_EXPANSIONS, GUEST_ALLOWED_MINIS } from '../data/expansions';
@@ -24,6 +28,12 @@ import { getRealmMemberEmails } from '../data/storage';
 import { useClampTooltip } from '../hooks/useClampTooltip';
 import { useTapTooltip } from '../hooks/useTapTooltip';
 import { HowToPlayModal } from './HowToGuide';
+import { CHESTS, chestFor } from '../data/chests';
+import { SPINES } from '../data/spines';
+import ValInfo from './ValInfo';
+
+// Only the first 8 logbook designs are offered in the creation picker.
+const PICKABLE_SPINES = SPINES.slice(0, 8);
 
 /**
  * MEEPLE LOADING SYSTEM (STANDARD MEEPLES)
@@ -57,13 +67,19 @@ const FUN_MEEPLES = Object.entries(FUN_MODULES)
     img
   }));
 
-export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeples, defaultExpansions, realms = [], currentRealm = null, onRealmChange, onRealmCreate, onExportGroup = null, startAtRealmCreation = false, startAtModeSelection = false, isGuest = false, selfName = '', onToggleOwned = null }) {
-  // Steps: 0=Group selection, 1=Realm creation, 2=Mode selection, 3=Meeples (table only), 4=Expansions
-  // Every fresh mount starts at group selection (or creation when no groups exist yet), so
-  // navigating away mid-setup and back restarts the flow. startAtModeSelection is the one
-  // exception: right after a guest creates their group the parent remounts us with it set,
-  // continuing the forward flow to mode selection instead of bouncing back to Choose Group.
-  const initialStep = startAtModeSelection ? 2 : startAtRealmCreation ? 1 : realms.length === 0 ? 1 : 0;
+export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeples, defaultExpansions, realms = [], currentRealm = null, onRealmChange, onRealmCreate, onExportGroup = null, startAtRealmCreation = false, startAtModeSelection = false, isGuest = false, selfName = '', userId = null, selfRankTitle = null, onToggleOwned = null }) {
+  // Steps: 0=Bookshelf, 1=Players, 2=Realm creation, 3=Mode selection,
+  // 4=Meeples (table only), 5=Expansions.
+  // Every fresh mount starts at the bookshelf (or creation when no realms
+  // exist yet) — except when a `currentRealm` prop already arrives populated,
+  // which happens either because the parent explicitly resumed one, or
+  // because picking a different book in the bookshelf remounts this
+  // component (App.jsx keys it by realm id) with the newly-picked realm
+  // already in place; either way that means land on Players, not the shelf.
+  // startAtModeSelection is the other exception: right after a guest creates
+  // their group the parent remounts us with it set, continuing the forward
+  // flow to mode selection instead of bouncing back to the bookshelf.
+  const initialStep = startAtModeSelection ? 3 : startAtRealmCreation ? 2 : realms.length === 0 ? 2 : currentRealm ? 1 : 0;
   const [step, setStep] = useState(initialStep);
   const [mode, setMode] = useState('table'); // 'table' | 'party'
   const tableInfo = useTapTooltip();
@@ -72,7 +88,7 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
   const { tooltipRef: tableDescRef, tooltipStyle: tableDescStyle } = useClampTooltip(tableInfo.visible);
   const { tooltipRef: partyDescRef, tooltipStyle: partyDescStyle } = useClampTooltip(partyInfo.visible);
 
-  // Realm creation state (step 1)
+  // Realm creation state (step 2)
   const [showHowTo, setShowHowTo] = useState(false);
   const [realmName, setRealmName] = useState('');
   const [playerCount, setPlayerCount] = useState(2);
@@ -81,6 +97,13 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
   // is by slot, not by name).
   const [playerNames, setPlayerNames] = useState([selfName || '', '']);
   const [nameError, setNameError] = useState('');
+  // Chest and logbook — smart random defaults the user can change, same
+  // spirit as the meeple picker's defaults. Chosen once here and fixed
+  // forever on the realm from this point (see handleCreateRealm below).
+  // Guests don't get a choice — customizing cosmetics requires an account,
+  // so they're locked to the first chest/logbook (see the picker below).
+  const [chestIndex, setChestIndex] = useState(() => (isGuest ? 0 : Math.floor(Math.random() * CHESTS.length)));
+  const [spineIndex, setSpineIndex] = useState(() => (isGuest ? 0 : Math.floor(Math.random() * PICKABLE_SPINES.length)));
 
   // Export Group (step 0) — invite another account to this realm
   const [showExport,   setShowExport]   = useState(false);
@@ -186,10 +209,12 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
         players: names,
         // Player 1 is always the creator for signed-in users
         selfPlayer: isGuest ? null : names[0],
+        spine: spineIndex,
+        chest: chestIndex,
       });
       // Don't automatically navigate - let the parent component handle the flow
     } else {
-      setStep(2); // Move to mode selection
+      setStep(3); // Move to mode selection
     }
   };
 
@@ -269,7 +294,7 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
       return;
     }
     setMeepleError(null);
-    setStep(4); // Proceed to expansion selection
+    setStep(5); // Proceed to expansion selection
   };
 
   /**
@@ -426,8 +451,49 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
     });
   };
 
+  // Ref to step 2's realm-creation form, so a keyboard-triggered advance can
+  // submit it the same way clicking its button would (validation included).
+  const createFormRef = useRef(null);
 
-  // ── Step 0: Group Selection ──
+  // Arrow-key / Enter step navigation, mirroring the Library logbook's
+  // page-turn shortcut — mapped onto whichever Back/Next/Begin action is
+  // currently on screen. Skipped while focus is in a text field (so typing
+  // and native cursor movement/Enter-to-submit aren't hijacked) or on a
+  // focused button (which already handles its own Enter/Space natively).
+  // Step 0 (Bookshelf) gets no arrow/Enter handling — picking a realm means
+  // clicking a book.
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'Enter') return;
+      const tag = e.target.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || tag === 'BUTTON' || e.target.isContentEditable) return;
+
+      if (e.key === 'ArrowLeft') {
+        if (step === 1) setStep(0);
+        else if (step === 2 && realms.length > 0) setStep(0);
+        else if (step === 3) setStep(1);
+        else if (step === 4) setStep(3);
+        else if (step === 5) setStep(mode === 'party' ? 3 : 4);
+        return;
+      }
+      // Steps 1–4 page forward the same way for either key; step 5's Begin
+      // (which actually starts the game) is Enter-only — ArrowRight there is a no-op.
+      const advance = () => {
+        if (step === 1) { if (currentRealm) setStep(3); }
+        else if (step === 2) createFormRef.current?.requestSubmit();
+        else if (step === 3) setStep(mode === 'table' ? 4 : 5);
+        else if (step === 4) { if (activePlayers.length > 0) handleNextStep(); }
+      };
+      if (e.key === 'ArrowRight') { if (step !== 5) advance(); return; }
+      if (e.key === 'Enter') { if (step === 5) handleStart(); else advance(); }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, mode, currentRealm, realms.length, activePlayers.length]);
+
+
+  // ── Step 0: Chest row — pick which realm to play, or start a new one ──
   if (step === 0) {
     return (
       <div className="pregame-screen">
@@ -448,22 +514,45 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
 
         {showHowTo && <HowToPlayModal onClose={() => setShowHowTo(false)} />}
 
-        <div className="expansion-chips-carousel" style={{ marginBottom: '1.2rem' }}>
-          {realms.map(r => (
-            <button
-              key={r.id}
-              type="button"
-              className={`expansion-chip${currentRealm?.id === r.id ? ' selected' : ''}`}
-              onClick={() => onRealmChange(r)}
-            >
-              {r.name}
-            </button>
-          ))}
+        {realms.length === 0 ? (
+          <div className="empty-state" style={{ marginBottom: '1.2rem' }}>
+            No realms yet — create one to get started.
+          </div>
+        ) : (
+          <div className="chest-row">
+            {realms.map(realm => (
+              <button
+                key={realm.id}
+                type="button"
+                className="chest-pick"
+                onClick={() => { onRealmChange(realm); setStep(1); }}
+              >
+                <img src={chestFor(realm)} alt="" draggable={false} />
+                <span className="chest-pick-name">{realm.name}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+          <button type="button" className="btn btn-ghost" onClick={() => setStep(2)}>+ New</button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Step 1: Players ──
+  if (step === 1) {
+    return (
+      <div className="pregame-screen">
+        <div className="section-title">
+          <h2>Players</h2>
+          <div className="section-title-line" />
+          {currentRealm && <span className="game-count">{currentRealm.name}</span>}
         </div>
 
         {currentRealm && (
           <div className="tile-card" style={{ marginBottom: '1.2rem' }}>
-            <div style={{ fontFamily: 'Cinzel, serif', fontSize: 'clamp(0.62rem, 1.8vw, 0.78rem)', fontWeight: 600, color: 'var(--stone-gray)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '0.8rem' }}>Players</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
               {(currentRealm.players || []).map((p, i) => {
                 const status = playerStatus(p);
@@ -526,14 +615,12 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
         )}
 
         <div style={{ display: 'flex', gap: '0.7rem', alignItems: 'center', justifyContent: 'space-between', marginTop: '0.5rem' }}>
-          <div style={{ display: 'flex', gap: '0.7rem', flexWrap: 'wrap' }}>
-            <button type="button" className="btn btn-ghost" onClick={() => setStep(1)}>+ New</button>
-          </div>
+          <button type="button" className="btn btn-ghost" onClick={() => setStep(0)}>← Back</button>
           <button
             type="button"
             className="btn"
             disabled={!currentRealm}
-            onClick={() => setStep(2)}
+            onClick={() => setStep(3)}
           >
             Next →
           </button>
@@ -596,8 +683,8 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
     );
   }
 
-  // ── Step 1: Create Realm ──
-  if (step === 1) {
+  // ── Step 2: Create Realm ──
+  if (step === 2) {
     return (
       <div className="pregame-screen">
         <div className="section-title">
@@ -617,8 +704,9 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
 
         {showHowTo && <HowToPlayModal onClose={() => setShowHowTo(false)} />}
 
-        <form onSubmit={handleCreateRealm}>
-          <div className="tile-card" style={{ marginBottom: '0.9rem' }}>
+        <form ref={createFormRef} onSubmit={handleCreateRealm}>
+          <div className="realm-create-grid" style={{ marginBottom: '0.9rem' }}>
+          <div className="tile-card" style={{ marginBottom: 0 }}>
             {!isGuest && (
               <div className="form-group" style={{ maxWidth: '360px' }}>
                 <label className="form-label">Realm Name</label>
@@ -697,6 +785,49 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
               </div>
             </div>
           </div>
+
+          <div className="tile-card" style={{ marginBottom: 0 }}>
+            <label className="form-label" style={{ display: 'block', marginBottom: '0.6rem' }}>Choose Your Chest</label>
+            <div className="meeple-options">
+              {CHESTS.map((img, i) => {
+                const btn = (
+                  <button
+                    key={i}
+                    type="button"
+                    className={`meeple-option chest-option${chestIndex === i ? ' selected' : ''}`}
+                    onClick={isGuest ? undefined : () => setChestIndex(i)}
+                    style={isGuest ? { cursor: 'var(--cursor-arrow)' } : undefined}
+                  >
+                    <img src={img} alt={`Chest ${i + 1}`} />
+                  </button>
+                );
+                return isGuest ? (
+                  <ValInfo key={i} tip="Sign in to customize your realm's chest and logbook.">{btn}</ValInfo>
+                ) : btn;
+              })}
+            </div>
+            <label className="form-label" style={{ display: 'block', margin: '1rem 0 0.6rem' }}>Choose Your Logbook</label>
+            <div className="logbook-picker-row">
+              {PICKABLE_SPINES.map((img, i) => {
+                const btn = (
+                  <button
+                    key={i}
+                    type="button"
+                    className={`logbook-pick${spineIndex === i ? ' selected' : ''}`}
+                    onClick={isGuest ? undefined : () => setSpineIndex(i)}
+                    style={isGuest ? { cursor: 'var(--cursor-arrow)' } : undefined}
+                  >
+                    <img src={img} alt={`Logbook ${i + 1}`} draggable={false} />
+                  </button>
+                );
+                return isGuest ? (
+                  <ValInfo key={i} tip="Sign in to customize your realm's chest and logbook.">{btn}</ValInfo>
+                ) : btn;
+              })}
+            </div>
+          </div>
+          </div>
+
           {nameError && (
             <p style={{ fontSize: '0.88rem', color: 'var(--deep-red)', fontStyle: 'italic', marginBottom: '0.5rem' }}>
               {nameError}
@@ -713,13 +844,14 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
     );
   }
 
-  // ── Step 2: Mode Selection ──
-  if (step === 2) {
+  // ── Step 3: Mode Selection ──
+  if (step === 3) {
     return (
       <div className="pregame-screen">
         <div className="section-title">
           <h2>Choose Play Mode</h2>
           <div className="section-title-line" />
+          {currentRealm && <span className="game-count">{currentRealm.name}</span>}
         </div>
 
         <div className="mode-selection-grid">
@@ -797,15 +929,15 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
         </div>
 
         <div style={{ display: 'flex', gap: '0.7rem', alignItems: 'center', justifyContent: 'space-between', marginTop: '1.4rem' }}>
-          <button type="button" className="btn btn-ghost" onClick={() => setStep(0)}>← Back</button>
+          <button type="button" className="btn btn-ghost" onClick={() => setStep(1)}>← Back</button>
           <button
             type="button"
             className="btn"
             onClick={() => {
               if (mode === 'table') {
-                setStep(3); // Table → meeples
+                setStep(4); // Table → meeples
               } else {
-                setStep(4); // Party → skip meeples, go to expansions
+                setStep(5); // Party → skip meeples, go to expansions
               }
             }}
           >
@@ -816,16 +948,14 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
     );
   }
 
-  // ── Step 3: Meeples (table mode only) ──
-  if (step === 3) {
+  // ── Step 4: Meeples (table mode only) ──
+  if (step === 4) {
     return (
       <div className="pregame-screen">
         <div className="section-title">
           <h2>Choose Your Meeples</h2>
           <div className="section-title-line" />
-          <span className="game-count">
-            {mode === 'party' ? 'Party Mode' : 'Table Mode'}
-          </span>
+          {currentRealm && <span className="game-count">{currentRealm.name}</span>}
         </div>
 
         {activePlayers.length === 0 ? (
@@ -876,7 +1006,7 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
           <button
             type="button"
             className="btn btn-ghost"
-            onClick={() => setStep(2)}
+            onClick={() => setStep(3)}
           >
             ← Back
           </button>
@@ -888,15 +1018,13 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
     );
   }
 
-  // ── Step 4: Expansions + Start ──
+  // ── Step 5: Expansions + Start ──
   return (
     <div className="pregame-screen">
       <div className="section-title">
         <h2>Expansions in Play</h2>
         <div className="section-title-line" />
-        <span className="game-count">
-          {mode === 'party' ? 'Party Mode' : 'Table Mode'}
-        </span>
+        {currentRealm && <span className="game-count">{currentRealm.name}</span>}
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.4rem', marginBottom: '1.4rem' }}>
@@ -1073,7 +1201,7 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
       </div>
 
       <div style={{ display: 'flex', gap: '0.7rem', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
-        <button type="button" className="btn btn-ghost" onClick={() => setStep(mode === 'party' ? 2 : 3)}>← Back</button>
+        <button type="button" className="btn btn-ghost" onClick={() => setStep(mode === 'party' ? 3 : 4)}>← Back</button>
         <button type="button" className="btn" onClick={handleStart}>
           {mode === 'party' ? 'Begin' : 'Begin'}
         </button>

@@ -48,6 +48,7 @@ export async function getRealms(userId) {
       ownerId:      r.user_id,
       isOwner:      r.user_id === userId, // Gates delete/invite/edit UI for shared realms
       spine:        r.spine, // Book art index, fixed at creation (null on legacy realms)
+      chest:        r.chest, // Treasure chest index, fixed at creation
     }))
     .filter(r =>
       r.isOwner ||
@@ -80,6 +81,7 @@ export async function saveRealm(realm, userId) {
     created_at:    realm.createdAt,
     user_id:       userId, // Enforce ownership
     spine:         realm.spine ?? null, // Fixed at creation; legacy realms stay null
+    chest:         realm.chest ?? null, // Fixed at creation
   });
 
   if (error) {
@@ -338,6 +340,19 @@ export async function saveOwnedExpansions(ownedNames, userId, email) {
 export async function updateDisplayName(name) {
   const { error } = await supabase.auth.updateUser({ data: { display_name: name } });
   if (error) throw new Error(error.message || 'Failed to update display name');
+}
+
+/**
+ * Persist the highest meta-rank the account has ever achieved
+ * (auth user_metadata.highest_meta_rank). Only ever written upward — the
+ * displayed rank is max(computed, stored) so it never visibly regresses,
+ * even if the total tier pool grows later.
+ *
+ * @param {number} rank - Meta rank (1-20)
+ */
+export async function updateHighestMetaRank(rank) {
+  const { error } = await supabase.auth.updateUser({ data: { highest_meta_rank: rank } });
+  if (error) throw new Error(error.message || 'Failed to update meta rank');
 }
 
 // ── Account deletion ──────────────────────────────────────────────────────────

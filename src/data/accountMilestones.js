@@ -1,120 +1,143 @@
 // Account-wide milestone tiers for the Me page — aggregated across every realm
-// the account belongs to. Separate from the per-realm badge system in
-// milestones.js. Text-only for now; each tier has an `img` slot for future
-// badge artwork.
+// the account belongs to. Text-only for now; each tier has an `img` slot for
+// future badge artwork.
+//
+// Tier numbers are explicit (not index-derived) so a Tier 0 can be prepended
+// or a Tier 4 appended with a data-only change — UI reads tierNumber and
+// tiers.length, never assumes three tiers.
+//
+// Visibility: categories with `alwaysVisible` are base-game and always shown;
+// the rest only appear once the account has scored points in them (gated on
+// actual data, not on an expansion-owned flag).
 
-import { progressForTypes } from './milestones';
+// Sum of a breakdown's points across a set of score types (e.g. road + inn).
+function progressForTypes(types, breakdown) {
+  return types.reduce((sum, t) => sum + (breakdown?.[t] || 0), 0);
+}
 
 export const ACCOUNT_MILESTONES = [
   {
     id: 'games',
-    label: 'Games Played',
+    label: 'Furniture',
     metric: 'games', // counts games, not breakdown points
     unit: 'Games',
+    alwaysVisible: true,
     tiers: [
-      { threshold: 100,  name: 'Game Night',        img: null },
-      { threshold: 500,  name: 'Neighborhood Host', img: null },
-      { threshold: 1000, name: 'Community Staple',  img: null },
+      { tierNumber: 1, threshold: 1,  name: 'Folding Table',        img: null },
+      { tierNumber: 2, threshold: 100,  name: 'Dining Table', img: null },
+      { tierNumber: 3, threshold: 500, name: 'Oak Table',  img: null },
+      { tierNumber: 4, threshold: 1000, name: 'Banquet Table', img: null },
     ],
   },
   {
     id: 'city',
-    label: 'City Points',
+    label: 'City',
     types: ['city'],
     unit: 'City Points',
+    alwaysVisible: true,
     tiers: [
-      { threshold: 5000,  name: 'Walled Town',  img: null },
-      { threshold: 25000, name: 'Metropolis',   img: null },
-      { threshold: 50000, name: 'Iron Kingdom', img: null },
+      { tierNumber: 1, threshold: 10,  name: 'Camp',  img: null },
+      { tierNumber: 2, threshold: 1000, name: 'Town',   img: null },
+      { tierNumber: 3, threshold: 5000, name: 'Metropolis', img: null },
+      { tierNumber: 4, threshold: 10000, name: 'Iron Kingdom', img: null },
     ],
   },
   {
     id: 'road',
-    label: 'Road Points',
+    label: 'Road',
     types: ['road'],
     unit: 'Road Points',
+    alwaysVisible: true,
     tiers: [
-      { threshold: 1000,  name: "Pilgrim's Path", img: null },
-      { threshold: 5000,  name: "King's Highway", img: null },
-      { threshold: 10000, name: 'Silk Road',      img: null },
-    ],
-  },
-  {
-    id: 'field',
-    label: 'Field Points',
-    types: ['field'],
-    unit: 'Field Points',
-    tiers: [
-      { threshold: 1000,  name: 'Green Pasture',     img: null },
-      { threshold: 5000,  name: 'Bountiful Harvest', img: null },
-      { threshold: 10000, name: 'Breadbasket',       img: null },
-    ],
-  },
-  {
-    id: 'cathedral',
-    label: 'Cathedral Points',
-    types: ['cathedral'],
-    unit: 'Cathedral Points',
-    tiers: [
-      { threshold: 1000,  name: 'Village Chapel',  img: null },
-      { threshold: 5000,  name: 'Sacred Landmark', img: null },
-      { threshold: 10000, name: 'Grand Basilica',  img: null },
-    ],
-  },
-  {
-    id: 'inn',
-    label: 'Inn Points',
-    types: ['inn'],
-    unit: 'Inn Points',
-    tiers: [
-      { threshold: 750,  name: 'Roadside Tavern',  img: null },
-      { threshold: 3500, name: "Traveler's Haven", img: null },
-      { threshold: 7000, name: "King's Rest",      img: null },
-    ],
-  },
-  {
-    id: 'pig',
-    label: 'Pig Points',
-    types: ['pig'],
-    unit: 'Pig Points',
-    tiers: [
-      { threshold: 500,  name: 'Prized Hog',      img: null },
-      { threshold: 2500, name: 'Prosperous Herd', img: null },
-      { threshold: 5000, name: 'Golden Boar',     img: null },
-    ],
-  },
-  {
-    id: 'barn',
-    label: 'Barn Points',
-    types: ['barn'],
-    unit: 'Barn Points',
-    tiers: [
-      { threshold: 500,  name: 'Farmstead',        img: null },
-      { threshold: 2500, name: 'Noble Estate',     img: null },
-      { threshold: 5000, name: 'Fields of Plenty', img: null },
+      { tierNumber: 1, threshold: 5,  name: "Footpath", img: null },
+      { tierNumber: 2, threshold: 500,  name: "Cobblestone Road", img: null },
+      { tierNumber: 3, threshold: 2500,  name: "King's Highway", img: null },
+      { tierNumber: 4, threshold: 5000, name: 'The Silk Road', img: null },
     ],
   },
   {
     id: 'monastery',
-    label: 'Monastery Points',
+    label: 'Monastery',
     types: ['monastery'],
     unit: 'Monastery Points',
+    alwaysVisible: true,
     tiers: [
-      { threshold: 2000,  name: 'Hermitage',     img: null },
-      { threshold: 10000, name: 'Abbey',         img: null },
-      { threshold: 25000, name: 'Holy Dominion', img: null },
+      { tierNumber: 1, threshold: 10,  name: 'Hermitage',     img: null },
+      { tierNumber: 2, threshold: 1000, name: 'Sacred Brotherhood',img: null },
+      { tierNumber: 3, threshold: 5000, name: 'Monastic Order', img: null },
+      { tierNumber: 4, threshold: 10000, name: 'Holy Dominion', img: null },
     ],
   },
   {
-    // Provisional names/thresholds — final tiers TBD
+    id: 'field',
+    label: 'Field',
+    types: ['field'],
+    unit: 'Field Points',
+    tiers: [
+      { tierNumber: 1, threshold: 10,  name: 'Meadow',img: null },
+      { tierNumber: 2, threshold: 1000,  name: 'Pasture',img: null },
+      { tierNumber: 3, threshold: 5000,  name: 'Farmland', img: null },
+      { tierNumber: 4, threshold: 10000, name: 'Estate',img: null },
+    ],
+  },
+  {
     id: 'abbot',
-    label: 'Abbot Points',
+    label: 'Abbot',
     types: ['abbot'],
     unit: 'Abbot Points',
     tiers: [
-      { threshold: 750,  name: 'Wandering Friar', img: null },
-      { threshold: 3500, name: 'Devoted Abbot',   img: null },
-      { threshold: 7000, name: 'High Abbot',      img: null },
+      { tierNumber: 1, threshold: 5,  name: 'Devotee', img: null },
+      { tierNumber: 2, threshold: 500,  name: 'Servant', img: null },
+      { tierNumber: 3, threshold: 2500, name: 'Elder', img: null },
+      { tierNumber: 4, threshold: 5000, name: 'Saint',img: null },
+    ],
+  },
+  {
+    id: 'cathedral',
+    label: 'Cathedral',
+    types: ['cathedral'],
+    unit: 'Cathedral Points',
+    tiers: [
+      { tierNumber: 1, threshold: 5,  name: 'Shrine',  img: null },
+      { tierNumber: 2, threshold: 500,  name: 'Chapel', img: null },
+      { tierNumber: 3, threshold: 2500, name: 'Sanctuary',  img: null },
+      { tierNumber: 4, threshold: 5000,  name: 'Grand Basilica',  img: null }
+    ],
+  },
+  {
+    id: 'inn',
+    label: 'Inn',
+    types: ['inn'],
+    unit: 'Inn Points',
+    tiers: [
+      { tierNumber: 1, threshold: 5,  name: 'Alehouse',  img: null },
+      { tierNumber: 2, threshold: 500,  name: 'Tavern',  img: null },
+      { tierNumber: 3, threshold: 2500, name: "Traveler's Haven", img: null },
+      { tierNumber: 4, threshold: 5000, name: "The King's Rest", img: null },
+    ],
+  },
+  {
+    id: 'pig',
+    label: 'Pig',
+    types: ['pig'],
+    unit: 'Pig Points',
+    tiers: [
+      { tierNumber: 1, threshold: 5,  name: 'Piglet',      img: null },
+      { tierNumber: 2, threshold: 500,  name: 'Prized Hog',      img: null },
+      { tierNumber: 3, threshold: 2500, name: 'Fat Swine', img: null },
+      { tierNumber: 4, threshold: 5000, name: 'Golden Boar',     img: null },
+    ],
+  },
+  {
+    id: 'barn',
+    label: 'Barn',
+    types: ['barn'],
+    unit: 'Barn Points',
+    tiers: [
+      { tierNumber: 1, threshold: 5,  name: 'Shed',        img: null },
+      { tierNumber: 2, threshold: 500,  name: 'Stable',        img: null },
+      { tierNumber: 3, threshold: 2500, name: 'Homestead',     img: null },
+      { tierNumber: 4, threshold: 5000, name: 'Great Manor', img: null },
     ],
   },
   {
@@ -123,9 +146,10 @@ export const ACCOUNT_MILESTONES = [
     types: ['wine', 'grain', 'cloth'],
     unit: 'Goods Points',
     tiers: [
-      { threshold: 500,  name: 'Market Stall',      img: null },
-      { threshold: 2500, name: 'Trade Guild',       img: null },
-      { threshold: 5000, name: 'Merchant Republic', img: null },
+      { tierNumber: 1, threshold: 5,  name: 'Trading Post',      img: null },
+      { tierNumber: 2, threshold: 500,  name: 'Market Stand',      img: null },
+      { tierNumber: 3, threshold: 2500, name: 'Bazaar',       img: null },
+      { tierNumber: 4, threshold: 5000, name: 'Royal Marketplace', img: null },
     ],
   },
 ];
@@ -135,4 +159,31 @@ export const ACCOUNT_MILESTONES = [
 export function accountMilestoneProgress(category, account) {
   if (category.metric === 'games') return account.gamesCount;
   return progressForTypes(category.types, account.breakdown);
+}
+
+// Categories to show in the milestones carousel: always-visible base-game
+// categories plus any the account has actually scored in. Filter only —
+// config order is preserved so newly unlocked categories slot into place.
+export function visibleAccountMilestones(account) {
+  return ACCOUNT_MILESTONES.filter(
+    (c) => c.alwaysVisible || accountMilestoneProgress(c, account) > 0
+  );
+}
+
+// Full tier state for one category — the single source of tier math.
+export function categoryTierState(category, account) {
+  const progress = accountMilestoneProgress(category, account);
+  const reached = category.tiers.filter((t) => progress >= t.threshold);
+  const currentTier = reached[reached.length - 1] ?? null; // null = not started
+  const nextTier = category.tiers.find((t) => progress < t.threshold) ?? null; // null = maxed
+  return {
+    progress,
+    currentTier,
+    currentTierNumber: currentTier ? currentTier.tierNumber : category.tiers[0].tierNumber - 1,
+    nextTier,
+    reached, // tiers already unlocked — used to place progress-bar notches
+    maxed: nextTier === null,
+    pct: nextTier === null ? 100 : Math.min(100, (progress / nextTier.threshold) * 100),
+    remaining: nextTier === null ? 0 : nextTier.threshold - progress,
+  };
 }

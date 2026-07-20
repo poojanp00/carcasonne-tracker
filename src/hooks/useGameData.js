@@ -31,7 +31,6 @@ import {
   generateId, generateRealmId,
   migrateFromLocalStorage,
 } from '../data/storage';
-import { pickSpine } from '../data/spines';
 import { MAX_REALMS } from '../constants';
 
 export function useGameData(user, authLoading) {
@@ -162,7 +161,7 @@ export function useGameData(user, authLoading) {
     }
     const { selfPlayer, ...rest } = data;
     const realm = {
-      ...rest,
+      ...rest, // includes the user-chosen spine/chest indices
       // The creator's own slot is written directly as 'owner' — everyone else
       // starts uninvited until an invite links their account.
       players: (data.players || []).map(name => name === selfPlayer
@@ -172,7 +171,6 @@ export function useGameData(user, authLoading) {
       createdAt: new Date().toISOString().split('T')[0], // YYYY-MM-DD format
       ownerId:   user.id,
       isOwner:   true,
-      spine:     pickSpine(realms), // Book art: least-used first, fixed forever
     };
     await saveRealm(realm, user?.id);
     setRealms(prev => [...prev, realm]);

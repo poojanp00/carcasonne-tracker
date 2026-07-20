@@ -1,11 +1,15 @@
 import { useMemo, useState, useEffect, useRef } from 'react';
 import { SCORE_TYPE_ORDER, SCORE_TYPE_COLORS } from '../constants';
-import { calcAccountStats, getPlayerTitle } from '../utils/stats';
-import { ACCOUNT_MILESTONES, accountMilestoneProgress } from '../data/accountMilestones';
+import { calcAccountStats } from '../utils/stats';
+import { visibleAccountMilestones } from '../data/accountMilestones';
+import { getCurrentRank, countUnlockedTiers, rankTitle, tiersRequiredForRank, MAX_RANK, TOTAL_TIERS } from '../utils/metaRank';
+import CategoryMilestoneCard from './CategoryMilestoneCard';
+import MilestoneCarousel from './MilestoneCarousel';
 import { MEEPLE_IMGS, TYPE_LABELS } from './StatWidgets';
 import { ACHIEVEMENT_DISPLAY_ORDER, ACHIEVEMENT_BADGE, ACHIEVEMENT_LABEL_OVERRIDE } from './GameHighlights';
 
 import { formatAchievementName } from '../utils/achievements';
+import { getExpansions } from '../data/storage';
 import ValInfo from './ValInfo';
 import Lightbox from './Lightbox';
 import { GearIcon, TrashIcon } from './icons';
@@ -101,86 +105,39 @@ function PointsBar({ breakdown }) {
 
 const sectionHeaderStyle = { borderBottom: '1px solid var(--warm-gold)', paddingBottom: '0.5rem', marginBottom: '1rem' };
 
-const DEV_TOOLTIP = 'Under development. Please check back later.';
-
-// Brass-bead switch for the settings rows
-function SettingsToggle({ on, onToggle, label }) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={on}
-      aria-label={label}
-      className={`settings-toggle${on ? ' on' : ''}`}
-      onClick={onToggle}
-    >
-      <span className="settings-toggle-knob" />
-    </button>
-  );
-}
-
-// Trophy cabinet + milestones, side by side. Trophies: one medal per time each
-// best-in-game record was held — 7 Longest Roads shows 7 medals in the row.
-// Currently unrendered (hidden for a later design pass) — see the Profile return.
-function TrophyCase({ account }) {
+// Trophy cabinet: one medal per time each best-in-game record was held —
+// 7 Longest Roads shows 7 medals in the row. Renders as a column beside
+// Career Highlights in the shared me-hero-grid card.
+function TrophyCabinet({ account }) {
   const { recordTallies } = account;
   const tallied = ACHIEVEMENT_DISPLAY_ORDER.filter(key => recordTallies[key] > 0);
   return (
-    <div className="tile-card" style={{ marginBottom: '1.2rem' }}>
-      <div className="me-hero-grid">
-        <div>
-          <div className="tile-card-header" style={sectionHeaderStyle}>Trophy Cabinet</div>
-          {tallied.length === 0 ? (
-            <div className="stat-label">No records held yet.</div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
-              {tallied.map(key => (
-                <div key={key} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                  <span className="stat-label" style={{ fontStyle: 'normal', fontSize: 'clamp(0.9rem, 2.2vw, 1.1rem)', flex: 1, minWidth: 0 }}>
-                    {ACHIEVEMENT_LABEL_OVERRIDE[key] ?? formatAchievementName(key)}
-                  </span>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <img src={ACHIEVEMENT_BADGE[key]} alt={ACHIEVEMENT_LABEL_OVERRIDE[key] ?? formatAchievementName(key)} style={{ height: '44px', width: 'auto' }} draggable={false} />
-                    <span className="stat-value" style={{ fontSize: 'clamp(1rem, 2.5vw, 1.25rem)' }}>×{recordTallies[key]}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div>
-          <div className="tile-card-header" style={sectionHeaderStyle}>Milestones</div>
-          {ACCOUNT_MILESTONES.map(cat => {
-            const progress = accountMilestoneProgress(cat, account);
-            return (
-              <div key={cat.id} className="milestone-section">
-                <div className="milestone-section-header">
-                  <span>{cat.label}</span>
-                  <ValInfo tip={cat.unit}>
-                    <span className="milestone-section-total">{progress.toLocaleString()}</span>
-                  </ValInfo>
-                </div>
-                <div className="account-tier-grid">
-                  {cat.tiers.map(tier => (
-                    <div key={tier.name} className={`account-tier${progress >= tier.threshold ? ' achieved' : ''}`}>
-                      <span className="account-tier-name">{tier.name}</span>
-                      <span className="account-tier-threshold">{tier.threshold.toLocaleString()}{cat.metric === 'games' ? ' games' : ' pts'}</span>
-                    </div>
-                  ))}
-                </div>
+    <div>
+      <div className="tile-card-header" style={sectionHeaderStyle}>Trophy Cabinet</div>
+      {tallied.length === 0 ? (
+        <div className="stat-label">No records held yet.</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
+          {tallied.map(key => (
+            <div key={key} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <span className="stat-label" style={{ fontStyle: 'normal', fontSize: 'clamp(0.9rem, 2.2vw, 1.1rem)', flex: 1, minWidth: 0 }}>
+                {ACHIEVEMENT_LABEL_OVERRIDE[key] ?? formatAchievementName(key)}
+              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <img src={ACHIEVEMENT_BADGE[key]} alt={ACHIEVEMENT_LABEL_OVERRIDE[key] ?? formatAchievementName(key)} style={{ height: '44px', width: 'auto' }} draggable={false} />
+                <span className="stat-value" style={{ fontSize: 'clamp(1rem, 2.5vw, 1.25rem)' }}>×{recordTallies[key]}</span>
               </div>
-            );
-          })}
+            </div>
+          ))}
         </div>
-      </div>
+      )}
     </div>
   );
 }
 
 // The strategy-game hero card: large meeple, name, rank title, and the
 // primary career numbers at a glance.
-function ProfileHero({ account, displayName, onOpenSettings }) {
+function ProfileHero({ account, displayName, title, titleTip, onOpenSettings }) {
   const { stats, favMeeple, favMeepleCount, playingSince, totalPlaytime } = account;
   const meepleImg = favMeeple ? (MEEPLE_IMGS[favMeeple] ?? null) : null;
 
@@ -208,7 +165,9 @@ function ProfileHero({ account, displayName, onOpenSettings }) {
         )}
         <div>
           <div className="profile-hero-name">{displayName || 'Adventurer'}</div>
-          <div className="profile-hero-title">{getPlayerTitle(account.gamesCount)}</div>
+          <ValInfo tip={titleTip}>
+            <span className="profile-hero-title" style={{ display: 'block' }}>{title}</span>
+          </ValInfo>
         </div>
       </div>
 
@@ -226,13 +185,12 @@ function ProfileHero({ account, displayName, onOpenSettings }) {
   );
 }
 
-// Career-defining records, below the hero card
+// Career-defining records — a column beside the Trophy Cabinet
 function CareerHighlights({ account, onNavigateToGame }) {
   const { stats, rival, biggestPlay, fastestWin, highestCombined, sweeps, favExpansions } = account;
 
   return (
-    <div className="tile-card" style={{ marginBottom: '1.2rem' }}>
-      <div className="stat-rows-narrow">
+      <div className="stat-rows-narrow" style={{ margin: 0 }}>
           <div className="tile-card-header" style={sectionHeaderStyle}>Career Highlights</div>
           <div className="stat-row">
             <span className="stat-label">Personal Best</span>
@@ -290,13 +248,50 @@ function CareerHighlights({ account, onNavigateToGame }) {
             </div>
           </div>
       </div>
-    </div>
   );
 }
 
-export default function Profile({ games, realms, userId, displayName, isGuest = false, showDemoData = false, onToggleDemoData = null, onChangeDisplayName, onDeleteAccount, onSignOut }) {
+export default function Profile({ games, realms, userId, displayName, isGuest = false, showDemoData = false, onToggleDemoData = null, storedMetaRank = 0, onMetaRankAchieved = null, onChangeDisplayName, onDeleteAccount, onSignOut }) {
   const account = useMemo(() => calcAccountStats(games, realms, userId), [games, realms, userId]);
   const [selectedGame, setSelectedGame] = useState(null);
+
+  const tierCount     = useMemo(() => countUnlockedTiers(account), [account]);
+  const computedRank  = getCurrentRank(tierCount);
+  const displayedRank = computedRank; // always the live rank — no never-regress floor
+  const visibleCats   = useMemo(() => visibleAccountMilestones(account), [account]);
+
+  // Why-am-I-this-rank tooltip: a vertical dot-and-line ladder — the next
+  // (unearned) rank on top, the current rank highlighted, and every earned
+  // rank below it in order — echoing the milestone progress bars' notch-and-
+  // line visual language. Each row's number is the tier count required for
+  // that rank, not the rank's own ordinal.
+  const ladderRanks = [];
+  if (displayedRank < MAX_RANK) ladderRanks.push({ rank: displayedRank + 1, state: 'next' });
+  for (let r = displayedRank; r >= 1; r--) ladderRanks.push({ rank: r, state: r === displayedRank ? 'current' : 'earned' });
+
+  const rankTip = (
+    <div style={{ textAlign: 'left', maxWidth: 230, whiteSpace: 'normal' }}>
+      <div style={{ fontSize: '0.66rem', letterSpacing: '0.1em', textTransform: 'uppercase', opacity: 0.75, marginBottom: '0.3rem' }}>
+        Rank Ladder
+      </div>
+      <div className="rank-ladder">
+        {ladderRanks.map(({ rank, state }) => (
+          <div key={rank} className="rank-ladder-row">
+            <span className={`rank-ladder-dot ${state}`} />
+            <span className={`rank-ladder-name ${state}`}>{rankTitle(rank)}</span>
+            <span className="rank-ladder-num">{tiersRequiredForRank(rank)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  // Persist a new personal-best rank upward; the computed > stored guard is
+  // the loop-breaker once the refreshed user_metadata flows back in as a prop
+  useEffect(() => {
+    if (showDemoData) return; // never persist demo-inflated ranks
+    if (computedRank > (storedMetaRank || 0)) onMetaRankAchieved?.(computedRank);
+  }, [computedRank, storedMetaRank, showDemoData, onMetaRankAchieved]);
 
   const [settingsView, setSettingsView] = useState(null); // null | 'menu' | 'rename'
   const [nameInput,    setNameInput]    = useState('');
@@ -305,10 +300,6 @@ export default function Profile({ games, realms, userId, displayName, isGuest = 
   const [deleteStep,   setDeleteStep]   = useState(0); // 0=hidden, 1=first confirm, 2=final confirm
   const [deleting,     setDeleting]     = useState(false);
   const [deleteError,  setDeleteError]  = useState('');
-
-  // Display-only for now — these toggles aren't persisted anywhere yet
-  const [prefs, setPrefs] = useState({ publicStats: true, friendRequests: false });
-  const togglePref = (key) => setPrefs(p => ({ ...p, [key]: !p[key] }));
 
   const openGameLightbox = (game) => setSelectedGame(game);
 
@@ -330,6 +321,33 @@ export default function Profile({ games, realms, userId, displayName, isGuest = 
       setRenameError(err.message || 'Something went wrong. Please try again.');
     }
     setSaving(false);
+  };
+
+  const handleExportJson = async () => {
+    // Expansions aren't passed down as props; fetch them, but never let a
+    // failed fetch block the backup itself.
+    let expansions = [];
+    try {
+      expansions = (await getExpansions(userId)).filter(e => e.owned).map(e => e.name);
+    } catch { /* export without expansions */ }
+
+    const payload = {
+      app: 'carcasscore',
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      account: { userId, displayName, highestMetaRank: storedMetaRank },
+      realms,
+      games,
+      expansions,
+    };
+
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `carcasscore-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   const handleDeleteAccount = async () => {
@@ -371,8 +389,7 @@ export default function Profile({ games, realms, userId, displayName, isGuest = 
         )}
       </div>
 
-      {/* Settings page — only Display Name and Delete Account are functional;
-          the rest is frontend-only scaffolding awaiting backend support */}
+      {/* Settings page */}
       {settingsView === 'menu' && (
         <div className="realm-modal-overlay" onClick={closeSettings}>
           <div className="realm-modal tile-card settings-modal" onClick={e => e.stopPropagation()}>
@@ -389,32 +406,13 @@ export default function Profile({ games, realms, userId, displayName, isGuest = 
                   <button type="button" className="settings-edit-btn" onClick={startRename}>Edit</button>
                 </span>
               </div>
-              <div className="settings-row">
-                <span className="settings-row-label">Avatar Icon</span>
-                <span className="settings-row-control">
-                  <span className="settings-row-value">Classic Meeple</span>
-                  <button type="button" className="settings-edit-btn settings-dev" data-tooltip={DEV_TOOLTIP}>Change</button>
-                </span>
-              </div>
-            </div>
-
-            <div className="settings-section">
-              <div className="settings-section-header">Privacy &amp; Visibility</div>
-              <div className="settings-row">
-                <span className="settings-row-label">Public Leaderboard Stats</span>
-                <SettingsToggle on={prefs.publicStats} onToggle={() => togglePref('publicStats')} label="Public leaderboard stats" />
-              </div>
-              <div className="settings-row">
-                <span className="settings-row-label">Allow Friend Requests</span>
-                <SettingsToggle on={prefs.friendRequests} onToggle={() => togglePref('friendRequests')} label="Allow friend requests" />
-              </div>
             </div>
 
             <div className="settings-section">
               <div className="settings-section-header">Account &amp; Data</div>
               <div className="settings-row">
                 <span className="settings-row-label">Backup Data</span>
-                <button type="button" className="settings-edit-btn settings-dev" data-tooltip={DEV_TOOLTIP}>Export JSON</button>
+                <button type="button" className="settings-edit-btn" onClick={handleExportJson}>Export JSON</button>
               </div>
               <div className="settings-row">
                 <span className="settings-row-label">Log out of your account</span>
@@ -533,9 +531,24 @@ export default function Profile({ games, realms, userId, displayName, isGuest = 
         </>
       ) : (
         <>
-          <ProfileHero account={account} displayName={displayName} onOpenSettings={isGuest ? null : openSettings} />
-          <CareerHighlights account={account} onNavigateToGame={openGameLightbox} />
-          {/* TrophyCase (Trophy Cabinet + Milestones) hidden for now — needs another design pass */}
+          <ProfileHero account={account} displayName={displayName} title={rankTitle(displayedRank)} titleTip={rankTip} onOpenSettings={isGuest ? null : openSettings} />
+          <div className="milestone-carousel-section" style={{ marginBottom: '1.2rem' }}>
+            <div className="tile-card-header" style={{ ...sectionHeaderStyle, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span>Milestones</span>
+              <span className="game-count">{tierCount}/{TOTAL_TIERS}</span>
+            </div>
+            <MilestoneCarousel pauseKeyboard={!!selectedGame || !!settingsView || deleteStep > 0}>
+              {visibleCats.map((cat) => (
+                <CategoryMilestoneCard key={cat.id} category={cat} account={account} />
+              ))}
+            </MilestoneCarousel>
+          </div>
+          <div className="tile-card" style={{ marginBottom: '1.2rem' }}>
+            <div className="me-hero-grid">
+              <CareerHighlights account={account} onNavigateToGame={openGameLightbox} />
+              <TrophyCabinet account={account} />
+            </div>
+          </div>
         </>
       )}
     </div>
