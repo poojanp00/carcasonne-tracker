@@ -18,16 +18,3 @@ export function spineIndex(realm) {
 export function spineFor(realm) {
   return SPINES[spineIndex(realm)];
 }
-
-/**
- * Pick the spine for a NEW realm: random among the least-used spines on the
- * user's shelf, so no art repeats until every design has been used once —
- * then it cycles evenly. Stored on the realm at creation and never re-picked.
- */
-export function pickSpine(realms) {
-  const counts = new Array(SPINES.length).fill(0);
-  for (const r of realms || []) counts[spineIndex(r)]++;
-  const min = Math.min(...counts);
-  const candidates = counts.flatMap((c, i) => (c === min ? [i] : []));
-  return candidates[Math.floor(Math.random() * candidates.length)];
-}

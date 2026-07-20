@@ -51,6 +51,13 @@ button, a, select, summary, label[for], input[type="checkbox"], input[type="radi
 }
 button:disabled { cursor: var(--cursor-arrow); }
 
+/* Browsers' UA stylesheet sets a hardcoded `cursor: default` on every <label>
+   (not just clickable ones), which — being a direct declaration rather than
+   inherited — wins over the arrow cursor inherited from body. label[for]
+   above (higher specificity) still takes the pointer cursor for genuinely
+   clickable labels; this just restores the arrow for plain text labels. */
+label { cursor: var(--cursor-arrow); }
+
 body {
   font-family: 'Crimson Text', Georgia, serif;
   font-size: 1.1rem;
@@ -705,49 +712,7 @@ input[type="search"], input[type="number"] {
 .p1 .player-card-name { color: var(--deep-red); }
 .p2 .player-card-name { color: var(--royal-blue); }
 
-/* ── Player card flip (milestones on back) ── */
-.player-card-flip {
-  perspective: 1200px;
-  transition: transform var(--transition-lift);
-}
-.player-card-flip:hover { transform: translateY(-3px); }
-.player-card-flip-inner {
-  display: grid;
-  /* Explicit minmax(0, 1fr) track: faces must fit the card width — a wide
-     badge grid on the back can't stretch the card or spill off-page */
-  grid-template-columns: minmax(0, 1fr);
-  position: relative;
-  transform-style: preserve-3d;
-  transition: transform 0.6s cubic-bezier(0.4, 0.2, 0.2, 1);
-}
-.player-card-flip .player-card {
-  min-width: 0;
-}
-/* Only the visible face drives card height — pin the hidden face so a tall
-   back (badge grid) doesn't stretch the front */
-.player-card-flip:not(.flipped) .player-card-back,
-.player-card-flip.flipped .player-card-front {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-}
-.player-card-flip.flipped .player-card-flip-inner { transform: rotateY(180deg); }
-.player-card-flip .player-card {
-  grid-area: 1 / 1;
-  cursor: var(--cursor-pointer);
-  -webkit-backface-visibility: hidden;
-  backface-visibility: hidden;
-}
-/* Faces own their transforms — the card's generic hover lift lives on the wrapper instead */
-.player-card-flip .player-card-front,
-.player-card-flip .player-card-front:hover { transform: none; }
-.player-card-flip .player-card-back,
-.player-card-flip .player-card-back:hover { transform: rotateY(180deg); }
-/* The hidden face must not swallow clicks or hovers */
-.player-card-flip:not(.flipped) .player-card-back { pointer-events: none; }
-.player-card-flip.flipped .player-card-front { pointer-events: none; }
-
-/* ── Milestones (card back) ── */
+/* ── Player card subtitle ── */
 .milestones-subtitle {
   font-family: 'Cinzel', serif;
   font-size: 0.62rem;
@@ -756,105 +721,40 @@ input[type="search"], input[type="number"] {
   color: var(--stone-gray);
   margin: 0.15rem 0 0.7rem;
 }
-.milestone-section { margin-bottom: 0.9rem; }
-.milestone-section:last-child { margin-bottom: 0.2rem; }
-.milestone-section-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 0.4rem;
-  font-family: 'Cinzel', serif;
-  font-size: clamp(0.5rem, 0.4rem + 0.55vw, 0.68rem);
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--earth-brown);
-  border-bottom: 1px solid rgba(139,94,60,0.25);
-  padding-bottom: 0.25rem;
-  margin-bottom: 0.55rem;
+
+/* ── Player card flip (trophy cabinet on back) ── */
+.player-card-flip {
+  perspective: 1200px;
+  transition: transform var(--transition-lift);
 }
-.milestone-section-header > span:first-child {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  min-width: 0;
-}
-.milestone-section-total {
-  font-family: 'Cinzel', serif;
-  font-weight: 700;
-  font-size: clamp(0.54rem, 0.44rem + 0.55vw, 0.72rem);
-  letter-spacing: 0.02em;
-  color: var(--charcoal);
-  flex-shrink: 0;
-}
-.milestone-grid {
+.player-card-flip:hover { transform: translateY(-3px); }
+.player-card-flip-inner {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  align-items: flex-start;
-  gap: 0.65rem;
-}
-.milestone-badge {
+  /* Explicit minmax(0, 1fr) track: faces must fit the card width */
+  grid-template-columns: minmax(0, 1fr);
   position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.3rem;
+  transform-style: preserve-3d;
+  transition: transform 0.6s cubic-bezier(0.4, 0.2, 0.2, 1);
+}
+/* Both faces share the same grid cell (stacked, not absolutely positioned)
+   so the row auto-sizes to whichever face is taller — the card never shrinks
+   below the front's height, only grows if the back needs more room */
+.player-card-flip .player-card {
+  grid-area: 1 / 1;
   min-width: 0;
-  background: none;
-  border: none;
-  padding: 0;
   cursor: var(--cursor-pointer);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
 }
-/* Badge name beneath the artwork; locked names are dimmed like their silhouette */
-.milestone-badge.milestone-locked .milestone-badge-name { opacity: 0.5; }
-.milestone-badge-name {
-  font-family: 'Cinzel', serif;
-  /* Flexes with viewport like the badge art so thin screens don't overflow */
-  font-size: clamp(0.44rem, 1.5vw, 0.6rem);
-  font-weight: 1000;
-  letter-spacing: 0.04em;
-  line-height: 1.25;
-  text-align: center;
-  color: var(--earth-brown);
-  margin-top: 0.35rem;
-  max-width: 100%;
-}
-.milestone-badge img {
-  width: 100%;
-  max-width: 88px;
-  height: auto;
-  display: block;
-  filter: drop-shadow(0 2px 3px rgba(0,0,0,0.25));
-  transition: transform 0.15s ease;
-}
-.milestone-badge:hover img { transform: scale(1.08); }
-.milestone-badge.milestone-locked { cursor: var(--cursor-arrow); }
-.milestone-badge.milestone-locked:hover img { transform: none; }
-/* Locked badges render as solid black silhouettes — opacity stays high so the shape
-   reads clearly; it's the near-zero brightness that mutes them, not transparency. */
-.milestone-badge.milestone-locked img {
-  filter: grayscale(1) brightness(0.03) contrast(1.2);
-  opacity: 0.9;
-}
-.milestone-tooltip {
-  /* Position (fixed/top/bottom/left/transform/z-index) is set inline by usePortalTooltip,
-     since it's rendered through a portal to escape the flip-card's stacking context. */
-  background: var(--earth-brown);
-  color: var(--parchment);
-  padding: 0.4rem 0.65rem;
-  border-radius: 6px;
-  white-space: nowrap;
-  max-width: calc(100vw - 20px);
-  text-align: center;
-  pointer-events: none;
-  box-shadow: 0 3px 12px rgba(0,0,0,0.35);
-}
-.milestone-tooltip-req {
-  font-family: 'Crimson Text', serif;
-  font-style: italic;
-  font-size: 0.75rem;
-}
-.player-card:has(.milestone-badge:hover) { z-index: 10; }
+.player-card-flip.flipped .player-card-flip-inner { transform: rotateY(180deg); }
+/* Faces own their transforms — the card's generic hover lift lives on the wrapper instead */
+.player-card-flip .player-card-front,
+.player-card-flip .player-card-front:hover { transform: none; }
+.player-card-flip .player-card-back,
+.player-card-flip .player-card-back:hover { transform: rotateY(180deg); }
+/* The hidden face must not swallow clicks or hovers */
+.player-card-flip:not(.flipped) .player-card-back { pointer-events: none; }
+.player-card-flip.flipped .player-card-front { pointer-events: none; }
 
 /* ── Me page hero card ── */
 .me-hero-grid {
@@ -1784,6 +1684,100 @@ input[type="file"] { display: none; }
   transform: translateY(-2px);
 }
 
+/* Chests reuse .meeple-option's border/hover/selected states for visual
+   consistency with the meeple picker, but sized up — the chest art is more
+   detailed than a meeple icon and reads as a blob at the 50px meeple size. */
+.meeple-option.chest-option {
+  width: clamp(44px, 6vw, 58px);
+  height: clamp(44px, 6vw, 58px);
+  padding: 5px;
+}
+
+/* Compact logbook picker for the realm-creation panel — same click/selected
+   language as .book-spine, but thumbnail-sized to sit level with the chest
+   row instead of at full library-shelf scale. */
+.logbook-picker-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+.logbook-pick {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: var(--cursor-pointer);
+  transition: transform var(--transition-lift);
+}
+.logbook-pick:hover { transform: translateY(-4px); }
+.logbook-pick img {
+  display: block;
+  height: clamp(80px, 13vw, 125px);
+  width: auto;
+  filter: drop-shadow(2px 3px 4px rgba(43, 27, 10, 0.4));
+}
+.logbook-pick.selected {
+  transform: translateY(-4px);
+}
+.logbook-pick.selected img {
+  outline: 2px solid var(--forest-green);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* Realm creation: existing fields on the left, chest + logbook questions on
+   the right — fills the empty space the single-column form used to leave. */
+.realm-create-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 360px) minmax(0, 1fr);
+  gap: 1.2rem;
+  align-items: start;
+}
+@media (max-width: 780px) {
+  .realm-create-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Play tab realm picker: a row of chests, one per realm — click one to
+   play it. Distinct from the Library's book-spine shelf on purpose. */
+.chest-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: flex-end;
+  gap: clamp(1.2rem, 4vw, 2.4rem);
+  padding: 1.5rem 0.5rem;
+  margin-bottom: 1.2rem;
+}
+.chest-pick {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: var(--cursor-pointer);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  transition: transform var(--transition-lift);
+}
+.chest-pick:hover { transform: translateY(-6px); }
+.chest-pick img {
+  display: block;
+  height: clamp(90px, 16vw, 140px);
+  width: auto;
+  filter: drop-shadow(3px 4px 6px rgba(43, 27, 10, 0.4));
+}
+.chest-pick-name {
+  font-family: 'Cinzel', serif;
+  font-weight: 600;
+  font-size: clamp(0.7rem, 2vw, 0.9rem);
+  color: var(--earth-brown);
+  text-align: center;
+  max-width: 130px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ── Post-game record form ── */
 .postgame-scores-grid {
   display: flex;
@@ -2534,58 +2528,6 @@ input[type="file"] { display: none; }
 }
 .settings-edit-btn:hover { background: rgba(201, 163, 74, 0.18); }
 
-/* Under-development tooltip on hover (mirrors the expansion dev-tooltip) */
-.settings-dev { position: relative; cursor: var(--cursor-arrow); }
-.settings-dev::after {
-  content: attr(data-tooltip);
-  position: absolute;
-  bottom: calc(100% + 6px);
-  right: 0;
-  background: var(--charcoal);
-  color: var(--parchment);
-  font-family: 'Crimson Text', serif;
-  font-size: 0.8rem;
-  text-transform: none;
-  letter-spacing: normal;
-  white-space: nowrap;
-  padding: 0.3rem 0.6rem;
-  border-radius: var(--radius-sm);
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.15s ease;
-  z-index: 10;
-}
-.settings-dev:hover::after { opacity: 1; }
-
-/* Brass-bead toggle switch */
-.settings-toggle {
-  position: relative;
-  width: 46px;
-  height: 24px;
-  border-radius: 12px;
-  border: 1px solid var(--warm-gold);
-  background: rgba(201, 163, 74, 0.15);
-  box-shadow: inset 1px 1px 3px rgba(0, 0, 0, 0.15);
-  padding: 0;
-  cursor: var(--cursor-pointer);
-  flex-shrink: 0;
-  transition: background 0.2s ease;
-}
-.settings-toggle.on { background: rgba(201, 163, 74, 0.5); }
-.settings-toggle-knob {
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: linear-gradient(160deg, #E8CE8F 0%, var(--warm-gold) 55%, #8A6B25 100%);
-  border: 1px solid #8A6B25;
-  box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.25);
-  transition: left 0.2s ease;
-}
-.settings-toggle.on .settings-toggle-knob { left: 24px; }
-
 /* Danger zone: muted until hovered */
 .settings-danger .settings-section-header {
   color: var(--deep-red);
@@ -2698,6 +2640,221 @@ input[type="file"] { display: none; }
   text-align: center;
 }
 
+/* Account milestones carousel (Profile tab) */
+.milestone-carousel {
+  position: relative;
+}
+.milestone-carousel-track {
+  display: flex;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding: 3px 0 6px; /* keep card shadows from clipping */
+}
+.milestone-carousel-track::-webkit-scrollbar { display: none; }
+.milestone-carousel-slide {
+  flex: 0 0 100%;
+  min-width: 100%;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  display: flex; /* equal-height slides */
+}
+.milestone-carousel-slide > * { width: 100%; }
+.milestone-carousel-arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 5;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--aged-paper);
+  border: 1.5px solid var(--warm-gold);
+  color: var(--earth-brown);
+  font-size: 1.1rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: var(--cursor-pointer);
+  box-shadow: var(--shadow-tile);
+}
+.milestone-carousel-arrow.prev { left: -10px; }
+.milestone-carousel-arrow.next { right: -10px; }
+.milestone-carousel-arrow:disabled { opacity: 0.35; cursor: default; }
+@media (hover: none) and (pointer: coarse) {
+  .milestone-carousel-arrow { display: none; }
+}
+.milestone-carousel-dots {
+  display: flex;
+  justify-content: center;
+  gap: 0.45rem;
+  margin-top: 0.6rem;
+}
+.milestone-carousel-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  padding: 0;
+  border: 1.5px solid var(--earth-brown);
+  background: transparent;
+  cursor: var(--cursor-pointer);
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+.milestone-carousel-dot.active {
+  background: var(--warm-gold);
+  border-color: var(--warm-gold);
+}
+
+.milestone-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.55rem;
+  padding: 1rem 2.6rem; /* keeps text clear of the overlapping arrows */
+}
+@media (hover: none) and (pointer: coarse) {
+  .milestone-card { padding: 1rem 1.2rem; } /* arrows hidden on touch — reclaim the space */
+}
+.milestone-card:hover { transform: none; } /* no lift inside the scroll track */
+.milestone-card-header {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-family: 'Cinzel', serif;
+  font-weight: 700;
+  font-size: clamp(1.05rem, 3vw, 1.4rem);
+  color: var(--charcoal);
+}
+.milestone-card-tier {
+  font-family: 'Cinzel', serif;
+  font-weight: 700;
+  font-size: clamp(0.75rem, 2vw, 0.95rem);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--warm-gold);
+}
+.milestone-card-progress-label {
+  font-family: 'Cinzel', serif;
+  font-size: clamp(0.85rem, 2.2vw, 1.05rem);
+  color: var(--earth-brown);
+}
+/* Wraps the track plus room below it for the always-on notch labels —
+   the notch lines and labels are positioned relative to this, not the track,
+   so a line can run from the bar's top down through the label row. */
+.milestone-progress-wrap {
+  position: relative;
+  padding-bottom: 1.15rem;
+}
+
+/* Retro segmented bar: hard corners, chunky inset frame, blocky gold cells */
+.milestone-progress-track {
+  height: 18px;
+  border-radius: 2px;
+  background: rgba(139, 94, 60, 0.18);
+  border: 2px solid var(--earth-brown);
+  box-shadow: inset 2px 2px 0 rgba(43, 27, 10, 0.25);
+  padding: 2px;
+  overflow: hidden;
+}
+.milestone-progress-fill {
+  height: 100%;
+  border-radius: 0;
+  background: repeating-linear-gradient(
+    90deg,
+    var(--warm-gold) 0 8px,
+    rgba(43, 27, 10, 0.30) 8px 10px
+  );
+  transition: width 0.4s steps(8, end); /* stepped, old-school fill */
+}
+
+/* Engraved milestone notches — a thin carved line at each unlocked tier's
+   threshold, running from the bar down to its always-visible label
+   (no hover needed). Absolutely positioned within .milestone-progress-wrap,
+   so the line paints above the fill regardless of DOM order. */
+.milestone-notch-line {
+  position: absolute;
+  top: 0;
+  bottom: 1.15rem;
+  width: 2px;
+  transform: translateX(-50%);
+  background: rgba(43, 27, 10, 0.55);
+  box-shadow: 1px 0 0 rgba(255, 233, 189, 0.25); /* carved bevel highlight */
+  pointer-events: none;
+  z-index: 2;
+}
+.milestone-notch-label {
+  position: absolute;
+  bottom: 0;
+  transform: translateX(-50%); /* always centered under its notch line */
+  font-family: 'Crimson Text', serif;
+  font-style: italic;
+  font-size: 0.62rem;
+  line-height: 1.1;
+  color: var(--stone-gray);
+  white-space: nowrap;
+}
+/* Rank hover tooltip: a vertical version of the milestone notch-and-line —
+   next (unearned) rank on top, current rank highlighted, earned ranks below,
+   each dot connected to the one above it by a thin engraved line. */
+.rank-ladder-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding-left: 14px;
+  min-height: 1.5rem;
+}
+/* The connecting line only exists between rows — the first dot has nothing
+   above it. Spans from the previous row's vertical center (-50% of this row's
+   own height) down to this row's center (50%), so it lines up with both dots
+   regardless of the row's actual pixel height. */
+.rank-ladder-row:not(:first-child)::before {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: -50%;
+  height: 100%;
+  width: 2px;
+  background: rgba(226, 211, 163, 0.35);
+}
+.rank-ladder-dot {
+  position: absolute;
+  left: 1px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(245, 237, 210, 0.9);
+  border: 1px solid rgba(226, 211, 163, 0.6);
+}
+.rank-ladder-dot.current {
+  background: var(--warm-gold);
+  border-color: var(--warm-gold);
+  box-shadow: 0 0 4px rgba(201, 163, 74, 0.7);
+}
+.rank-ladder-dot.next {
+  background: transparent;
+  border: 1px dashed rgba(226, 211, 163, 0.55);
+}
+.rank-ladder-name {
+  flex: 1;
+  line-height: 1.45;
+}
+.rank-ladder-name.current { color: var(--warm-gold); font-weight: 700; }
+.rank-ladder-name.next { opacity: 0.65; font-style: italic; }
+.rank-ladder-num {
+  opacity: 0.6;
+  font-size: 0.85em;
+}
+
+.milestone-card-remaining {
+  font-size: clamp(0.72rem, 2vw, 0.88rem);
+  color: var(--stone-gray);
+  font-style: italic;
+  text-align: right; /* sits under the bar's right edge */
+}
+
 /* Library bookshelf */
 .library-shelf {
   position: relative; /* anchors the measured full-width planks */
@@ -2741,6 +2898,13 @@ input[type="file"] { display: none; }
   height: clamp(160px, 26vw, 230px);
   width: auto;
   filter: drop-shadow(3px 4px 6px rgba(43, 27, 10, 0.4));
+}
+/* Logbook picker: the chosen book stays popped up (not just on hover) with a
+   colored ring, mirroring .meeple-option.selected's convention. */
+.book-spine.selected .book-spine-art { transform: translateY(-6px); }
+.book-spine.selected .book-spine-art img {
+  box-shadow: 0 0 0 3px var(--forest-green);
+  border-radius: 3px;
 }
 .book-spine-title {
   position: absolute;
@@ -2810,28 +2974,42 @@ input[type="file"] { display: none; }
   text-align: center;
 }
 
-/* Book cover page */
-.book-cover {
-  max-width: 480px;
-  margin: 0 auto;
-  padding: clamp(1.2rem, 4vw, 2.2rem) 0 0.8rem;
-  text-align: center;
-}
-.book-cover-ornament {
-  color: var(--warm-gold);
-  font-size: 1.35rem;
-  line-height: 1;
-}
-.book-cover-name {
+/* One-line realm title above the overview standings: ❦ Name ❦ */
+.book-overview-title {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.7rem;
   font-family: 'Cinzel', serif;
-  font-size: clamp(1.5rem, 5vw, 2.2rem);
+  font-size: clamp(1.2rem, 4.2vw, 1.8rem);
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--earth-brown);
-  margin: 0.7rem 0;
+  margin: 1.4rem 0;
 }
-/* Stat lists constrained like the book-cover rows: narrow and centered,
+.book-title-ornament {
+  color: var(--warm-gold);
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+/* Overview footer: Chronicle | Highlights side by side, columns stretched
+   to their full halves with a wide gutter so the pair fills the page */
+.book-overview-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem clamp(2rem, 9vw, 8rem);
+  align-items: start;
+}
+/* margin:0 kills stat-rows-narrow's auto margins — on a grid item they
+   defeat stretch, shrinking the column to fit-content */
+.book-overview-grid .stat-rows-narrow { max-width: none; margin: 0; }
+@media (max-width: 640px) {
+  .book-overview-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Stat lists in the book pages: narrow and centered,
    with a larger type size to fill the column */
 .stat-rows-narrow {
   max-width: 480px;
@@ -2839,14 +3017,6 @@ input[type="file"] { display: none; }
 }
 .stat-rows-narrow .stat-label { font-size: clamp(0.95rem, 2.4vw, 1.2rem); }
 .stat-rows-narrow .stat-value { font-size: clamp(0.85rem, 2.2vw, 1.1rem); }
-
-.book-cover-rows {
-  margin-top: 1.8rem;
-  text-align: left;
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-}
 
 @media (max-width: 640px) {
   .profile-hero-stats { grid-template-columns: repeat(2, 1fr); }

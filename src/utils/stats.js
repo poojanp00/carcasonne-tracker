@@ -348,6 +348,31 @@ export function calcPlayerRecords(games, players) {
   return records;
 }
 
+// key -> { [playerName]: { count, best } } — how many times each player has
+// held each achievement across the given games, and their best (highest
+// amount) instance of it.
+function tallyAchievementsByPlayer(games) {
+  const tallies = {};
+  for (const g of games)
+    for (const [key, a] of Object.entries(g.achievements || {})) {
+      if (!a?.player) continue;
+      tallies[key] ??= {};
+      const entry = (tallies[key][a.player] ??= { count: 0, best: 0 });
+      entry.count++;
+      if (a.amount > entry.best) entry.best = a.amount;
+    }
+  return tallies;
+}
+
+// One player's own trophy tallies within a realm — key -> { count, best }.
+export function calcPlayerTrophyTallies(games, playerName) {
+  const tallies = tallyAchievementsByPlayer(games);
+  const mine = {};
+  for (const [key, byPlayer] of Object.entries(tallies))
+    if (byPlayer[playerName]) mine[key] = byPlayer[playerName];
+  return mine;
+}
+
 // ── Account-wide aggregation ─────────────────────────────────────────────────
 // A signed-in account maps to one player slot per realm (realm.players entry
 // with a matching userId and status owner/member) — possibly under a different

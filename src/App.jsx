@@ -3,19 +3,18 @@ import PostGameForm  from './components/PostGameForm';
 import Library       from './components/Library';
 import Profile       from './components/Profile';
 import { GUEST_ALLOWED_MINIS } from './data/expansions';
-import { pickSpine } from './data/spines';
 import Board         from './components/Board';
 import Lobby         from './components/Lobby';
 import PreGameSetup  from './components/PreGameSetup';
 import Auth          from './components/Auth';
-import ChipGroup     from './components/ChipGroup';
 import Landing       from './components/Landing';
 import InvitePrompt  from './components/InvitePrompt';
 import { HowToPlayModal } from './components/HowToGuide';
 import { useGameData } from './hooks/useGameData';
 import { useAuth }     from './hooks/useAuth';
 import { resetBoard }  from './data/boardStorage';
-import { deleteAccount, sendRealmInvite, updateDisplayName } from './data/storage';
+import { deleteAccount, sendRealmInvite, updateDisplayName, updateHighestMetaRank } from './data/storage';
+import { getGuestMetaRank, setGuestMetaRank } from './utils/metaRank';
 import { DEFAULT_EXPANSIONS } from './data/expansions';
 import { DEMO_REALMS, DEMO_GAMES, DEMO_USER_ID, DEMO_USER_NAME } from './data/demoData';
 import { TABS, APP_CONFIG, EXPANSION_TYPES, PINNED_EXPANSIONS } from './constants';
@@ -91,6 +90,8 @@ export default function App() {
     loading: isGuest ? false : loading
   };
 
+  const storedMetaRank = isGuest ? getGuestMetaRank() : (user?.user_metadata?.highest_meta_rank || 0);
+
   // Unified operations - guest mode uses no-ops, user mode uses database
   const appOperations = {
     addGame: isGuest ? () => Promise.resolve('guest-game-id') : addGame,
@@ -107,7 +108,8 @@ export default function App() {
         players: (data.players || []).map(name => ({ name, userId: null, status: 'uninvited' })),
         created_at: new Date().toISOString(),
         isOwner: true, // Uniform owner-gating shape with DB realms
-        spine: pickSpine([]), // Random book art for the guest's single realm
+        spine: data.spine, // User-chosen logbook art
+        chest: data.chest, // User-chosen chest art
       };
       setGuestRealms([guestRealm]);
       return Promise.resolve(guestRealm);
@@ -128,21 +130,6 @@ export default function App() {
       }
     }
   }, [isGuest, session]);
-
-  // Auto-load the realm with the most recent game on initial data load
-  // Business rule: When a user first logs in, automatically select the realm
-  // where their most recent game was played to provide continuity
-  useEffect(() => {
-    // Skip if still loading data, no user, already have session, or no data available
-    if (appData.loading || authLoading || (!user && !isGuest) || session || appData.games.length === 0 || appData.realms.length === 0) return;
-
-    // Find the most recent game by sorting games by date (newest first)
-    const latest = [...appData.games].sort((a, b) => b.date.localeCompare(a.date))[0];
-
-    // Find the realm that contains this latest game
-    const realm  = appData.realms.find(r => r.id === latest?.realmId);
-    if (realm) setSession({ realm });
-  }, [appData.loading, authLoading, user, isGuest]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   const goHome = useCallback(() => {
     setSession(null);
@@ -324,13 +311,24 @@ export default function App() {
   }, [session, appOperations.updateRealm]);
 
   const handleTabChange = useCallback((id) => {
-    // Guests get the "How to Play" popup on every visit to the play tab
-    if (id === 'board' && isGuest) setShowHowToPlay(true);
-    // Leaving the play tab abandons any in-progress pregame setup, so the next visit restarts
-    if (id !== 'board') setGuestResumeAtMode(false);
-    // Clear postgame state and players when leaving board tab to return to pregame setup
-    if (id !== 'board' && session?.finalScores) {
-      setSession(prev => ({ ...prev, finalScores: null, scoreBreakdown: null, players: null }));
+    if (id === 'board') {
+      // Guests get the "How to Play" popup on every visit to the play tab
+      if (isGuest) setShowHowToPlay(true);
+      // Entering Play should always land on the chest-row chooser unless
+      // there's an active game (players dealt) or a just-finished one waiting
+      // on final scores to resume. session.realm can get set as a side effect
+      // of just VIEWING a realm elsewhere (e.g. Library's onRealmChange keeps
+      // the app-wide selection in sync when you open a logbook) — so check on
+      // every entry, not just when leaving Play, or that contaminates the
+      // next visit into jumping straight to that realm's Players screen.
+      if (!session?.players && !session?.finalScores) setSession(null);
+    } else {
+      // Leaving the play tab abandons any in-progress pregame setup, so the next visit restarts
+      setGuestResumeAtMode(false);
+      // Clear postgame state and players when leaving board tab to return to pregame setup
+      if (session?.finalScores) {
+        setSession(prev => ({ ...prev, finalScores: null, scoreBreakdown: null, players: null }));
+      }
     }
     // Demo mode is per-visit — switching tabs always exits it
     setShowDemoData(false);
@@ -521,42 +519,22 @@ export default function App() {
                       selfName={displayName}
                       onToggleOwned={appOperations.toggleExpansion}
                     />
-                  : isGuest
-                    ? <PreGameSetup
-                        key="guest-existing-realm"
-                        realm={appData.realms[0]}
-                        ownedExpansions={ownedExpansions}
-                        onStart={handleGameStart}
-                        defaultMeeples={null}
-                        defaultExpansions={null}
-                        realms={appData.realms}
-                        currentRealm={appData.realms[0]}
-                        onRealmChange={handleRealmSelect}
-                        onRealmCreate={handleRealmCreate}
-                        isGuest={isGuest}
-                        onToggleOwned={appOperations.toggleExpansion}
-                      />
-                    : (
-                    <div>
-                      <div className="section-title">
-                        <h2>score board</h2>
-                        <div className="section-title-line" />
-                      </div>
-                      {appData.realms.length > 0 && (
-                        <div className="chip-section">
-                          <ChipGroup
-                            items={appData.realms}
-                            selectedId={null}
-                            onSelect={handleRealmSelect}
-                            carousel
-                          />
-                        </div>
-                      )}
-                      <div className="empty-state">
-                        Select a realm to begin playing.
-                      </div>
-                    </div>
-                  )
+                  : <PreGameSetup
+                      key="choose-realm"
+                      realm={null}
+                      ownedExpansions={ownedExpansions}
+                      onStart={handleGameStart}
+                      defaultMeeples={null}
+                      defaultExpansions={null}
+                      realms={appData.realms}
+                      currentRealm={null}
+                      onRealmChange={handleRealmSelect}
+                      onRealmCreate={handleRealmCreate}
+                      onExportGroup={isGuest ? null : handleExportGroup}
+                      isGuest={isGuest}
+                      selfName={displayName}
+                      onToggleOwned={appOperations.toggleExpansion}
+                    />
             )}
             {tab === 'board' && isGuest && showHowToPlay && !session?.players && !session?.finalScores && (
               <HowToPlayModal onClose={() => setShowHowToPlay(false)} />
@@ -587,6 +565,8 @@ export default function App() {
                 isGuest={isGuest}
                 showDemoData={showDemoData}
                 onToggleDemoData={isGuest ? toggleDemo : null}
+                storedMetaRank={storedMetaRank}
+                onMetaRankAchieved={isGuest ? setGuestMetaRank : updateHighestMetaRank}
                 onChangeDisplayName={updateDisplayName}
                 onDeleteAccount={async () => { await deleteAccount(user?.id); signOut(); }}
                 onSignOut={() => { signOut(); goHome(); }}
