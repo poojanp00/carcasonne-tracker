@@ -866,6 +866,7 @@ input[type="search"], input[type="number"] {
   font-family: 'Crimson Text', serif;
   font-size: 0.78rem;
   font-style: italic;
+  text-transform: none; /* tooltip text shouldn't inherit an ancestor's uppercase styling (e.g. .form-label) */
   line-height: 1.4;
   padding: 0.45rem 0.65rem;
   border-radius: 4px;
@@ -875,6 +876,13 @@ input[type="search"], input[type="number"] {
   z-index: 200;
   pointer-events: none;
   box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+}
+
+/* Small grey italic variant — for lightweight hints (e.g. the chest-unlock
+   note) that shouldn't read as loudly as the default parchment-on-brown tip */
+.stat-info-wrap.muted-info .stat-info-tooltip {
+  font-size: 0.7rem;
+  color: rgba(244, 230, 200, 0.65);
 }
 
 /* Longer tooltip for infrastructure formulas */
@@ -2797,7 +2805,22 @@ input[type="file"] { display: none; }
 }
 /* Rank hover tooltip: a vertical version of the milestone notch-and-line —
    next (unearned) rank on top, current rank highlighted, earned ranks below,
-   each dot connected to the one above it by a thin engraved line. */
+   each dot connected to the one above it by a thin engraved line — with a
+   3-column header (#, Rank, Tiers) aligned above the rows. */
+.rank-ladder-header {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding-left: 14px;
+  padding-bottom: 0.3rem;
+  margin-bottom: 0.15rem;
+  border-bottom: 1px solid rgba(226, 211, 163, 0.35);
+  font-size: 0.6rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0.55;
+}
+.rank-ladder-header .rank-ladder-col-name { flex: 1; text-align: left; }
 .rank-ladder-row {
   position: relative;
   display: flex;
@@ -2837,13 +2860,18 @@ input[type="file"] { display: none; }
   background: transparent;
   border: 1px dashed rgba(226, 211, 163, 0.55);
 }
+.rank-ladder-col-num {
+  width: 1.3rem;
+  opacity: 0.55;
+  font-size: 0.85em;
+}
 .rank-ladder-name {
   flex: 1;
   line-height: 1.45;
 }
 .rank-ladder-name.current { color: var(--warm-gold); font-weight: 700; }
 .rank-ladder-name.next { opacity: 0.65; font-style: italic; }
-.rank-ladder-num {
+.rank-ladder-col-tiers {
   opacity: 0.6;
   font-size: 0.85em;
 }

@@ -6,10 +6,12 @@ import PointBreakdownChart from './PointBreakdownChart';
 import Lightbox from './Lightbox';
 import StatInfo from './StatInfo';
 import ValInfo from './ValInfo';
-import { TrashIcon } from './icons';
+import { TrashIcon, GearIcon } from './icons';
 import crownImg from '../../images/icons/crown.png';
 import { formatDate } from '../utils/formatters';
 import Bookshelf from './Bookshelf';
+import { chestFor, unlockedChests } from '../data/chests';
+import { spineFor, unlockedSpines } from '../data/spines';
 
 const GAMES_PER_PAGE = 25;
 const FIRST_LOG_PAGE = 2; // 0 overview, 1 fellowship, 2.. game log
@@ -236,13 +238,20 @@ function GameLogPage({ pageGames, onSelectGame }) {
   );
 }
 
-export default function Library({ games, realms = [], currentRealm = null, onRealmChange, onDeleteGame, onDeleteRealm, onLeaveRealm, isGuest = false, showDemoData = false, onToggleDemoData = null, openGame = null, onOpenGameClear }) {
+export default function Library({ games, realms = [], currentRealm = null, onRealmChange, onDeleteGame, onDeleteRealm, onLeaveRealm, onUpdateRealm, selfRank = 1, isGuest = false, showDemoData = false, onToggleDemoData = null, openGame = null, onOpenGameClear }) {
   const [openBookId,        setOpenBookId]        = useState(null); // null = shelf
   const [page,              setPage]              = useState(0);
   const [selectedGame,      setSelectedGame]      = useState(null);
   const [confirmDeleteId,   setConfirmDeleteId]   = useState(null); // game delete
   const [confirmDeleteRealm, setConfirmDeleteRealm] = useState(false);
   const [confirmLeave,      setConfirmLeave]      = useState(false);
+
+  // Realm Settings popup — null | 'menu' | 'rename' | 'chest' | 'logbook'
+  const [realmSettingsView, setRealmSettingsView] = useState(null);
+  const [realmNameInput,    setRealmNameInput]    = useState('');
+  const [realmNameError,    setRealmNameError]    = useState('');
+  const [chestPick,         setChestPick]         = useState(0);
+  const [spinePick,         setSpinePick]         = useState(0);
 
   const openRealm  = realms.find(r => r.id === openBookId) || null;
   const realmGames = useMemo(
@@ -263,6 +272,28 @@ export default function Library({ games, realms = [], currentRealm = null, onRea
     setOpenBookId(null);
     setPage(0);
   };
+
+  const openRealmSettings  = () => setRealmSettingsView('menu');
+  const closeRealmSettings = () => { setRealmSettingsView(null); setRealmNameError(''); };
+  const startRenameRealm   = () => { setRealmNameInput(openRealm?.name || ''); setRealmNameError(''); setRealmSettingsView('rename'); };
+
+  const handleSaveRealmName = (e) => {
+    e.preventDefault();
+    const trimmed = realmNameInput.trim();
+    if (!trimmed) { setRealmNameError('Realm name cannot be empty.'); return; }
+    if (realms.some(r => r.id !== openRealm.id && r.name.toLowerCase() === trimmed.toLowerCase())) {
+      setRealmNameError('A realm with this name already exists.');
+      return;
+    }
+    onUpdateRealm?.(openRealm.id, { name: trimmed });
+    setRealmSettingsView('menu');
+  };
+
+  const openChestPicker = () => { setChestPick(openRealm?.chest ?? 0); setRealmSettingsView('chest'); };
+  const handleSaveChest = () => { onUpdateRealm?.(openRealm.id, { chest: chestPick }); setRealmSettingsView('menu'); };
+
+  const openLogbookPicker = () => { setSpinePick(openRealm?.spine ?? 0); setRealmSettingsView('logbook'); };
+  const handleSaveLogbook = () => { onUpdateRealm?.(openRealm.id, { spine: spinePick }); setRealmSettingsView('menu'); };
 
   // Cross-nav from other pages: land on the right book, the right log page,
   // and open the game's lightbox
@@ -296,23 +327,23 @@ export default function Library({ games, realms = [], currentRealm = null, onRea
   }, [page, totalPages]);
 
   useEffect(() => {
-    const isOpen = !!confirmDeleteId || confirmDeleteRealm || confirmLeave || !!selectedGame;
+    const isOpen = !!confirmDeleteId || confirmDeleteRealm || confirmLeave || !!selectedGame || !!realmSettingsView;
     document.body.style.overflow = isOpen ? 'hidden' : '';
     return () => { document.body.style.overflow = ''; };
-  }, [confirmDeleteId, confirmDeleteRealm, confirmLeave, selectedGame]);
+  }, [confirmDeleteId, confirmDeleteRealm, confirmLeave, selectedGame, realmSettingsView]);
 
   // Arrow-key page turning while a book is open — suppressed under any modal
   // (the Lightbox has its own Up/Down key handling for game-to-game nav)
   useEffect(() => {
     if (!openRealm) return;
     const onKey = (e) => {
-      if (confirmDeleteId || confirmDeleteRealm || confirmLeave || selectedGame) return;
+      if (confirmDeleteId || confirmDeleteRealm || confirmLeave || selectedGame || realmSettingsView) return;
       if (e.key === 'ArrowLeft' && page > 0) setPage(p => Math.max(0, p - 1));
       if (e.key === 'ArrowRight' && page < totalPages - 1) setPage(p => Math.min(totalPages - 1, p + 1));
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [openRealm, page, totalPages, confirmDeleteId, confirmDeleteRealm, confirmLeave, selectedGame]);
+  }, [openRealm, page, totalPages, confirmDeleteId, confirmDeleteRealm, confirmLeave, selectedGame, realmSettingsView]);
 
   const handleConfirmDelete = async () => {
     await onDeleteGame(confirmDeleteId);
@@ -370,6 +401,158 @@ export default function Library({ games, realms = [], currentRealm = null, onRea
             <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'flex-end' }}>
               <button className="btn btn-ghost btn-sm" onClick={() => setConfirmLeave(false)}>Cancel</button>
               <button className="btn btn-danger btn-sm" onClick={() => { setConfirmLeave(false); onLeaveRealm?.(openRealm.id); }}>Leave</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Realm Settings — rename/chest/logbook (owner only) plus the Danger Zone
+          (Delete for the owner, Leave for a member), mirroring Profile's Account Settings */}
+      {realmSettingsView === 'menu' && openRealm && (
+        <div className="realm-modal-overlay" onClick={closeRealmSettings}>
+          <div className="realm-modal tile-card settings-modal" onClick={e => e.stopPropagation()}>
+            <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
+              <GearIcon /> Realm Settings
+            </h3>
+
+            {openRealm.isOwner !== false && (
+              <div className="settings-section">
+                <div className="settings-section-header">Realm Identity</div>
+                <div className="settings-row">
+                  <span className="settings-row-label">Realm Name</span>
+                  <span className="settings-row-control">
+                    <span className="settings-row-value">{openRealm.name}</span>
+                    <button type="button" className="settings-edit-btn" onClick={startRenameRealm}>Edit</button>
+                  </span>
+                </div>
+                <div className="settings-row">
+                  <span className="settings-row-label">Chest</span>
+                  <span className="settings-row-control">
+                    <img src={chestFor(openRealm)} alt="" style={{ height: '36px', width: 'auto' }} draggable={false} />
+                    <button type="button" className="settings-edit-btn" onClick={openChestPicker}>Change</button>
+                  </span>
+                </div>
+                <div className="settings-row">
+                  <span className="settings-row-label">Logbook</span>
+                  <span className="settings-row-control">
+                    <img src={spineFor(openRealm)} alt="" style={{ height: '44px', width: 'auto' }} draggable={false} />
+                    <button type="button" className="settings-edit-btn" onClick={openLogbookPicker}>Change</button>
+                  </span>
+                </div>
+              </div>
+            )}
+
+            <div className="settings-section settings-danger">
+              <div className="settings-section-header">Danger Zone</div>
+              {openRealm.isOwner !== false ? (
+                <div className="settings-row">
+                  <span className="settings-row-label" style={{ color: 'var(--stone-gray)', fontSize: '0.85rem' }}>
+                    Permanently delete this realm and all its games
+                  </span>
+                  <button
+                    type="button"
+                    className="settings-delete-btn"
+                    onClick={() => { setRealmSettingsView(null); setConfirmDeleteRealm(true); }}
+                  >
+                    <TrashIcon /> Delete Realm
+                  </button>
+                </div>
+              ) : (
+                <div className="settings-row">
+                  <span className="settings-row-label" style={{ color: 'var(--stone-gray)', fontSize: '0.85rem' }}>
+                    Leave this shared realm
+                  </span>
+                  <button
+                    type="button"
+                    className="settings-delete-btn"
+                    onClick={() => { setRealmSettingsView(null); setConfirmLeave(true); }}
+                  >
+                    Leave Realm
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1.4rem' }}>
+              <button className="btn btn-ghost btn-sm" onClick={closeRealmSettings}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Rename realm */}
+      {realmSettingsView === 'rename' && openRealm && (
+        <div className="realm-modal-overlay" onClick={closeRealmSettings}>
+          <div className="realm-modal tile-card" onClick={e => e.stopPropagation()}>
+            <h3 style={{ marginBottom: '0.5rem' }}>Rename Realm</h3>
+            <form onSubmit={handleSaveRealmName}>
+              <input
+                type="text"
+                className="form-input"
+                value={realmNameInput}
+                onChange={e => setRealmNameInput(e.target.value)}
+                maxLength={40}
+                autoFocus
+                placeholder="Realm name"
+                style={{ width: '100%', marginBottom: '1rem' }}
+              />
+              {realmNameError && (
+                <p style={{ color: 'var(--deep-red)', fontSize: '0.85rem', marginBottom: '0.8rem' }}>{realmNameError}</p>
+              )}
+              <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'flex-end' }}>
+                <button type="button" className="btn btn-ghost btn-sm" onClick={() => setRealmSettingsView('menu')}>Cancel</button>
+                <button type="submit" className="btn btn-sm">Save</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Change chest */}
+      {realmSettingsView === 'chest' && openRealm && (
+        <div className="realm-modal-overlay" onClick={closeRealmSettings}>
+          <div className="realm-modal tile-card" onClick={e => e.stopPropagation()} style={{ maxWidth: '440px' }}>
+            <h3 style={{ marginBottom: '0.8rem' }}>Change Chest</h3>
+            <div className="meeple-options">
+              {unlockedChests(selfRank).map((img, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  className={`meeple-option chest-option${chestPick === i ? ' selected' : ''}`}
+                  onClick={() => setChestPick(i)}
+                >
+                  <img src={img} alt={`Chest ${i + 1}`} />
+                </button>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'flex-end', marginTop: '1.2rem' }}>
+              <button type="button" className="btn btn-ghost btn-sm" onClick={() => setRealmSettingsView('menu')}>Cancel</button>
+              <button type="button" className="btn btn-sm" onClick={handleSaveChest}>Save</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Change logbook */}
+      {realmSettingsView === 'logbook' && openRealm && (
+        <div className="realm-modal-overlay" onClick={closeRealmSettings}>
+          <div className="realm-modal tile-card" onClick={e => e.stopPropagation()} style={{ maxWidth: '440px' }}>
+            <h3 style={{ marginBottom: '0.8rem' }}>Change Logbook</h3>
+            <div className="logbook-picker-row">
+              {unlockedSpines(selfRank).map((img, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  className={`logbook-pick${spinePick === i ? ' selected' : ''}`}
+                  onClick={() => setSpinePick(i)}
+                >
+                  <img src={img} alt={`Logbook ${i + 1}`} draggable={false} />
+                </button>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'flex-end', marginTop: '1.2rem' }}>
+              <button type="button" className="btn btn-ghost btn-sm" onClick={() => setRealmSettingsView('menu')}>Cancel</button>
+              <button type="button" className="btn btn-sm" onClick={handleSaveLogbook}>Save</button>
             </div>
           </div>
         </div>
@@ -440,14 +623,18 @@ export default function Library({ games, realms = [], currentRealm = null, onRea
           </div>
 
           <div className="book-nav">
-            {/* On the first page, the dead Back slot hosts delete (owner) / leave (member) instead */}
+            {/* On the first page, the dead Back slot hosts realm settings (owner/member)
+                instead — guests keep the plain delete button, since their single ephemeral
+                realm has nothing to rename or customize. */}
             {page === 0 && !showDemoData ? (
-              openRealm.isOwner !== false ? (
+              isGuest ? (
                 <button type="button" className="btn btn-danger btn-sm" onClick={() => setConfirmDeleteRealm(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
                   <TrashIcon />
                 </button>
               ) : (
-                <button type="button" className="btn btn-danger btn-sm" onClick={() => setConfirmLeave(true)}>Leave Realm</button>
+                <button type="button" className="btn btn-ghost btn-sm" onClick={openRealmSettings} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <GearIcon /> Edit
+                </button>
               )
             ) : (
               <button type="button" className="btn btn-ghost btn-sm" disabled={page === 0} onClick={() => setPage(p => Math.max(0, p - 1))}>‹ Back</button>

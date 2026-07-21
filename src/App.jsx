@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import PostGameForm  from './components/PostGameForm';
 import Library       from './components/Library';
 import Profile       from './components/Profile';
@@ -14,7 +14,8 @@ import { useGameData } from './hooks/useGameData';
 import { useAuth }     from './hooks/useAuth';
 import { resetBoard }  from './data/boardStorage';
 import { deleteAccount, sendRealmInvite, updateDisplayName, updateHighestMetaRank } from './data/storage';
-import { getGuestMetaRank, setGuestMetaRank } from './utils/metaRank';
+import { getGuestMetaRank, setGuestMetaRank, countUnlockedTiers, getCurrentRank } from './utils/metaRank';
+import { calcAccountStats } from './utils/stats';
 import { DEFAULT_EXPANSIONS } from './data/expansions';
 import { DEMO_REALMS, DEMO_GAMES, DEMO_USER_ID, DEMO_USER_NAME } from './data/demoData';
 import { TABS, APP_CONFIG, EXPANSION_TYPES, PINNED_EXPANSIONS } from './constants';
@@ -91,6 +92,16 @@ export default function App() {
   };
 
   const storedMetaRank = isGuest ? getGuestMetaRank() : (user?.user_metadata?.highest_meta_rank || 0);
+
+  // The signed-in account's live rank — used only to gate which chest
+  // folders are unlocked in the realm-creation picker (see data/chests.js).
+  // Guests always sit at rank 1 (folder 1 only), matching their locked-down
+  // chest/logbook picker.
+  const selfAccountStats = useMemo(
+    () => calcAccountStats(appData.games, appData.realms, userId),
+    [appData.games, appData.realms, userId]
+  );
+  const selfRank = isGuest ? 1 : getCurrentRank(countUnlockedTiers(selfAccountStats));
 
   // Unified operations - guest mode uses no-ops, user mode uses database
   const appOperations = {
@@ -483,6 +494,7 @@ export default function App() {
                           isGuest={isGuest}
                           selfName={displayName}
                           onToggleOwned={appOperations.toggleExpansion}
+                          selfRank={selfRank}
                         />
                       : <PreGameSetup
                         key={session.realm.id}
@@ -500,6 +512,7 @@ export default function App() {
                         isGuest={isGuest}
                         selfName={displayName}
                         onToggleOwned={appOperations.toggleExpansion}
+                        selfRank={selfRank}
                       />
                 : appData.realms.length === 0
                   ? <PreGameSetup
@@ -518,6 +531,7 @@ export default function App() {
                       isGuest={isGuest}
                       selfName={displayName}
                       onToggleOwned={appOperations.toggleExpansion}
+                      selfRank={selfRank}
                     />
                   : <PreGameSetup
                       key="choose-realm"
@@ -534,6 +548,7 @@ export default function App() {
                       isGuest={isGuest}
                       selfName={displayName}
                       onToggleOwned={appOperations.toggleExpansion}
+                      selfRank={selfRank}
                     />
             )}
             {tab === 'board' && isGuest && showHowToPlay && !session?.players && !session?.finalScores && (
@@ -549,6 +564,8 @@ export default function App() {
                 onDeleteGame={handleDelete}
                 onDeleteRealm={handleRealmDelete}
                 onLeaveRealm={handleRealmLeave}
+                onUpdateRealm={appOperations.updateRealm}
+                selfRank={selfRank}
                 isGuest={isGuest}
                 showDemoData={showDemoData}
                 onToggleDemoData={isGuest ? toggleDemo : null}

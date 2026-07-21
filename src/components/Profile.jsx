@@ -270,16 +270,22 @@ export default function Profile({ games, realms, userId, displayName, isGuest = 
   for (let r = displayedRank; r >= 1; r--) ladderRanks.push({ rank: r, state: r === displayedRank ? 'current' : 'earned' });
 
   const rankTip = (
-    <div style={{ textAlign: 'left', maxWidth: 230, whiteSpace: 'normal' }}>
+    <div style={{ textAlign: 'left', maxWidth: 250, whiteSpace: 'normal' }}>
       <div style={{ fontSize: '0.66rem', letterSpacing: '0.1em', textTransform: 'uppercase', opacity: 0.75, marginBottom: '0.3rem' }}>
         Rank Ladder
+      </div>
+      <div className="rank-ladder-header">
+        <span className="rank-ladder-col-num">#</span>
+        <span className="rank-ladder-col-name">Rank</span>
+        <span className="rank-ladder-col-tiers">Tiers</span>
       </div>
       <div className="rank-ladder">
         {ladderRanks.map(({ rank, state }) => (
           <div key={rank} className="rank-ladder-row">
             <span className={`rank-ladder-dot ${state}`} />
+            <span className="rank-ladder-col-num">{rank}</span>
             <span className={`rank-ladder-name ${state}`}>{rankTitle(rank)}</span>
-            <span className="rank-ladder-num">{tiersRequiredForRank(rank)}</span>
+            <span className="rank-ladder-col-tiers">{tiersRequiredForRank(rank)}</span>
           </div>
         ))}
       </div>

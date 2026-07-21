@@ -28,12 +28,10 @@ import { getRealmMemberEmails } from '../data/storage';
 import { useClampTooltip } from '../hooks/useClampTooltip';
 import { useTapTooltip } from '../hooks/useTapTooltip';
 import { HowToPlayModal } from './HowToGuide';
-import { CHESTS, chestFor } from '../data/chests';
-import { SPINES } from '../data/spines';
+import { chestFor, unlockedChestFolders, unlockedChests } from '../data/chests';
+import { unlockedLogbookFolders, unlockedSpines, LOGBOOK_FOLDER_COUNT } from '../data/spines';
 import ValInfo from './ValInfo';
-
-// Only the first 8 logbook designs are offered in the creation picker.
-const PICKABLE_SPINES = SPINES.slice(0, 8);
+import StatInfo from './StatInfo';
 
 /**
  * MEEPLE LOADING SYSTEM (STANDARD MEEPLES)
@@ -67,7 +65,7 @@ const FUN_MEEPLES = Object.entries(FUN_MODULES)
     img
   }));
 
-export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeples, defaultExpansions, realms = [], currentRealm = null, onRealmChange, onRealmCreate, onExportGroup = null, startAtRealmCreation = false, startAtModeSelection = false, isGuest = false, selfName = '', onToggleOwned = null }) {
+export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeples, defaultExpansions, realms = [], currentRealm = null, onRealmChange, onRealmCreate, onExportGroup = null, startAtRealmCreation = false, startAtModeSelection = false, isGuest = false, selfName = '', selfRank = 1, onToggleOwned = null }) {
   // Steps: 0=Bookshelf, 1=Players, 2=Realm creation, 3=Mode selection,
   // 4=Meeples (table only), 5=Expansions.
   // Every fresh mount starts at the bookshelf (or creation when no realms
@@ -102,8 +100,8 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
   // forever on the realm from this point (see handleCreateRealm below).
   // Guests don't get a choice — customizing cosmetics requires an account,
   // so they're locked to the first chest/logbook (see the picker below).
-  const [chestIndex, setChestIndex] = useState(() => (isGuest ? 0 : Math.floor(Math.random() * CHESTS.length)));
-  const [spineIndex, setSpineIndex] = useState(() => (isGuest ? 0 : Math.floor(Math.random() * PICKABLE_SPINES.length)));
+  const [chestIndex, setChestIndex] = useState(() => (isGuest ? 0 : Math.floor(Math.random() * unlockedChests(selfRank).length)));
+  const [spineIndex, setSpineIndex] = useState(() => (isGuest ? 0 : Math.floor(Math.random() * unlockedSpines(selfRank).length)));
 
   // Export Group (step 0) — invite another account to this realm
   const [showExport,   setShowExport]   = useState(false);
@@ -787,9 +785,14 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
           </div>
 
           <div className="tile-card" style={{ marginBottom: 0 }}>
-            <label className="form-label" style={{ display: 'block', marginBottom: '0.6rem' }}>Choose Your Chest</label>
+            <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.6rem' }}>
+              Choose Your Chest
+              {!isGuest && unlockedChestFolders(selfRank) < 5 && (
+                <StatInfo className="muted-info">More chests unlock at Rank {unlockedChestFolders(selfRank) * 4}.</StatInfo>
+              )}
+            </label>
             <div className="meeple-options">
-              {CHESTS.map((img, i) => {
+              {unlockedChests(selfRank).map((img, i) => {
                 const btn = (
                   <button
                     key={i}
@@ -806,9 +809,14 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
                 ) : btn;
               })}
             </div>
-            <label className="form-label" style={{ display: 'block', margin: '1rem 0 0.6rem' }}>Choose Your Logbook</label>
+            <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', margin: '1rem 0 0.6rem' }}>
+              Choose Your Logbook
+              {!isGuest && unlockedLogbookFolders(selfRank) < LOGBOOK_FOLDER_COUNT && (
+                <StatInfo className="muted-info">More logbooks unlock at Rank {unlockedLogbookFolders(selfRank) * 4}.</StatInfo>
+              )}
+            </label>
             <div className="logbook-picker-row">
-              {PICKABLE_SPINES.map((img, i) => {
+              {unlockedSpines(selfRank).map((img, i) => {
                 const btn = (
                   <button
                     key={i}
