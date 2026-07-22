@@ -152,12 +152,40 @@ export const ACCOUNT_MILESTONES = [
       { tierNumber: 4, threshold: 5000, name: 'Royal Marketplace', img: null },
     ],
   },
+  {
+    id: 'wins',
+    label: 'Wins',
+    metric: 'wins', // counts victories, not breakdown points
+    unit: 'Victories',
+    alwaysVisible: true,
+    tiers: [
+      { tierNumber: 1, threshold: 5,  name: 'Winner', img: null },
+      { tierNumber: 2, threshold: 50,  name: 'Champion', img: null },
+      { tierNumber: 3, threshold: 250, name: 'Master', img: null },
+      { tierNumber: 4, threshold: 500, name: 'Legend', img: null },
+    ],
+  },
+  {
+    id: 'expansions',
+    label: 'Expansions',
+    metric: 'expansions', // counts full expansions owned, not breakdown points
+    unit: 'Full Expansions Owned',
+    alwaysVisible: true,
+    tiers: [
+      { tierNumber: 1, threshold: 1,  name: 'Fan', img: null },
+      { tierNumber: 2, threshold: 4,  name: 'Hobbyist', img: null },
+      { tierNumber: 3, threshold: 7, name: 'Collector', img: null },
+      { tierNumber: 4, threshold: 11, name: 'Aficionado', img: null },
+    ],
+  },
 ];
 
 // Current progress toward a category's tiers from the account aggregate
 // ({ gamesCount, breakdown } as returned by calcAccountStats)
 export function accountMilestoneProgress(category, account) {
   if (category.metric === 'games') return account.gamesCount;
+  if (category.metric === 'wins') return account.stats.wins;
+  if (category.metric === 'expansions') return account.expansionsFullCount;
   return progressForTypes(category.types, account.breakdown);
 }
 

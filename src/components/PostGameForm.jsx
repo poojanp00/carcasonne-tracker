@@ -119,10 +119,12 @@ export default function GameLogForm({ session, ownedExpansions, onSubmit, onCanc
         {realm && (
           !submitted && onCancel ? (
             <button type="button" className="section-title-back" onClick={onCancel} title="Back to the board">
+              <span aria-hidden="true">‹</span>
               <img className="realm-chest-icon" src={chestFor(realm)} alt="" />
             </button>
           ) : submitted && onExitToHub ? (
             <button type="button" className="section-title-back" onClick={onExitToHub} title="Back to the realms hub">
+              <span aria-hidden="true">‹</span>
               <img className="realm-chest-icon" src={chestFor(realm)} alt="" />
             </button>
           ) : (

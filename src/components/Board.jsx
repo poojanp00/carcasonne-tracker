@@ -101,7 +101,7 @@ const STACK_OFFSETS = [
   { x: 0,  y: -5 }, // Player 6: more upward
 ];
 
-export default function Board({ userId, isGuest, session, onFinish, onReset, autoShowHowTo, onHowToShown }) {
+export default function Board({ userId, isGuest, session, onFinish, onReset, onExitToHub, autoShowHowTo, onHowToShown }) {
   const players   = session?.players  || [];
   const meepleMap = session?.meeples  || {};
 
@@ -119,6 +119,7 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, aut
   // remounts of the same game (e.g. switching tabs away and back to Play).
   const [showHowTo, setShowHowTo] = useState(() => isGuest && !!autoShowHowTo);
   const [confirmReset,         setConfirmReset]         = useState(false); // Reset board confirmation
+  const [confirmExit,          setConfirmExit]          = useState(false); // Back-to-hub confirmation
   const [warning,             setWarning]             = useState(null); // Warning toast (e.g. monastery/abbot/abbey point cap)
   const [editMode, setEditMode] = useState(false); // Score log edit mode — reveals a delete icon on each entry
   const [pendingDeleteMoveIdx, setPendingDeleteMoveIdx] = useState(null); // moves[] index, or 'final-scoring', awaiting delete confirmation
@@ -330,6 +331,37 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, aut
 
     setBoard(rebuilt);
   }, [board?.moveIndex, board?.moves.length]);
+
+  // ArrowLeft mirrors the "back" shortcut PreGameSetup uses (see its own
+  // keydown effect) and now the chest icon's own click too — despite board
+  // state being saved as it goes (see boardStorage), there's no way back
+  // into THIS game once you leave (reopening the chest always re-runs
+  // PreGameSetup, which resets the board), so leaving mid-game is
+  // effectively as destructive as Reset and gets the same confirmation.
+  // Skipped while any modal is already open (so it doesn't fight whichever
+  // one's up) or focus is in a field/button (typing, native Enter/Space
+  // handling).
+  //
+  // Declared up here with the rest of the hooks — not further down, where
+  // it used to sit next to handleReset — because everything below this
+  // point is behind an early `if (!board) return null`, and a hook
+  // declared past an early return gets skipped on whatever render hits
+  // that return, then called again once `board` loads and the return no
+  // longer fires. That's a straight-up Rules-of-Hooks violation (hook
+  // count changes between renders of the same instance) and crashes the
+  // whole board the moment `board` finishes loading.
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key !== 'ArrowLeft') return;
+      const tag = e.target.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || tag === 'BUTTON' || e.target.isContentEditable) return;
+      if (confirmFinish || confirmReset || confirmExit || pendingDeleteMoveIdx !== null || showTraders || showHowTo) return;
+      setConfirmExit(true);
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [confirmFinish, confirmReset, confirmExit, pendingDeleteMoveIdx, showTraders, showHowTo]);
 
   if (!board) return null;
 
@@ -600,29 +632,19 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, aut
     setConfirmReset(true); // Show confirmation modal
   }
 
-  // ArrowLeft mirrors the "back" shortcut PreGameSetup uses (see its own
-  // keydown effect) — but a game in progress has no actual "back" step to
-  // go to, so it opens the same confirmation the chest icon and the Reset
-  // button do, rather than silently discarding anything. Skipped while any
-  // modal is already open (so it doesn't fight whichever one's up) or
-  // focus is in a field/button (typing, native Enter/Space handling).
-  useEffect(() => {
-    const onKey = (e) => {
-      if (e.key !== 'ArrowLeft') return;
-      const tag = e.target.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || tag === 'BUTTON' || e.target.isContentEditable) return;
-      if (confirmFinish || confirmReset || pendingDeleteMoveIdx !== null || showTraders || showHowTo) return;
-      handleReset();
-    };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [confirmFinish, confirmReset, pendingDeleteMoveIdx, showTraders, showHowTo]);
-
   function confirmResetBoard() {
     setConfirmReset(false);
     resetBoard(userId, players, [], isGuest);
     onReset();
+  }
+
+  function handleExitToHub() {
+    setConfirmExit(true); // Show confirmation modal
+  }
+
+  function confirmExitToHub() {
+    setConfirmExit(false);
+    onExitToHub?.();
   }
 
   function handleFinish() {
@@ -757,6 +779,24 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, aut
     </div>
   );
 
+  // Back-to-hub confirmation modal — reopening the chest always re-runs
+  // PreGameSetup, which resets the board, so leaving mid-game is as
+  // destructive as the Reset button and gets the same treatment.
+  const exitModal = confirmExit && (
+    <div className="realm-modal-overlay" onClick={() => setConfirmExit(false)}>
+      <div className="realm-modal tile-card" onClick={e => e.stopPropagation()}>
+        <h3 style={{ color: 'var(--deep-red)', marginBottom: '0.5rem' }}>Are you sure?</h3>
+        <p style={{ fontSize: '0.95rem', marginBottom: '1.2rem', lineHeight: 1.5 }}>
+          Leaving now will lose your current scores — there's no way back into this game once you exit. This cannot be undone.
+        </p>
+        <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'flex-end' }}>
+          <button className="btn btn-ghost btn-sm" onClick={() => setConfirmExit(false)}>Cancel</button>
+          <button className="btn btn-danger btn-sm" onClick={confirmExitToHub}>Back to realms</button>
+        </div>
+      </div>
+    </div>
+  );
+
   // Confirms whatever entry is pending deletion — either a regular moves[] index, or the
   // special 'final-scoring' sentinel (trashing the divider undoes Final Scoring and returns
   // to live play, same as the old undo system's "exit final scoring" branch).
@@ -803,6 +843,9 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, aut
 
       {/* Reset board confirmation modal */}
       {resetModal}
+
+      {/* Back-to-hub confirmation modal */}
+      {exitModal}
 
       {/* Delete score-log entry confirmation modal */}
       {deleteMoveModal}
@@ -873,11 +916,14 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, aut
 
       <div className="section-title" style={{ flexWrap: 'wrap', rowGap: '0.5rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          {session?.realm && (
-            // Clicking mid-game has nowhere real to "go back" to, so it opens
-            // the same Reset confirmation the Reset button does (see the
-            // ArrowLeft handler above) rather than silently leaving.
-            <button type="button" className="section-title-back" onClick={handleReset} title="Reset the board">
+          {session?.realm && onExitToHub && (
+            // Same "‹" + chest = back-to-hub pattern PreGameSetup uses —
+            // reopening the chest always re-runs PreGameSetup, which resets
+            // the board, so leaving mid-game is as destructive as the
+            // dedicated Reset button below and gets the same confirmation
+            // (see exitModal / confirmExit).
+            <button type="button" className="section-title-back" onClick={handleExitToHub} title="Back to the realms hub">
+              <span aria-hidden="true">‹</span>
               <img src={chestFor(session.realm)} alt="" className="realm-chest-icon" />
             </button>
           )}

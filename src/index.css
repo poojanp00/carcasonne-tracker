@@ -411,6 +411,20 @@ h3 { font-size: clamp(0.9rem, 2.5vw, 1.15rem); font-weight: 600; }
   box-shadow: 1px 2px 0 #5A3E08, inset 0 1px 0 rgba(255,255,255,0.15) !important;
 }
 
+/* The pregame play-path tour's Begin button — permanently excludes
+   box-shadow from .btn's own transition (transform stays, so the hover
+   lift still animates normally outside a tour). .tour-highlight's own
+   `transition: none !important` only fixes *entering* the highlight (the
+   "after" style at that moment already includes the override); *leaving*
+   it — e.g. clicking Back from the Begin stage to Expansions — reverts to
+   this element's own class list, which no longer has that override once
+   tour-highlight itself is gone. Scoping .btn's box-shadow transition out
+   here, unconditionally, fixes that direction too instead of just working
+   around it per-direction. */
+.pregame-begin-btn {
+  transition: transform var(--transition-lift);
+}
+
 .btn-danger {
   background: linear-gradient(160deg, #C44040 0%, #9E2A2B 55%, #7E1E1E 100%);
   border-color: #6B1414;
@@ -964,13 +978,6 @@ input[type="search"], input[type="number"] {
   z-index: 200;
   pointer-events: none;
   box-shadow: 0 2px 8px rgba(0,0,0,0.25);
-}
-
-/* Small grey italic variant — for lightweight hints (e.g. the chest-unlock
-   note) that shouldn't read as loudly as the default parchment-on-brown tip */
-.stat-info-wrap.muted-info .stat-info-tooltip {
-  font-size: 0.7rem;
-  color: rgba(244, 230, 200, 0.65);
 }
 
 /* Longer tooltip for infrastructure formulas */
@@ -1613,6 +1620,19 @@ input[type="file"] { display: none; }
      the spotlight look. The dimming cutout alone reads as "look here" —
      no separate gold outline needed on top of it. */
   box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.4) !important;
+  /* Some elements this lands on (e.g. .btn — the pregame tour's Begin
+     button) have their own transition covering box-shadow, for real
+     hover/active feedback the rest of the time. Without this, *entering*
+     tour-highlight on one of those animates the huge spotlight shadow
+     growing in over that element's own transition duration instead of
+     snapping on instantly like every other stage's spotlight does —
+     visible as a glitchy flash stepping onto a button-shaped target (e.g.
+     the pregame tour's Expansions → Begin step). *Leaving* tour-highlight
+     doesn't get the same fix — the "after" style there is just the
+     element's own class again, this override included — but a spotlight
+     that fades out on its way off reads far less wrong than one that
+     visibly grows in, so that direction is left alone. */
+  transition: none !important;
 }
 
 /* A brief, gentler echo of .tour-highlight's spotlight for the realm card

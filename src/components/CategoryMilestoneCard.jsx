@@ -19,7 +19,8 @@ function MilestoneNotch({ tier, leftPct }) {
 export default function CategoryMilestoneCard({ category, account }) {
   const { progress, currentTier, currentTierNumber, nextTier, reached, maxed, pct, remaining } =
     categoryTierState(category, account);
-  const unit = category.metric === 'games' ? 'games' : 'pts';
+  const METRIC_UNITS = { games: 'games', wins: 'wins', expansions: 'owned' };
+  const unit = METRIC_UNITS[category.metric] ?? 'pts';
 
   // The bar's 0–100% axis always ends at a threshold: the next tier's while
   // climbing, or the final tier's once maxed — so earned tiers below that

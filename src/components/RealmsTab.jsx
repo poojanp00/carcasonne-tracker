@@ -16,10 +16,11 @@ import { spineFor } from '../data/spines';
 export default function RealmsTab({
   realms = [], games = [], onPlayRealm, onCreateRealm, onDeleteGame,
   onDeleteRealm, onLeaveRealm, onUpdateRealm, selfRank = 1, isGuest = false,
-  showDemoData = false, onToggleDemoData = null, openGame = null,
+  openGame = null,
   onOpenGameClear, resetSignal = 0, tourActive = false, onTourActiveChange = null,
   tourVisitedChest = false, tourVisitedBook = false,
   onTourVisitChest = null, onTourVisitBook = null,
+  tourShown = false, onTourShown = null,
   scrollToRealmId = null, onScrollToRealmConsumed = null,
 }) {
   const [openBookRealmId, setOpenBookRealmId] = useState(null); // null = hub
@@ -62,22 +63,31 @@ export default function RealmsTab({
   // The tour only ever spotlights one realm — preferably the first (by
   // creation order, matching the hub's own shelf order) that actually has
   // recorded games, so the book/roster/gamelog stages have something real
-  // to show. Falling back to any real realm (even a brand new, gameless
-  // one — e.g. a guest's realm right after creation) still beats demo data,
-  // which is reserved for the true empty case: no realms at all.
-  const sortedRealms = [...realms].sort((a, b) => new Date(a.createdAt || a.created_at) - new Date(b.createdAt || b.created_at));
+  // to show. Demo realms sort first regardless of date (see App.jsx —
+  // they're prepended, and their fixed `created_at` isn't meaningful
+  // against a real realm's actual creation time), so for a guest this is
+  // always the demo realm; falling back to any real realm (even a brand
+  // new, gameless one) covers every signed-in case.
+  const sortedRealms = [...realms].sort((a, b) =>
+    (a.isDemo ? 0 : 1) - (b.isDemo ? 0 : 1)
+    || new Date(a.createdAt || a.created_at) - new Date(b.createdAt || b.created_at)
+  );
   const realmsWithGames = sortedRealms.filter(r => games.some(g => g.realmId === r.id));
   const highlightRealm = realmsWithGames[0] || sortedRealms[0] || null;
 
-  const ensureDemoOn = () => { if (!showDemoData) onToggleDemoData?.(); };
-  const startTour = () => {
-    if (realmsWithGames.length === 0) ensureDemoOn();
-    onTourActiveChange?.(true);
-  };
-  const startTourWithDemo = () => {
-    ensureDemoOn();
-    onTourActiveChange?.(true);
-  };
+  const startTour = () => onTourActiveChange?.(true);
+  // Auto-opens the tour the *first* time a guest reaches this tab this
+  // session (see App.jsx's guestRealmsTourShown/onTourShown — lifted, not
+  // local state, since this component unmounts/remounts on every tab
+  // switch) — not a signed-in account, even with 0 games (that one has to
+  // click "?" itself), and not a guest who's already seen it once.
+  useEffect(() => {
+    if (!tourActive && isGuest && !tourShown) {
+      startTour();
+      onTourShown?.();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   // Close always resets to where this tour started — the hub — regardless
   // of whether the user wandered into the book path first.
   const closeTour = () => {
@@ -91,12 +101,20 @@ export default function RealmsTab({
   // onPlayRealm/openBook handlers just to also mark that path visited; once
   // both have been, the effect below closes the tour instead of leaving the
   // popups up indefinitely.
+  //
+  // The demo card's chest/book (see RealmsHub.jsx — always clickable, no
+  // lock) also funnel through here: clicking either one straight from the
+  // shelf, tour or not, starts the tour first if it isn't already running
+  // — `startTour` resets both visited flags, so it has to run *before* the
+  // `onTourVisit*` call below it marks this path visited, not after.
   const handlePlayRealm = (realm) => {
-    if (tourActive) onTourVisitChest?.();
+    if (realm.isDemo && !tourActive) startTour();
+    if (tourActive || realm.isDemo) onTourVisitChest?.();
     onPlayRealm(realm);
   };
   const handleOpenBook = (realm) => {
-    if (tourActive) onTourVisitBook?.();
+    if (realm.isDemo && !tourActive) startTour();
+    if (tourActive || realm.isDemo) onTourVisitBook?.();
     openBook(realm);
   };
   // A game opened from the Overview/Roster stats (Realm Highlights, a
@@ -224,7 +242,6 @@ export default function RealmsTab({
       {!openRealm ? (
         <RealmsHub
           realms={realms}
-          gamesLength={games.length}
           onPlayRealm={handlePlayRealm}
           onOpenBook={handleOpenBook}
           onCreateRealm={onCreateRealm}
@@ -233,9 +250,6 @@ export default function RealmsTab({
           onUpdateRealm={onUpdateRealm}
           selfRank={selfRank}
           isGuest={isGuest}
-          showDemoData={showDemoData}
-          onToggleDemoData={onToggleDemoData}
-          onSeeHowItWorks={startTourWithDemo}
           tourActive={tourActive}
           highlightRealmId={tourActive && tourStage === 'hub' ? highlightRealm?.id : null}
           onStartTour={startTour}
@@ -266,8 +280,6 @@ export default function RealmsTab({
             selectedGame={selectedGame}
             onSelectGame={setSelectedGame}
             onDeleteGame={onDeleteGame}
-            isGuest={isGuest}
-            showDemoData={showDemoData}
             tourActive={tourActive}
             chartRef={overviewChartRef}
             rosterRef={rosterRef}

@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import StatInfo from './StatInfo';
 import ValInfo from './ValInfo';
 import { TrashIcon, GearIcon } from './icons';
 import { CHESTS, chestFor, unlockedChestCount, chestUnlockRank } from '../data/chests';
@@ -60,7 +59,7 @@ export default function RealmSettingsModal({ realm, realms = [], selfRank = 1, o
                   <span className="settings-row-label">Realm Name</span>
                   <span className="settings-row-control">
                     <span className="settings-row-value">{realm.name}</span>
-                    <button type="button" className="settings-edit-btn" onClick={startRename}>Edit</button>
+                    <button type="button" className="settings-edit-btn" onClick={startRename}>Rename</button>
                   </span>
                 </div>
                 <div className="settings-row">
@@ -150,10 +149,7 @@ export default function RealmSettingsModal({ realm, realms = [], selfRank = 1, o
       {view === 'chest' && (
         <div className="realm-modal-overlay" onClick={onClose}>
           <div className="realm-modal tile-card" onClick={e => e.stopPropagation()} style={{ maxWidth: '520px' }}>
-            <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.8rem' }}>
-              Change Chest
-              <StatInfo className="muted-info">This is where your game pieces and expansions are stored.</StatInfo>
-            </h3>
+            <h3 style={{ marginBottom: '0.8rem' }}>Change Chest</h3>
             <div className="chest-picker-row">
               {CHESTS.slice(0, unlockedChestCount(selfRank)).map((img, i) => (
                 <ValInfo key={i} tip={`Unlocked at Rank ${chestUnlockRank(i)}`}>
@@ -179,10 +175,7 @@ export default function RealmSettingsModal({ realm, realms = [], selfRank = 1, o
       {view === 'logbook' && (
         <div className="realm-modal-overlay" onClick={onClose}>
           <div className="realm-modal tile-card" onClick={e => e.stopPropagation()} style={{ maxWidth: '520px' }}>
-            <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.8rem' }}>
-              Change Logbook
-              <StatInfo className="muted-info">This is where your realm's full game history is recorded.</StatInfo>
-            </h3>
+            <h3 style={{ marginBottom: '0.8rem' }}>Change Logbook</h3>
             <div className="logbook-picker-row">
               {SPINES.slice(0, unlockedSpineCount(selfRank)).map((img, i) => (
                 <ValInfo key={i} tip={`Unlocked at Rank ${spineUnlockRank(i)}`}>
