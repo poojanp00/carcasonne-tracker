@@ -17,10 +17,10 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import BOARD_PATH from '../data/boardCoords';
 import { getBoard, saveBoard, resetBoard } from '../data/boardStorage';
 import { computeWinners } from '../utils/scoring';
-import { fetchNewEvents, subscribeEvents, setPhase, endSession, deleteSession, unsubscribe, submitEvent } from '../data/partySession';
 import { MONASTERY_LIKE_TYPES, MONASTERY_LIKE_MAX, LIVE_PLAY_ONLY_RECORD_TYPES, MONASTERY_RECORD_TYPES } from '../constants';
 import HowToModal from './HowToGuide';
 import { TrashIcon } from './icons';
+import { chestFor } from '../data/chests';
 import boardImg from '../../images/score-board.jpg';
 
 /**
@@ -331,104 +331,6 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, aut
     setBoard(rebuilt);
   }, [board?.moveIndex, board?.moves.length]);
 
-  // ── Party mode: phone event consumer ─────────────────────────────────────
-  // Must live before the early return so hook order is stable across renders.
-  // Uses only functional setBoard so concurrent events compose correctly.
-
-  function addPhonePoints(player, delta, type) {
-    // Goods token events carry no score — update goodsTokens tally instead.
-    if (type === 'goods_wine' || type === 'goods_grain' || type === 'goods_cloth') {
-      const good = type.replace('goods_', '');
-      setBoard(prev => {
-        const newMoves = prev.moves.slice(0, prev.moveIndex + 1);
-        newMoves.push({ player, type, amount: 0, label: GOODS_LABELS[good] + ' Token', timestamp: Date.now(), inFinalScoring: prev.finalScoringIndex !== null });
-        return {
-          ...prev,
-          moves:       newMoves,
-          moveIndex:   newMoves.length - 1,
-          goodsTokens: {
-            ...prev.goodsTokens,
-            [player]: { ...(prev.goodsTokens?.[player] || {}), [good]: (prev.goodsTokens?.[player]?.[good] || 0) + 1 },
-          },
-        };
-      });
-      return;
-    }
-    delta = Number(delta) || 0;
-    if (delta === 0) return;
-    const label = type.charAt(0).toUpperCase() + type.slice(1);
-    setBoard(prev => {
-      const trackLen = prev.trackLength || 50;
-      const newMoves = prev.moves.slice(0, prev.moveIndex + 1);
-      newMoves.push({ player, type, amount: delta, label, timestamp: Date.now(), inFinalScoring: prev.finalScoringIndex !== null });
-      const curPos  = prev.positions[player] || 0;
-      const curLaps = prev.laps[player] || 0;
-      const sum     = curPos + delta;
-      const lapInc  = Math.floor(sum / trackLen);
-      const newPos  = ((sum % trackLen) + trackLen) % trackLen;
-      const newLaps = curLaps + (lapInc > 0 ? lapInc : 0);
-      const prevBreakdown = prev.scoreTotals?.[player] || {};
-      const maxFeatures = { ...prev.maxFeatures };
-      const inFinalScoring = prev.finalScoringIndex !== null;
-      const skipRecord = LIVE_PLAY_ONLY_RECORD_TYPES.includes(type) && inFinalScoring;
-      if (delta > 0 && !MONASTERY_RECORD_TYPES.includes(type) && !skipRecord) {
-        const currentMax = maxFeatures[type] || { amount: 0, player: null };
-        if (delta > currentMax.amount) maxFeatures[type] = { amount: delta, player };
-      }
-      if (MONASTERY_RECORD_TYPES.includes(type) && delta === 9 && !inFinalScoring) {
-        const counts = { ...(maxFeatures._monasteryCounts || {}) };
-        counts[player] = (counts[player] || 0) + 1;
-        maxFeatures._monasteryCounts = counts;
-        let topCount = 0, topPlayer = null;
-        Object.entries(counts).forEach(([p, c]) => { if (c > topCount) { topCount = c; topPlayer = p; } });
-        maxFeatures.monastery = { amount: topCount, player: topPlayer };
-      }
-      return {
-        ...prev,
-        moves:       newMoves,
-        moveIndex:   newMoves.length - 1,
-        positions:   { ...prev.positions, [player]: newPos },
-        laps:        { ...prev.laps,      [player]: newLaps },
-        scoreTotals: { ...prev.scoreTotals, [player]: { ...prevBreakdown, [type]: (prevBreakdown[type] || 0) + delta } },
-        maxFeatures,
-      };
-    });
-  }
-
-  useEffect(() => {
-    const sessionId = session?.partySessionId;
-    if (!sessionId || session?.mode !== 'party') return;
-
-    let eventSub = null;
-
-    async function catchUp() {
-      const lastSeq = board?.lastEventSeq || 0;
-      const events = await fetchNewEvents(sessionId, lastSeq);
-      for (const ev of events) {
-        if (ev.source !== 'host') addPhonePoints(ev.player_name, ev.delta, ev.category);
-      }
-      if (events.length > 0) {
-        const maxSeq = events[events.length - 1].seq;
-        setBoard(prev => ({ ...prev, lastEventSeq: Math.max(prev.lastEventSeq || 0, maxSeq) }));
-      }
-
-      eventSub = subscribeEvents(sessionId, (ev) => {
-        if (ev.source !== 'host') addPhonePoints(ev.player_name, ev.delta, ev.category);
-        setBoard(prev => ({ ...prev, lastEventSeq: Math.max(prev.lastEventSeq || 0, ev.seq) }));
-      });
-    }
-
-    if (board) catchUp();
-
-    return () => { unsubscribe(eventSub); };
-  }, [board !== null, session?.partySessionId]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Stamp the real startTime the moment the host clicks Start Game, not at lobby creation.
-  useEffect(() => {
-    if (session?.mode !== 'party' || !session.partyStarted || !board) return;
-    setBoard(prev => ({ ...prev, startTime: Date.now() }));
-  }, [session?.partyStarted]); // eslint-disable-line react-hooks/exhaustive-deps
-
   if (!board) return null;
 
   function formatElapsed(ms) {
@@ -439,9 +341,7 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, aut
     if (h > 0) return `${h}h ${m}m`;
     return `${m}m ${String(sec).padStart(2, '0')}s`;
   }
-  const elapsed = (session?.mode === 'party' && !session?.partyStarted)
-    ? '0m 00s'
-    : formatElapsed(now - (board.startTime || now));
+  const elapsed = formatElapsed(now - (board.startTime || now));
 
   const track = board.trackLength || 50;
   const hasTB    = (session?.expansions || []).includes('Traders & Builders');
@@ -578,11 +478,6 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, aut
         maxFeatures,
       };
     });
-
-    // Mirror to score_events so phones can track live breakdown (tagged 'host' to avoid re-applying on subscription)
-    if (session?.partySessionId && delta > 0) {
-      submitEvent({ sessionId: session.partySessionId, playerName: player, category: type, delta, source: 'host' }).catch(() => {});
-    }
   }
 
   function showWarning(msg) {
@@ -705,9 +600,27 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, aut
     setConfirmReset(true); // Show confirmation modal
   }
 
+  // ArrowLeft mirrors the "back" shortcut PreGameSetup uses (see its own
+  // keydown effect) — but a game in progress has no actual "back" step to
+  // go to, so it opens the same confirmation the chest icon and the Reset
+  // button do, rather than silently discarding anything. Skipped while any
+  // modal is already open (so it doesn't fight whichever one's up) or
+  // focus is in a field/button (typing, native Enter/Space handling).
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key !== 'ArrowLeft') return;
+      const tag = e.target.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || tag === 'BUTTON' || e.target.isContentEditable) return;
+      if (confirmFinish || confirmReset || pendingDeleteMoveIdx !== null || showTraders || showHowTo) return;
+      handleReset();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [confirmFinish, confirmReset, pendingDeleteMoveIdx, showTraders, showHowTo]);
+
   function confirmResetBoard() {
     setConfirmReset(false);
-    if (session?.partySessionId) deleteSession(session.partySessionId);
     resetBoard(userId, players, [], isGuest);
     onReset();
   }
@@ -719,7 +632,6 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, aut
   function confirmInitialScoring() {
     setLeadersAtFinish(leaders);
     setBoard(prev => ({ ...prev, finalScoringIndex: prev.moveIndex + 1, finalScoringTime: Date.now() }));
-    if (session?.partySessionId) setPhase(session.partySessionId, 'final_scoring');
     if (hasTB) setShowTraders(true);
     else setFinishStep(1);
   }
@@ -771,16 +683,6 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, aut
       }
     }
 
-    if (session?.partySessionId) endSession(session.partySessionId, {
-      finalScores,
-      scoreBreakdown,
-      maxFeatures: finalMaxFeatures,
-      players,
-      meeples: session.meeples || {},
-      expansions: session.expansions || [],
-      farmWin: autoFarmWin,
-      gameDuration,
-    });
     boardPopoutChRef.current?.postMessage({ type: 'GAME_OVER' });
     resetBoard(userId, players, [], isGuest);
     onFinish(finalScores, scoreBreakdown, autoFarmWin, gameDuration, finalMaxFeatures, scoreTimeline);
@@ -814,7 +716,6 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, aut
     : leaders.length === 1
     ? `${leaders[0]} leads`
     : `${leaders.join(' & ')} lead`;
-  const leadColor = leaders.length === 1 ? getMeepleColor(meepleMap[leaders[0]]) : 'var(--stone-gray)';
 
   // Group players by position for collision offsets
   const posGroups = {};
@@ -970,20 +871,22 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, aut
         </div>
       )}
 
-      {session?.partyCode && (
-        <div className="party-code-badge">
-          CODE: <strong>{session.partyCode}</strong>
-        </div>
-      )}
-
-      <div className="section-title">
+      <div className="section-title" style={{ flexWrap: 'wrap', rowGap: '0.5rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          {session?.realm && (
+            // Clicking mid-game has nowhere real to "go back" to, so it opens
+            // the same Reset confirmation the Reset button does (see the
+            // ArrowLeft handler above) rather than silently leaving.
+            <button type="button" className="section-title-back" onClick={handleReset} title="Reset the board">
+              <img src={chestFor(session.realm)} alt="" className="realm-chest-icon" />
+            </button>
+          )}
           <h2 style={{ margin: 0, fontSize: 'clamp(0.85rem, 3vw, 1.55rem)' }}>score board</h2>
           <button
               type="button"
               title="How it works"
               onClick={() => setShowHowTo(true)}
-              style={{ background: 'none', border: '1px solid var(--warm-gold)', borderRadius: '50%', width: '1.15rem', height: '1.15rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'var(--cursor-pointer)', fontFamily: 'Cinzel, serif', fontSize: '0.62rem', fontWeight: 700, color: 'var(--earth-brown)', padding: 0, flexShrink: 0 }}
+              style={{ background: 'none', border: '1px solid var(--warm-gold)', borderRadius: '50%', width: 'clamp(1.15rem, 4vw, 1.5rem)', height: 'clamp(1.15rem, 4vw, 1.5rem)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'var(--cursor-pointer)', fontFamily: 'Cinzel, serif', fontSize: 'clamp(0.62rem, 2vw, 0.8rem)', fontWeight: 700, color: 'var(--earth-brown)', padding: 0, flexShrink: 0 }}
             >
               ?
             </button>
@@ -995,18 +898,19 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, aut
             fontSize: 'clamp(0.55rem, 2vw, 0.75rem)',
             fontWeight: 600,
             letterSpacing: '0.06em',
-            color: 'var(--earth-brown)',
+            color: '#FFFFFF',
+            textShadow: '0 1px 2px rgba(43, 27, 10, 0.55)',
             background: 'var(--warm-gold)',
             opacity: 0.85,
             padding: '0.2rem 0.55rem',
             borderRadius: '999px',
             whiteSpace: 'nowrap',
           }}>
-            {session?.realm?.name}
+            {leadText}
           </span>
           <div style={{ flex: 1, height: '1px', background: 'linear-gradient(90deg, transparent, var(--warm-gold))' }} />
         </div>
-        <span className="game-count" style={{ color: leadColor, fontSize: 'clamp(0.55rem, 2vw, 0.72rem)' }}>{leadText}</span>
+        <span className="game-count" style={{ fontSize: 'clamp(0.55rem, 2vw, 0.72rem)' }}>{session?.realm?.name}</span>
       </div>
 
       <div className="board-ui">

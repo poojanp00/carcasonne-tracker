@@ -283,6 +283,9 @@ h3 { font-size: clamp(0.9rem, 2.5vw, 1.15rem); font-weight: 600; }
 }
 .section-title h2 { white-space: nowrap; color: var(--earth-brown); font-size: clamp(0.85rem, 3vw, 1.55rem); }
 .section-title-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
   background: none;
   border: none;
   padding: 0;
@@ -297,6 +300,56 @@ h3 { font-size: clamp(0.9rem, 2.5vw, 1.15rem); font-weight: 600; }
   transition: color var(--transition-lift);
 }
 .section-title-back:hover { color: var(--warm-gold); }
+/* The logbook's own art, upright (no rotation — the newer art is a book
+   cover, not a narrow spine, so laying it on its side doesn't read right
+   anymore), as the "you are here" marker next to the back arrow. Same
+   footprint as .realm-chest-icon (the equivalent marker on the chest/play
+   path) for visual consistency between the two. */
+.section-title-back-spine-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: clamp(30px, 4.2vw, 40px);
+  height: clamp(30px, 4.2vw, 40px);
+}
+.section-title-back-spine {
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  filter: drop-shadow(1px 2px 3px rgba(43, 27, 10, 0.4));
+}
+
+/* Pre-game wizard progress (Mode/Meeples/Expansions/Begin) — replaces the
+   plain <h2> on those steps. Only the current step reads at title size;
+   everything else (already passed, or still ahead) sits small and grey so
+   the whole sequence is visible at a glance without crowding the header. */
+.pregame-stepper {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  row-gap: 0.2rem;
+}
+.pregame-step {
+  font-family: 'Cinzel', serif;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  color: var(--stone-gray);
+  font-size: clamp(0.6rem, 1.8vw, 0.75rem);
+  transition: font-size 0.25s ease, color 0.25s ease;
+}
+.pregame-step.active {
+  color: var(--earth-brown);
+  font-size: clamp(0.85rem, 3vw, 1.55rem);
+}
+.pregame-step-sep {
+  color: var(--stone-gray);
+  opacity: 0.45;
+  font-size: 0.7rem;
+}
 .section-title-line {
   flex: 1;
   height: 1px;
@@ -310,7 +363,6 @@ h3 { font-size: clamp(0.9rem, 2.5vw, 1.15rem); font-weight: 600; }
   border-radius: var(--radius-tile);
   box-shadow: var(--shadow-tile);
   padding: 1.5rem;
-  transition: transform var(--transition-lift), box-shadow var(--transition-lift);
   position: relative;
 }
 
@@ -663,6 +715,11 @@ input[type="search"], input[type="number"] {
   .board-ui .board-canvas   { grid-column: 1; grid-row: 1; }
   .board-ui .board-controls { grid-column: 1; grid-row: 2; }
   .board-ui .board-log      { grid-column: 1; grid-row: 3; }
+  /* The base rule's 220px floor (meant for wide screens where this row
+     stretches to match the canvas) leaves almost nothing to scroll within
+     here in portrait, where the row is auto-height instead — bump it to
+     scale with the viewport so there's actually room to scroll the log. */
+  .board-log { min-height: 60vh; }
   .board-image .meeple img  { width: 44px; height: 44px; }
   .board-canvas { max-width: 100%; }
   .board-player-grid { flex-direction: row; flex-wrap: wrap; }
@@ -683,10 +740,17 @@ input[type="search"], input[type="number"] {
   transform: translateY(-3px);
   box-shadow: var(--shadow-tile-hover);
 }
-/* The Profile hero isn't flippable — no hover lift */
+/* The Profile hero isn't flippable — no hover lift, and (since it's the
+   permanent .profile-hero class doing this rather than something toggled
+   by the tour) no transition either: .player-card's own transition would
+   otherwise still animate the box-shadow change whenever the profile
+   tour's .tour-highlight is added to or removed from this specific card. */
 .player-card.profile-hero:hover {
   transform: none;
   box-shadow: var(--shadow-tile);
+}
+.player-card.profile-hero {
+  transition: none;
 }
 
 .player-card.p1 { border-top: 4px solid var(--deep-red); }
@@ -846,15 +910,39 @@ input[type="search"], input[type="number"] {
   display: inline-flex;
   align-items: center;
 }
+/* Drawn (not typeset) so the lowercase "i" is unambiguous at tiny sizes —
+   a typeset "i"'s dot disappears into anti-aliasing at ~13px and reads as
+   a capital I. */
 .stat-info-icon {
-  font-size: 0.68rem;
-  font-family: sans-serif;
-  font-style: normal;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5px;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  border: 1px solid currentColor;
   color: var(--stone-gray);
   opacity: 0.55;
   cursor: var(--cursor-pointer);
-  line-height: 1;
   user-select: none;
+}
+.stat-info-icon::before {
+  content: '';
+  width: 1.6px;
+  height: 1.6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+.stat-info-icon::after {
+  content: '';
+  width: 1.6px;
+  height: 4.5px;
+  border-radius: 0.8px;
+  background: currentColor;
+  flex-shrink: 0;
 }
 .stat-info-tooltip {
   position: absolute;
@@ -995,62 +1083,6 @@ input[type="search"], input[type="number"] {
 
 .chart-container .recharts-legend-item {
   font-family: 'Crimson Text', serif !important;
-}
-
-/* Legacy support for old point breakdown chart */
-.point-breakdown-container {
-  background: var(--aged-paper);
-  border: var(--border-tile);
-  border-radius: var(--radius-tile);
-  box-shadow: var(--shadow-tile);
-  padding: 1.5rem;
-  transition: box-shadow var(--transition-lift);
-}
-
-.point-breakdown-container:hover {
-  box-shadow: var(--shadow-tile-hover);
-}
-
-.avg-section {
-  margin-top: 1rem;
-  padding-top: 0.9rem;
-  border-top: 1px dotted rgba(139,94,60,0.4);
-}
-.avg-section-title {
-  font-family: 'Cinzel', serif;
-  font-size: 0.72rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--earth-brown);
-  margin-bottom: 0.5rem;
-}
-.avg-combo-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 0.5rem;
-  padding: 0.22rem 0;
-  border-bottom: 1px dotted rgba(43,43,43,0.1);
-  font-size: 0.88rem;
-}
-.avg-combo-label {
-  color: var(--stone-gray);
-  font-style: italic;
-  flex: 1;
-  line-height: 1.3;
-}
-.avg-combo-val {
-  font-family: 'Cinzel', serif;
-  font-size: 0.82rem;
-  font-weight: 700;
-  white-space: nowrap;
-  color: var(--charcoal);
-}
-.single-game-note {
-  font-size: 0.76rem;
-  color: var(--stone-gray);
-  font-style: italic;
-  margin-top: 0.3rem;
 }
 
 /* ── History Table ── */
@@ -1346,6 +1378,23 @@ input[type="file"] { display: none; }
   white-space: nowrap;
 }
 
+/* Realm's chest/logbook art shown as a small "face" beside a page title
+   or the realm-name pill. */
+.realm-bubble { display: inline-flex; align-items: center; gap: 0.5rem; }
+.realm-chest-icon {
+  width: clamp(30px, 4.2vw, 40px);
+  height: clamp(30px, 4.2vw, 40px);
+  object-fit: contain;
+  flex-shrink: 0;
+  filter: drop-shadow(1px 2px 3px rgba(43, 27, 10, 0.4));
+}
+.realm-spine-icon {
+  height: clamp(28px, 4vw, 38px);
+  width: auto;
+  flex-shrink: 0;
+  filter: drop-shadow(1px 2px 3px rgba(43, 27, 10, 0.4));
+}
+
 /* ── SVG noise overlay (injected inline) ── */
 .noise-overlay {
   position: fixed;
@@ -1479,6 +1528,187 @@ input[type="file"] { display: none; }
   padding: 1.5rem;
 }
 
+/* Guided tours (Profile, Library) — bottom-docked, no dimming of its own
+   (the spotlight below handles that). The backdrop lets clicks fall
+   straight through to the real page underneath — a milestone carousel
+   arrow, a career-highlight game link, a player card, the book's own
+   Next/Back — and does nothing itself; only the card advances the tour. */
+.tour-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10001;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 1.5rem;
+  pointer-events: none;
+}
+.tour-overlay .tour-card {
+  pointer-events: auto;
+}
+
+.tour-card {
+  background: #FFFFFF;
+}
+
+/* Triangle on the card's top edge, pointing up at whatever's spotlighted
+   above it — the card always docks below its target (see
+   useTourCardPosition), so the arrow only ever needs to point one way.
+   When docked (--tour-arrow-left set), it tracks the target's actual
+   horizontal position; otherwise it defaults to dead-center, matching the
+   old fixed bottom-dock behavior for stages with no single target. */
+.tour-card {
+  position: relative;
+}
+.tour-card::after {
+  content: '';
+  position: absolute;
+  top: -14px;
+  left: var(--tour-arrow-left, 50%);
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 10px solid transparent;
+  border-right: 10px solid transparent;
+  border-bottom: 14px solid #FFFFFF;
+}
+
+/* Realms hub's chest/logbook fork (see RealmHubTourCards/HubSection in
+   HowToGuide.jsx) — one ordinary .tour-card holding two sections (chest,
+   then logbook) instead of two separate popups. Text and its action button
+   share a row rather than the button sitting on its own line below (every
+   other tour card's layout) — two of those stacked in one popup would make
+   it needlessly tall. */
+.tour-hub-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.tour-hub-row p {
+  flex: 1;
+}
+.tour-hub-row .btn {
+  flex-shrink: 0;
+}
+.tour-hub-section-divider {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(43, 27, 10, 0.15);
+}
+
+/* Spotlight on whichever section the active tour step is describing — the
+   huge box-shadow spread doubles as a full-page dim with a cutout around
+   the element itself, no separate overlay/clip-path needed. */
+.tour-highlight {
+  position: relative;
+  /* Below .lightbox-overlay (10000) and .realm-modal-overlay/.tour-overlay
+     (10001) on purpose — a game or confirm dialog opened mid-tour must
+     still land on top of the spotlighted section, not under it. */
+  z-index: 9500;
+  /* !important: elements this is applied to (e.g. .realm-book) often
+     already declare their own box-shadow, which — same specificity,
+     later in the cascade — would otherwise silently win and cancel the
+     dimming, a confusing partial break. This class's whole job is to force
+     the spotlight look. The dimming cutout alone reads as "look here" —
+     no separate gold outline needed on top of it. */
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.4) !important;
+}
+
+/* A brief, gentler echo of .tour-highlight's spotlight for the realm card
+   just created — cues which one it is, then fades on its own via animation
+   rather than needing sustained state, since (unlike the tour) there's no
+   modal walkthrough the user has to explicitly close. Timing is matched by
+   the setTimeout in RealmsHub.jsx that clears the triggering state. */
+@keyframes realm-card-new-spotlight {
+  0%, 75% { box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.25); }
+  100% { box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0); }
+}
+.realm-card-just-created {
+  position: relative;
+  z-index: 9500;
+  animation: realm-card-new-spotlight 2.2s ease-out forwards;
+}
+
+/* Generic tour lockdown — while a tour is open, only the spotlighted
+   element (and the tour card itself, positioned outside this subtree)
+   should be clickable; everything else on the page — breadcrumbs, the
+   real page's own Back/Next, a hub card that isn't the one being shown —
+   falls through to nothing. Applied directly to whatever container needs
+   it (the hub grid's section, a pregame step's wrapper, the open book's
+   chrome); the nav tabs live outside all of these and stay clickable
+   regardless. `.tour-highlight`'s own `pointer-events: auto` re-enables
+   the whole spotlighted subtree, which is normally what's wanted (a
+   meeple pick, an expansion chip, a career-highlight game link) — a
+   structural nav control that sits *inside* a highlighted container would
+   need its own override (none currently do: each book stage highlights
+   its own sub-section — the chart, the roster grid, the game log table —
+   rather than the whole book, so `.book-nav` is never inside one). */
+.tour-inert { pointer-events: none; }
+.tour-inert .tour-highlight { pointer-events: auto; }
+/* The Lightbox opened from a game-log row (inside .tour-highlight, so
+   still clickable mid-tour) renders as a sibling elsewhere in the tree,
+   not nested inside that highlighted table — without this it inherits
+   pointer-events: none same as everything else under .tour-inert, which
+   breaks it two ways at once: its own Close/nav stop working, AND (since
+   its full-viewport backdrop no longer intercepts clicks either) a click
+   meant for the backdrop falls through to whatever highlighted row sits
+   underneath it, opening a second game behind the first. */
+.tour-inert .lightbox-overlay { pointer-events: auto; }
+
+/* Small "×" close button pinned to the tour card's top-left corner —
+   separate from the card's own Back/Next flow so it reads as "leave the
+   tour" rather than another step in it. Dark red (matching .btn-ghost-red)
+   so it reads unambiguously as the "exit" control, still small and
+   bordered rather than a solid modern icon button. */
+.tour-close-btn {
+  position: absolute;
+  top: -9px;
+  left: -9px;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  border: 1.5px solid var(--deep-red);
+  background: var(--parchment);
+  cursor: var(--cursor-pointer);
+  box-shadow: 1px 2px 0 rgba(0, 0, 0, 0.2);
+}
+.tour-close-btn:hover { background: rgba(158, 42, 43, 0.07); }
+/* The "×" itself, drawn from two rotated bars rather than a text glyph —
+   a Unicode × at this size renders inconsistently thin/off-center across
+   system fonts (the same issue the "i" info-icon glyph had). */
+.tour-close-btn::before,
+.tour-close-btn::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 9px;
+  height: 1.5px;
+  background: var(--deep-red);
+  border-radius: 1px;
+}
+.tour-close-btn::before { transform: translate(-50%, -50%) rotate(45deg); }
+.tour-close-btn::after { transform: translate(-50%, -50%) rotate(-45deg); }
+
+/* Non-interactive progress dots for the tour card, mirroring the milestone
+   carousel's dot pagination look. */
+.tour-dots {
+  display: flex;
+  gap: 0.45rem;
+}
+.tour-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 1.5px solid var(--earth-brown);
+  background: transparent;
+}
+.tour-dot.active {
+  background: var(--warm-gold);
+  border-color: var(--warm-gold);
+}
+
 .realm-modal {
   max-width: 420px;
   width: 100%;
@@ -1502,126 +1732,6 @@ input[type="file"] { display: none; }
 .realm-trash-btn:hover {
   color: var(--deep-red);
   background: rgba(158, 42, 43, 0.1);
-}
-
-/* ── Realm Picker ── */
-.realm-screen {
-  padding: 2.2rem 0 3rem;
-}
-
-.realm-landing {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: calc(100vh - 110px);
-  padding: 2rem 0;
-}
-
-.realm-landing-inner {
-  text-align: center;
-  max-width: 440px;
-  width: 100%;
-}
-
-.realm-btn-group {
-  display: flex;
-  flex-direction: row;
-  gap: 0.75rem;
-  align-items: stretch;
-}
-
-.realm-btn {
-  flex: 1;
-  justify-content: center;
-  font-size: 0.88rem;
-  padding: 0.75rem 1rem;
-  text-align: center;
-}
-
-.realm-btn:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-  transform: none !important;
-  box-shadow: 2px 3px 0 #5A3E08, inset 0 1px 0 rgba(255,255,255,0.28) !important;
-}
-
-.realm-header {
-  display: flex;
-  align-items: center;
-  gap: 1.1rem;
-  margin-bottom: 1.6rem;
-}
-
-.realm-header h2 {
-  color: var(--earth-brown);
-  margin: 0;
-}
-
-.realm-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.65rem;
-}
-
-.realm-card {
-  background: var(--aged-paper);
-  border: var(--border-tile);
-  border-radius: var(--radius-tile);
-  box-shadow: var(--shadow-tile);
-  padding: 1rem 1.3rem;
-  cursor: var(--cursor-pointer);
-  transition: transform var(--transition-lift), box-shadow var(--transition-lift), background var(--transition-lift);
-}
-
-.realm-card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-tile-hover);
-  background: rgba(201,163,74,0.12);
-}
-
-.realm-card-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-}
-
-.realm-card-name {
-  font-family: 'Cinzel', serif;
-  font-size: clamp(0.88rem, 2.5vw, 1.1rem);
-  color: var(--earth-brown);
-  font-weight: 600;
-}
-
-.realm-card-id {
-  font-family: 'Cinzel', serif;
-  font-size: 0.72rem;
-  letter-spacing: 0.1em;
-  color: var(--stone-gray);
-  background: rgba(125,125,125,0.1);
-  border: 1px solid rgba(125,125,125,0.3);
-  border-radius: 3px;
-  padding: 0.1rem 0.45rem;
-}
-
-.realm-card-players {
-  margin-top: 0.45rem;
-  font-style: italic;
-  color: var(--stone-gray);
-  font-size: 0.92rem;
-  opacity: 0;
-  max-height: 0;
-  overflow: hidden;
-  transition: opacity 0.18s ease, max-height 0.18s ease;
-}
-
-.realm-card-players.visible {
-  opacity: 1;
-  max-height: 80px;
-}
-
-.realm-create-form {
-  max-width: 520px;
 }
 
 .realm-player-inputs {
@@ -1692,99 +1802,200 @@ input[type="file"] { display: none; }
   transform: translateY(-2px);
 }
 
-/* Chests reuse .meeple-option's border/hover/selected states for visual
-   consistency with the meeple picker, but sized up — the chest art is more
-   detailed than a meeple icon and reads as a blob at the 50px meeple size. */
-.meeple-option.chest-option {
-  width: clamp(44px, 6vw, 58px);
-  height: clamp(44px, 6vw, 58px);
-  padding: 5px;
-}
-
-/* Compact logbook picker for the realm-creation panel — same click/selected
-   language as .book-spine, but thumbnail-sized to sit level with the chest
-   row instead of at full library-shelf scale. */
-.logbook-picker-row {
+/* Side by side on wide screens, stacked on narrow ones (see
+   PreGameSetup.jsx's chest-logbook-columns wrapper). min-width matches
+   what a 4-column row of .chest-pick/.logbook-pick boxes actually needs
+   at their largest (4 × 100px box + 3 × 0.6rem gap ≈ 429px, +buffer) —
+   without it, flex would happily shrink each column narrower than that,
+   and the fixed-column grid inside (which doesn't shrink) would overflow
+   past its column and visually stack on top of the other one instead of
+   the row wrapping to stacked layout like it's supposed to. */
+.chest-logbook-columns {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 0.5rem;
+  gap: 1.5rem;
 }
+.chest-logbook-col {
+  flex: 1 1 450px;
+  min-width: 450px;
+}
+
+/* Chest and logbook pickers — each item sits in its own light grid-cell
+   box (border + parchment fill), distinct from the heavier .meeple-option
+   tile look. Chest and logbook boxes are now the same fixed size as each
+   other (not just internally consistent within their own type) — object-
+   fit: contain letterboxes each image inside its box regardless of that
+   piece of art's own proportions, so the grid reads as uniform cells
+   throughout rather than a jagged row of differently-shaped/sized tiles.
+   Both rows use a fixed 4-column grid (not flex-wrap, which could wrap at
+   a different count for each depending on the art) so a row of chests
+   always lines up with a same-size row of logbooks next to it. */
+.chest-picker-row,
+.logbook-picker-row {
+  display: grid;
+  grid-template-columns: repeat(4, max-content);
+  align-items: end;
+  gap: 0.6rem;
+}
+.chest-pick,
 .logbook-pick {
-  background: none;
-  border: none;
-  padding: 0;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: clamp(72px, 9vw, 100px);
+  height: clamp(72px, 9vw, 100px);
+  padding: 0.5rem;
+  background: var(--aged-paper);
+  border: 1px solid rgba(107, 79, 16, 0.25);
+  border-radius: var(--radius-sm);
   cursor: var(--cursor-pointer);
-  transition: transform var(--transition-lift);
+  box-shadow: 1px 2px 4px rgba(0, 0, 0, 0.1);
+  transition: transform var(--transition-lift), border-color var(--transition-lift), background var(--transition-lift), box-shadow var(--transition-lift);
 }
-.logbook-pick:hover { transform: translateY(-4px); }
+.chest-pick:hover,
+.logbook-pick:hover {
+  transform: translateY(-4px);
+  box-shadow: 2px 4px 8px rgba(0, 0, 0, 0.18);
+}
+.chest-pick img,
 .logbook-pick img {
   display: block;
-  height: clamp(80px, 13vw, 125px);
+  max-width: 100%;
+  max-height: 100%;
   width: auto;
+  height: auto;
+  object-fit: contain;
   filter: drop-shadow(2px 3px 4px rgba(43, 27, 10, 0.4));
 }
+.chest-pick.selected,
 .logbook-pick.selected {
+  border-color: var(--forest-green);
+  background: rgba(58, 125, 68, 0.12);
+  box-shadow: 0 0 0 2px rgba(58, 125, 68, 0.3), 2px 4px 8px rgba(0, 0, 0, 0.18);
   transform: translateY(-4px);
 }
-.logbook-pick.selected img {
-  outline: 2px solid var(--forest-green);
-  outline-offset: 2px;
-  border-radius: 2px;
-}
 
-/* Realm creation: existing fields on the left, chest + logbook questions on
-   the right — fills the empty space the single-column form used to leave. */
-.realm-create-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 360px) minmax(0, 1fr);
-  gap: 1.2rem;
-  align-items: start;
+/* Locked chest/logbook tiles — a preview window of upcoming unlocks (see
+   visibleChestCount/visibleSpineCount) renders as a true black silhouette.
+   The filter targets the <img> itself, not the button — the art has an
+   alpha channel, so brightness(0) blacks out just the chest/spine shape;
+   applying it to the button would also black out its parchment background,
+   turning the tile into a solid box instead of a silhouette. Still wrapped
+   in ValInfo for the "Unlocks at Rank N" / sign-in tooltip, so pointer
+   events stay on — only the click handler itself is disabled in the
+   component. */
+.chest-pick.locked-tile img,
+.logbook-pick.locked-tile img {
+  filter: brightness(0);
 }
-@media (max-width: 780px) {
-  .realm-create-grid { grid-template-columns: minmax(0, 1fr); }
+.chest-pick.locked-tile,
+.logbook-pick.locked-tile {
+  cursor: var(--cursor-arrow);
 }
+.chest-pick.locked-tile:hover,
+.logbook-pick.locked-tile:hover { transform: none; }
 
-/* Play tab realm picker: a row of chests, one per realm — click one to
-   play it. Distinct from the Library's book-spine shelf on purpose. */
-.chest-row {
+/* Realms hub: one paired Chest+Logbook card per realm — click the chest to
+   play, the logbook to open its history. Replaces the old separate
+   Play-tab chest row and Library-tab book shelf now that both live on one
+   tab. */
+.realms-hub-grid {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  align-items: flex-end;
-  gap: clamp(1.2rem, 4vw, 2.4rem);
+  align-items: flex-start;
+  gap: clamp(1rem, 3vw, 1.8rem);
   padding: 1.5rem 0.5rem;
   margin-bottom: 1.2rem;
 }
-.chest-pick {
+.realm-card {
+  background: var(--aged-paper);
+  border: var(--border-tile);
+  border-radius: var(--radius-tile);
+  box-shadow: var(--shadow-tile);
+  /* Extra top padding clears the absolutely-positioned gear icon
+     (.realm-card-settings-btn, top: 0.6rem) — the chest image got taller
+     in an earlier pass, and .realm-card-art-row bottom-aligns chest+book,
+     so a taller chest's top edge now reaches high enough to partially
+     cover the gear on narrow cards without this. */
+  padding: 1.9rem 1.2rem 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  position: relative;
+  /* Widened for the newer, much wider logbook art (some pieces are closer
+     to a book cover's ~0.75 aspect than the old narrow-spine ~0.2) — at
+     max chest+book height the row can now need up to ~250px, which the
+     old 240px cap didn't leave room for. */
+  width: clamp(200px, 34vw, 300px);
+}
+.realm-card-art-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: clamp(0.8rem, 2.5vw, 1.4rem);
+}
+.realm-card-chest,
+.realm-card-book {
   background: none;
   border: none;
   padding: 0;
   cursor: var(--cursor-pointer);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.5rem;
   transition: transform var(--transition-lift);
 }
-.chest-pick:hover { transform: translateY(-6px); }
-.chest-pick img {
+.realm-card-chest:hover,
+.realm-card-book:hover { transform: translateY(-6px); }
+.realm-card-chest:disabled,
+.realm-card-book:disabled { cursor: var(--cursor-arrow); }
+.realm-card-chest img {
   display: block;
-  height: clamp(90px, 16vw, 140px);
+  height: clamp(84px, 14vw, 120px);
   width: auto;
   filter: drop-shadow(3px 4px 6px rgba(43, 27, 10, 0.4));
 }
-.chest-pick-name {
+.realm-card-book img {
+  display: block;
+  height: clamp(78px, 13vw, 110px);
+  width: auto;
+  filter: drop-shadow(3px 4px 6px rgba(43, 27, 10, 0.4));
+}
+.realm-card-chest.locked-tile img,
+.realm-card-book.locked-tile img {
+  opacity: 0.4;
+  filter: grayscale(0.6);
+}
+.realm-card-name {
   font-family: 'Cinzel', serif;
-  font-weight: 600;
-  font-size: clamp(0.7rem, 2vw, 0.9rem);
+  font-weight: 700;
+  /* Low floor matters here: .realm-card itself bottoms out at a fixed
+     200px (clamp(200px, 34vw, 300px)) below a ~588px viewport, but this
+     3.6vw term keeps shrinking well past that point — without a low floor
+     a 20-char name on a narrow phone would just get truncated instead of
+     actually getting smaller to fit. */
+  font-size: clamp(0.8rem, 3.6vw, 1.35rem);
   color: var(--earth-brown);
   text-align: center;
-  max-width: 130px;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.realm-card-settings-btn {
+  position: absolute;
+  top: 0.6rem;
+  left: 0.6rem;
+  background: none;
+  border: none;
+  padding: 0.2rem;
+  cursor: var(--cursor-pointer);
+  color: var(--stone-gray);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.realm-card-settings-btn:hover { color: var(--earth-brown); }
 
 /* ── Post-game record form ── */
 .postgame-scores-grid {
@@ -1917,552 +2128,6 @@ input[type="file"] { display: none; }
   }
 }
 
-/* ============================================================
-   PARTY MODE — Mode selection cards
-   ============================================================ */
-
-.mode-selection-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.3rem;
-  margin-bottom: 0.5rem;
-}
-
-.mode-card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.6rem 0.5rem;
-  background: none;
-  border: none;
-  box-shadow: none;
-  cursor: var(--cursor-pointer);
-  text-align: center;
-  position: relative;
-  min-width: 0;
-}
-
-.mode-card:hover { background: none; box-shadow: none; }
-
-.mode-card.selected { background: none; box-shadow: none; }
-
-.mode-card-icon {
-  font-size: clamp(2rem, 18vw, 9rem);
-  line-height: 1;
-  border-radius: 12px;
-  padding: 0.3rem;
-  transition: opacity 0.15s ease, filter 0.15s ease;
-}
-
-.mode-card-icon img {
-  height: clamp(2rem, 18vw, 9rem);
-  width: auto;
-  max-width: 100%;
-}
-
-.mode-card:hover .mode-card-icon {
-  filter: brightness(1.1);
-}
-
-.mode-card.selected .mode-card-icon {
-  filter: drop-shadow(0 0 10px var(--warm-gold)) drop-shadow(0 0 20px rgba(201,163,74,0.5));
-  transform: scale(1.06);
-}
-
-.mode-card:not(.selected) .mode-card-icon {
-  opacity: 0.35;
-  filter: grayscale(0.4);
-}
-
-.mode-card-title {
-  font-family: 'Cinzel', serif;
-  font-size: clamp(0.9rem, 2.5vw, 1.2rem);
-  font-weight: 600;
-  color: var(--earth-brown);
-  letter-spacing: 0.04em;
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-}
-
-.mode-card-info-icon {
-  font-family: sans-serif;
-  font-size: 0.85rem;
-  font-weight: 400;
-  color: var(--stone-gray);
-  cursor: var(--cursor-pointer);
-  opacity: 0.7;
-  line-height: 1;
-  flex-shrink: 0;
-}
-.mode-card-info-icon:hover {
-  opacity: 1;
-}
-
-.mode-card-desc {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 50%;
-  transform: translateX(-50%) translateX(var(--tt-shift, 0px));
-  font-family: 'Crimson Text', serif;
-  font-size: clamp(0.85rem, 0.68rem + 0.53vw, 1.05rem);
-  color: var(--stone-gray);
-  background: var(--aged-paper);
-  border: 1px solid var(--border-light);
-  line-height: 1.45;
-  width: min(260px, 45vw);
-  max-width: calc(100vw - 20px);
-  padding: 0.6rem 0.8rem;
-  border-radius: 8px;
-  box-shadow: 0 4px 14px rgba(0,0,0,0.3);
-  z-index: 500;
-  pointer-events: none;
-}
-
-/* ============================================================
-   PARTY MODE — Board code badge
-   ============================================================ */
-
-.party-code-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  font-family: 'Cinzel', serif;
-  font-size: 0.72rem;
-  letter-spacing: 0.1em;
-  color: var(--earth-brown);
-  background: rgba(201,163,74,0.18);
-  border: 1px solid var(--warm-gold);
-  border-radius: 999px;
-  padding: 0.2rem 0.75rem;
-  margin-bottom: 0.6rem;
-}
-
-/* ============================================================
-   PARTY MODE — Lobby overlay
-   ============================================================ */
-
-.lobby-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(20, 12, 4, 0.72);
-  backdrop-filter: blur(3px);
-  z-index: 10000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 1rem;
-}
-
-.lobby-modal {
-  background: var(--parchment);
-  border-radius: var(--radius-tile);
-  border: var(--border-gold);
-  box-shadow: var(--shadow-deep);
-  max-width: 680px;
-  width: 100%;
-  max-height: 90vh;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-}
-
-.lobby-header {
-  padding: 1.5rem 1.8rem 1rem;
-  border-bottom: 1px solid rgba(201,163,74,0.3);
-  text-align: center;
-}
-
-.lobby-title {
-  font-family: 'Cinzel', serif;
-  font-size: clamp(1.1rem, 3.5vw, 1.6rem);
-  font-weight: 700;
-  color: var(--earth-brown);
-  margin-bottom: 0.6rem;
-}
-
-.lobby-instruction {
-  font-family: 'Crimson Text', serif;
-  font-size: 1rem;
-  color: var(--stone-gray);
-  line-height: 1.4;
-}
-
-.lobby-body {
-  padding: 1.3rem 1.8rem;
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 1.5rem;
-  align-items: start;
-}
-
-@media (max-width: 560px) {
-  .lobby-body {
-    grid-template-columns: 1fr;
-  }
-  .lobby-code-block {
-    flex-direction: column;
-    align-items: center;
-  }
-}
-
-.lobby-code-block {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.9rem;
-}
-
-.lobby-qr {
-  background: var(--parchment);
-  padding: 0.5rem;
-  border: var(--border-gold);
-  border-radius: var(--radius-tile);
-}
-
-.lobby-code-display {
-  text-align: center;
-}
-
-.lobby-code-label {
-  font-family: 'Cinzel', serif;
-  font-size: 0.68rem;
-  letter-spacing: 0.12em;
-  color: var(--stone-gray);
-  margin-bottom: 0.2rem;
-}
-
-.lobby-code-value {
-  font-family: 'Cinzel', serif;
-  font-size: clamp(1.6rem, 5vw, 2.4rem);
-  font-weight: 700;
-  letter-spacing: 0.2em;
-  color: var(--earth-brown);
-  line-height: 1;
-}
-
-.lobby-code-url {
-  font-family: 'Crimson Text', serif;
-  font-size: 0.82rem;
-  color: var(--stone-gray);
-  margin-top: 0.3rem;
-  word-break: break-all;
-}
-
-.lobby-roster {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.lobby-roster-title {
-  font-family: 'Cinzel', serif;
-  font-size: 0.68rem;
-  letter-spacing: 0.12em;
-  color: var(--stone-gray);
-  margin-bottom: 0.3rem;
-}
-
-.lobby-roster-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.lobby-roster-row {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  padding: 0.5rem 0.75rem;
-  background: var(--aged-paper);
-  border-radius: var(--radius-tile);
-  border: 1.5px solid transparent;
-  transition: border-color 0.2s ease, background 0.2s ease;
-}
-
-.lobby-roster-row.joined {
-  border-color: var(--warm-gold);
-  background: rgba(201,163,74,0.1);
-}
-
-.lobby-roster-status {
-  font-size: 1.1rem;
-  min-width: 1.4rem;
-  text-align: center;
-}
-
-.lobby-roster-meeple {
-  height: 32px;
-  width: auto;
-}
-
-.lobby-roster-name {
-  font-family: 'Cinzel', serif;
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--earth-brown);
-}
-
-.lobby-footer {
-  padding: 1rem 1.8rem 1.5rem;
-  border-top: 1px solid rgba(201,163,74,0.3);
-  display: flex;
-  flex-direction: column;
-  gap: 0.7rem;
-}
-
-.lobby-footer-hint {
-  font-family: 'Crimson Text', serif;
-  font-style: italic;
-  font-size: 0.9rem;
-  color: var(--stone-gray);
-  text-align: center;
-}
-
-/* ============================================================
-   PARTY MODE — /play phone UI
-   ============================================================ */
-
-.play-shell {
-  min-height: 100vh;
-  background: var(--parchment);
-  background-image:
-    repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(139,94,60,0.018) 2px, rgba(139,94,60,0.018) 4px),
-    repeating-linear-gradient(90deg, transparent, transparent 3px, rgba(139,94,60,0.012) 3px, rgba(139,94,60,0.012) 6px);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 0 1rem 3rem;
-  gap: 1rem;
-}
-
-.play-card {
-  background: var(--aged-paper);
-  border: var(--border-gold);
-  border-radius: var(--radius-tile);
-  box-shadow: var(--shadow-tile);
-  padding: 1.8rem 1.5rem;
-  width: 100%;
-  max-width: 400px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.play-title {
-  font-family: 'Cinzel', serif;
-  font-size: clamp(1.1rem, 3.5vw, 1.5rem);
-  font-weight: 700;
-  color: var(--earth-brown);
-  text-align: center;
-}
-
-.play-subtitle {
-  font-family: 'Crimson Text', serif;
-  font-size: 1rem;
-  color: var(--stone-gray);
-  text-align: center;
-  margin-bottom: 0.5rem;
-}
-
-/* Meeple grid on phone */
-.play-meeple-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
-  gap: 0.5rem;
-  width: 100%;
-  margin-top: 0.4rem;
-}
-
-.play-meeple-option {
-  aspect-ratio: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 2px solid transparent;
-  border-radius: var(--radius-tile);
-  background: var(--parchment);
-  cursor: var(--cursor-pointer);
-  padding: 0.3rem;
-  transition: border-color 0.15s ease, opacity 0.15s ease;
-}
-
-.play-meeple-option img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
-
-.play-meeple-option:hover:not(.taken) {
-  border-color: var(--warm-gold);
-}
-
-.play-meeple-option.selected {
-  border-color: var(--warm-gold);
-  background: rgba(201,163,74,0.15);
-}
-
-.play-meeple-option.taken {
-  opacity: 0.3;
-  cursor: var(--cursor-arrow);
-}
-
-/* Player header strip on controller */
-.play-player-header {
-  display: flex;
-  align-items: center;
-  gap: 0.8rem;
-  background: var(--aged-paper);
-  border: var(--border-gold);
-  border-radius: var(--radius-tile);
-  padding: 0.7rem 1.2rem;
-  width: 100%;
-  max-width: 400px;
-  box-shadow: var(--shadow-sm);
-}
-
-.play-player-meeple {
-  height: 48px;
-  width: auto;
-}
-
-.play-player-info {
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-  flex: 1;
-  min-width: 0;
-}
-
-.play-player-name {
-  font-family: 'Cinzel', serif;
-  font-size: clamp(1rem, 3vw, 1.4rem);
-  font-weight: 700;
-  color: var(--earth-brown);
-  text-align: center;
-}
-
-.play-player-tokens {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-}
-
-.play-token-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.2rem;
-  font-family: 'Cinzel', serif;
-  font-size: 0.72rem;
-  color: var(--stone-gray);
-  letter-spacing: 0.02em;
-}
-
-.play-token-img {
-  height: 14px;
-  width: auto;
-}
-
-.play-player-score {
-  font-family: 'Cinzel', serif;
-  font-size: clamp(0.9rem, 2.5vw, 1.15rem);
-  font-weight: 700;
-  color: var(--warm-gold);
-  letter-spacing: 0.04em;
-  white-space: nowrap;
-}
-
-.play-controller-card {
-  max-width: 400px;
-  align-items: stretch;
-  padding: 1.2rem 1.2rem 1.5rem;
-}
-
-/* Score submit confirmation — slot reserves space so buttons never shift */
-.play-submit-confirm-slot {
-  min-height: 2rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-top: 0.6rem;
-}
-
-.goods-token-btn {
-  flex-direction: column;
-  align-items: center;
-  gap: 0.25rem;
-  padding: 0.3rem 0.5rem;
-  background: none;
-  border: none;
-  box-shadow: none;
-}
-
-.goods-token-btn:hover:not(:disabled) {
-  background: none;
-  box-shadow: none;
-  transform: scale(1.12);
-}
-
-.goods-token-btn:active:not(:disabled) {
-  transform: scale(1.04);
-}
-
-.goods-token-btn-img {
-  height: 48px;
-  width: auto;
-  display: block;
-}
-
-.goods-token-btn-count {
-  font-family: 'Cinzel', serif;
-  font-size: 0.7rem;
-  color: var(--stone-gray);
-  line-height: 1;
-}
-
-.goods-token-btn:disabled {
-  opacity: 0.3;
-  cursor: var(--cursor-arrow);
-}
-
-.play-submit-confirm {
-  font-family: 'Cinzel', serif;
-  font-size: 0.82rem;
-  letter-spacing: 0.06em;
-  color: var(--forest-green);
-  text-align: center;
-  padding: 0.3rem 0.6rem;
-  background: rgba(58,125,68,0.1);
-  border: 1px solid var(--forest-green);
-  border-radius: var(--radius-sm);
-  animation: fadeOut 2s ease forwards;
-}
-
-@keyframes fadeOut {
-  0%   { opacity: 1; }
-  70%  { opacity: 1; }
-  100% { opacity: 0; }
-}
-
-/* ScoreCategoryButtons shared styles */
-.score-cat-buttons {
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-  width: 100%;
-}
-
-.score-cat-label {
-  font-family: 'Cinzel', serif;
-  font-size: 0.68rem;
-  letter-spacing: 0.1em;
-  color: var(--stone-gray);
-  margin-bottom: 0.2rem;
-}
-
 /* ── Game Highlights cards ── */
 @keyframes hl-pop {
   from { opacity: 0; transform: translateY(5px); }
@@ -2474,7 +2139,7 @@ input[type="file"] { display: none; }
   padding-left: 0.5rem;
 }
 
-/* ── Library & Profile ─────────────────────────────────────────────────────── */
+/* ── Realm Book & Profile ──────────────────────────────────────────────────── */
 
 /* Profile hero card */
 /* ── Account Settings page ── */
@@ -2883,81 +2548,6 @@ input[type="file"] { display: none; }
   text-align: right; /* sits under the bar's right edge */
 }
 
-/* Library bookshelf */
-.library-shelf {
-  position: relative; /* anchors the measured full-width planks */
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  justify-content: center;
-  gap: clamp(0.6rem, 2.5vw, 1.4rem);
-  row-gap: 2.2rem;
-  padding: 1.5rem clamp(0.5rem, 2vw, 1.5rem) 12px;
-  margin-bottom: 2rem;
-}
-/* Full-width shelf plank under each wrapped row — positioned from JS measurement */
-.shelf-plank {
-  position: absolute;
-  left: 0;
-  right: 0;
-  height: 12px;
-  background: var(--earth-brown);
-  box-shadow: 0 14px 12px -10px rgba(43, 27, 10, 0.35);
-  pointer-events: none;
-}
-.book-spine {
-  background: none;
-  border: none;
-  padding: 0;
-  cursor: var(--cursor-pointer);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.4rem;
-}
-.book-spine:hover .book-spine-art { transform: translateY(-6px); }
-.book-spine-art {
-  position: relative;
-  display: block;
-  transition: transform var(--transition-lift);
-}
-.book-spine-art img {
-  display: block;
-  height: clamp(160px, 26vw, 230px);
-  width: auto;
-  filter: drop-shadow(3px 4px 6px rgba(43, 27, 10, 0.4));
-}
-/* Logbook picker: the chosen book stays popped up (not just on hover) with a
-   colored ring, mirroring .meeple-option.selected's convention. */
-.book-spine.selected .book-spine-art { transform: translateY(-6px); }
-.book-spine.selected .book-spine-art img {
-  box-shadow: 0 0 0 3px var(--forest-green);
-  border-radius: 3px;
-}
-.book-spine-title {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  writing-mode: vertical-rl;
-  max-height: 82%;
-  overflow: hidden;
-  font-family: 'Cinzel', serif;
-  font-weight: 600;
-  font-size: clamp(0.6rem, 1.8vw, 0.8rem);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--parchment);
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
-  pointer-events: none;
-  white-space: nowrap;
-}
-.book-spine-count {
-  font-family: 'Cinzel', serif;
-  font-size: clamp(0.58rem, 1.5vw, 0.7rem);
-  letter-spacing: 0.08em;
-  color: var(--stone-gray);
-}
 
 /* Open realm book */
 .realm-book {
@@ -3048,6 +2638,4 @@ input[type="file"] { display: none; }
 
 @media (max-width: 640px) {
   .profile-hero-stats { grid-template-columns: repeat(2, 1fr); }
-  .library-shelf { row-gap: 1.6rem; }
-  .book-spine-art img { height: clamp(130px, 34vw, 180px); }
 }

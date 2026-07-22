@@ -7,6 +7,7 @@ import ScoreTimelineChart from './ScoreTimelineChart';
 import { transformMaxFeaturesToUI } from '../utils/achievements';
 import { getMeepleColor, getToday } from '../utils/formatters';
 import { computeWinners } from '../utils/scoring';
+import { chestFor } from '../data/chests';
 import { STATISTICS_CONFIG } from '../constants';
 import pigImg   from '../../images/icons/pig.png';
 import cImg     from '../../images/icons/C.png';
@@ -30,8 +31,8 @@ function nameFontSize(len) {
   return 'clamp(0.48rem, 1.3vw, 0.58rem)';
 }
 
-export default function GameLogForm({ session, ownedExpansions, onSubmit, onCancel, onPlayAgain, isGuest = false }) {
-  const { players = [], meeples = {}, expansions: prefillExp = [], finalScores = {}, scoreBreakdown = {}, farmWin: autoFarmWin = false, gameDuration = 0, maxFeatures = {}, scoreTimeline = [] } = session || {};
+export default function GameLogForm({ session, ownedExpansions, onSubmit, onCancel, onPlayAgain, onExitToHub, isGuest = false }) {
+  const { players = [], meeples = {}, expansions: prefillExp = [], finalScores = {}, scoreBreakdown = {}, farmWin: autoFarmWin = false, gameDuration = 0, maxFeatures = {}, scoreTimeline = [], realm } = session || {};
 
   const [date, setDate] = useState(getToday);
   const [submitted, setSubmitted] = useState(false);
@@ -49,6 +50,21 @@ export default function GameLogForm({ session, ownedExpansions, onSubmit, onCanc
       }
     }
   }, [isGuest]);
+
+  // ArrowLeft mirrors the chest icon / "← Back" button — same shortcut
+  // PreGameSetup and the scoreboard use for their own "back" action. Only
+  // live pre-submit, same as the Back button itself (see its render below).
+  useEffect(() => {
+    if (submitted || !onCancel) return;
+    const onKey = (e) => {
+      if (e.key !== 'ArrowLeft') return;
+      const tag = e.target.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || tag === 'BUTTON' || e.target.isContentEditable) return;
+      onCancel();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [submitted, onCancel]);
 
   const scoreNums    = players.map(p => Number(finalScores[p]) || 0);
   const { winners, maxScore } = computeWinners(Object.fromEntries(players.map(p => [p, finalScores[p]])));
@@ -100,8 +116,22 @@ export default function GameLogForm({ session, ownedExpansions, onSubmit, onCanc
   return (
     <form onSubmit={handleSubmit}>
       <div className="section-title">
+        {realm && (
+          !submitted && onCancel ? (
+            <button type="button" className="section-title-back" onClick={onCancel} title="Back to the board">
+              <img className="realm-chest-icon" src={chestFor(realm)} alt="" />
+            </button>
+          ) : submitted && onExitToHub ? (
+            <button type="button" className="section-title-back" onClick={onExitToHub} title="Back to the realms hub">
+              <img className="realm-chest-icon" src={chestFor(realm)} alt="" />
+            </button>
+          ) : (
+            <img className="realm-chest-icon" src={chestFor(realm)} alt="" />
+          )
+        )}
         <h2>Final Scores</h2>
         <div className="section-title-line" />
+        {realm && <span className="game-count">{realm.name}</span>}
       </div>
 
       {/* Player scores */}

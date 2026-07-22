@@ -61,7 +61,10 @@ export function usePortalTooltip(open, triggerRef, placement = 'below') {
     bottom: pos.bottom,
     left: pos.left,
     transform: `translateX(-50%) translateX(${pos.shift}px)`,
-    zIndex: 3000,
+    // Above .tour-highlight (9500) and .tour-overlay (10001) — a tooltip
+    // anchored to something inside a spotlighted section (e.g. the rank
+    // ladder, win-rate breakdown) must still render on top of both.
+    zIndex: 10500,
   } : null;
 
   return { tooltipRef, portalStyle };

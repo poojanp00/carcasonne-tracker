@@ -13,6 +13,7 @@ import { getExpansions } from '../data/storage';
 import ValInfo from './ValInfo';
 import Lightbox from './Lightbox';
 import { GearIcon, TrashIcon } from './icons';
+import { ProfileHowToModal } from './HowToGuide';
 
 function formatDuration(ms) {
   if (!(ms > 0)) return '—';
@@ -106,8 +107,8 @@ function PointsBar({ breakdown }) {
 const sectionHeaderStyle = { borderBottom: '1px solid var(--warm-gold)', paddingBottom: '0.5rem', marginBottom: '1rem' };
 
 // Trophy cabinet: one medal per time each best-in-game record was held —
-// 7 Longest Roads shows 7 medals in the row. Renders as a column beside
-// Career Highlights in the shared me-hero-grid card.
+// 7 Longest Roads shows 7 medals in the row. Renders in its own card beside
+// Career Highlights, stacking below it on narrow screens.
 function TrophyCabinet({ account }) {
   const { recordTallies } = account;
   const tallied = ACHIEVEMENT_DISPLAY_ORDER.filter(key => recordTallies[key] > 0);
@@ -137,7 +138,7 @@ function TrophyCabinet({ account }) {
 
 // The strategy-game hero card: large meeple, name, rank title, and the
 // primary career numbers at a glance.
-function ProfileHero({ account, displayName, title, titleTip, onOpenSettings }) {
+function ProfileHero({ account, displayName, title, titleTip, onOpenSettings, heroRef, highlighted = false }) {
   const { stats, favMeeple, favMeepleCount, playingSince, totalPlaytime } = account;
   const meepleImg = favMeeple ? (MEEPLE_IMGS[favMeeple] ?? null) : null;
 
@@ -151,7 +152,7 @@ function ProfileHero({ account, displayName, title, titleTip, onOpenSettings }) 
   ];
 
   return (
-    <div className="player-card p2 profile-hero" style={{ marginBottom: '1.2rem' }}>
+    <div ref={heroRef} className={`player-card p2 profile-hero${highlighted ? ' tour-highlight' : ''}`} style={{ marginBottom: '1.2rem' }}>
       {onOpenSettings && (
         <button type="button" className="profile-settings-btn" onClick={onOpenSettings} title="Account settings" aria-label="Account settings">
           <GearIcon />
@@ -185,7 +186,7 @@ function ProfileHero({ account, displayName, title, titleTip, onOpenSettings }) 
   );
 }
 
-// Career-defining records — a column beside the Trophy Cabinet
+// Career-defining records — its own card beside the Trophy Cabinet
 function CareerHighlights({ account, onNavigateToGame }) {
   const { stats, rival, biggestPlay, fastestWin, highestCombined, sweeps, favExpansions } = account;
 
@@ -254,6 +255,83 @@ function CareerHighlights({ account, onNavigateToGame }) {
 export default function Profile({ games, realms, userId, displayName, isGuest = false, showDemoData = false, onToggleDemoData = null, storedMetaRank = 0, onMetaRankAchieved = null, onChangeDisplayName, onDeleteAccount, onSignOut }) {
   const account = useMemo(() => calcAccountStats(games, realms, userId), [games, realms, userId]);
   const [selectedGame, setSelectedGame] = useState(null);
+
+  // Guided tour opened from the "?" button: null = closed, 0-3 = which
+  // PROFILE_STEPS entry is showing. Next/Back scroll to the matching
+  // section; closing (or finishing) returns to the top of the page.
+  const [tourStep, setTourStep] = useState(null);
+  const heroRef = useRef(null);
+  const milestonesRef = useRef(null);
+  const careerHighlightsRef = useRef(null);
+  const trophyCabinetRef = useRef(null);
+  const tourRefs = [heroRef, milestonesRef, careerHighlightsRef, trophyCabinetRef];
+  // The popup docks beside whichever section the current step spotlights.
+  const tourTargetRef = tourStep !== null ? tourRefs[tourStep] : null;
+  const ensureDemoOn = () => {
+    if (!showDemoData) onToggleDemoData?.();
+  };
+  const startTour = () => {
+    // An account with no recorded games has nothing for the hero card,
+    // milestones, or highlights to show — the tour points at content that
+    // doesn't exist in the DOM yet, so fall back to demo data (the effect
+    // below waits for it to mount before scrolling).
+    if (account.gamesCount === 0) ensureDemoOn();
+    setTourStep(0);
+  };
+  // "See how it works!" should drop straight into the tour instead of just
+  // switching on demo data and leaving the user to find the "?" themselves.
+  const startTourWithDemo = () => {
+    ensureDemoOn();
+    setTourStep(0);
+  };
+  // Deferred to an effect (rather than scrolling inline in startTour) so it
+  // runs after the demo-data toggle above has actually mounted the real
+  // content and populated heroRef.
+  useEffect(() => {
+    if (tourStep === 0) {
+      heroRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [tourStep, showDemoData]);
+  // Closing a game link opened mid-tour (see CareerHighlights) is owned up
+  // here, not inside the Lightbox — without clearing it on every tour
+  // transition, it'd visually disappear (Lightbox unmounts when the tour
+  // moves on) but silently pop back open the instant any other game link
+  // is clicked later, showing the same stale game.
+  const advanceTour = () => {
+    setSelectedGame(null);
+    setTourStep(prev => {
+      if (prev === 0) {
+        milestonesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return 1;
+      }
+      if (prev === 1) {
+        careerHighlightsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return 2;
+      }
+      if (prev === 2) {
+        trophyCabinetRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return 3;
+      }
+      // Demo data (if the tour turned it on) stays on after closing — the
+      // user can keep exploring it until they click "Click to exit" themselves.
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return null;
+    });
+  };
+  const backTour = () => {
+    setSelectedGame(null);
+    setTourStep(prev => {
+      if (prev === 1) { heroRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }); return 0; }
+      if (prev === 2) { milestonesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }); return 1; }
+      if (prev === 3) { careerHighlightsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }); return 2; }
+      return prev;
+    });
+  };
+  const closeTour = () => {
+    setSelectedGame(null);
+    setTourStep(null);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   const tierCount     = useMemo(() => countUnlockedTiers(account), [account]);
   const computedRank  = getCurrentRank(tierCount);
@@ -385,14 +463,36 @@ export default function Profile({ games, realms, userId, displayName, isGuest = 
         />
       )}
 
+      {tourStep !== null && (
+        <ProfileHowToModal step={tourStep} onNext={advanceTour} onBack={backTour} onClose={closeTour} targetRef={tourTargetRef} />
+      )}
+
+      {/* tour-inert: while the tour is open, only the one spotlighted
+          section below should be clickable — not the "?" or the demo
+          toggle. Kept separate from the main-content wrapper further down
+          so the settings/rename/delete modals in between (reachable via
+          the gear icon inside the hero card, which does stay clickable
+          during the tour's own hero step) never end up locked down too. */}
+      <div className={tourStep !== null ? 'tour-inert' : ''}>
       <div className="section-title">
-        <h2>Profile</h2>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <h2>Profile</h2>
+          <button
+            type="button"
+            title="About your Profile"
+            onClick={startTour}
+            style={{ background: 'none', border: '1px solid var(--warm-gold)', borderRadius: '50%', width: 'clamp(1.15rem, 4vw, 1.5rem)', height: 'clamp(1.15rem, 4vw, 1.5rem)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'var(--cursor-pointer)', fontFamily: 'Cinzel, serif', fontSize: 'clamp(0.62rem, 2vw, 0.8rem)', fontWeight: 700, color: 'var(--earth-brown)', padding: 0, flexShrink: 0 }}
+          >
+            ?
+          </button>
+        </div>
         <div className="section-title-line" />
-        {onToggleDemoData && (
-          <button type="button" className={`expansion-chip${showDemoData ? ' selected' : ''}`} onClick={onToggleDemoData} style={{ fontSize: 'clamp(0.72rem, 2.2vw, 0.9rem)', padding: '0.5rem 1.1rem', marginLeft: '0.5rem' }}>
+        {(isGuest || showDemoData || account.gamesCount === 0) && onToggleDemoData && !(showDemoData && tourStep !== null) && (
+          <button type="button" className={`expansion-chip${showDemoData ? ' selected' : ''}`} onClick={showDemoData ? onToggleDemoData : startTourWithDemo} style={{ fontSize: 'clamp(0.72rem, 2.4vw, 1rem)', padding: 'clamp(0.5rem, 1.6vw, 0.6rem) clamp(1.1rem, 3.4vw, 1.3rem)', marginLeft: '0.5rem' }}>
             {showDemoData ? 'Click to exit' : 'See how it works!'}
           </button>
         )}
+      </div>
       </div>
 
       {/* Settings page */}
@@ -519,8 +619,13 @@ export default function Profile({ games, realms, userId, displayName, isGuest = 
         </div>
       )}
 
+      {/* tour-inert: only the one spotlighted section below is clickable
+          while the tour is open — see the matching wrapper above
+          section-title for why this is a second, separate wrapper rather
+          than one spanning the whole return. */}
+      <div className={tourStep !== null ? 'tour-inert' : ''}>
       {isGuest && !showDemoData ? (
-        <div className="empty-state" style={{ marginBottom: '1.5rem' }}>Sign in to view your stats.</div>
+        <div className="empty-state" style={{ marginBottom: '1.5rem', fontSize: 'clamp(1.05rem, 2.6vw, 1.25rem)' }}>Sign in to view your stats.</div>
       ) : account.gamesCount === 0 ? (
         <>
           <div className="empty-state" style={{ marginBottom: '1.5rem' }}>Play some games to see your stats.</div>
@@ -537,26 +642,29 @@ export default function Profile({ games, realms, userId, displayName, isGuest = 
         </>
       ) : (
         <>
-          <ProfileHero account={account} displayName={displayName} title={rankTitle(displayedRank)} titleTip={rankTip} onOpenSettings={isGuest ? null : openSettings} />
-          <div className="milestone-carousel-section" style={{ marginBottom: '1.2rem' }}>
+          <ProfileHero heroRef={heroRef} highlighted={tourStep === 0} account={account} displayName={displayName} title={`Rank ${displayedRank} ${rankTitle(displayedRank)}`} titleTip={rankTip} onOpenSettings={isGuest ? null : openSettings} />
+          <div ref={milestonesRef} className={`milestone-carousel-section${tourStep === 1 ? ' tour-highlight' : ''}`} style={{ marginBottom: '1.2rem' }}>
             <div className="tile-card-header" style={{ ...sectionHeaderStyle, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span>Milestones</span>
               <span className="game-count">{tierCount}/{TOTAL_TIERS}</span>
             </div>
-            <MilestoneCarousel pauseKeyboard={!!selectedGame || !!settingsView || deleteStep > 0}>
+            <MilestoneCarousel pauseKeyboard={!!selectedGame || !!settingsView || deleteStep > 0 || (tourStep !== null && tourStep !== 1)}>
               {visibleCats.map((cat) => (
                 <CategoryMilestoneCard key={cat.id} category={cat} account={account} />
               ))}
             </MilestoneCarousel>
           </div>
-          <div className="tile-card" style={{ marginBottom: '1.2rem' }}>
-            <div className="me-hero-grid">
+          <div className="me-hero-grid" style={{ marginBottom: '1.2rem' }}>
+            <div ref={careerHighlightsRef} className={`tile-card${tourStep === 2 ? ' tour-highlight' : ''}`}>
               <CareerHighlights account={account} onNavigateToGame={openGameLightbox} />
+            </div>
+            <div ref={trophyCabinetRef} className={`tile-card${tourStep === 3 ? ' tour-highlight' : ''}`}>
               <TrophyCabinet account={account} />
             </div>
           </div>
         </>
       )}
+      </div>
     </div>
   );
 }
