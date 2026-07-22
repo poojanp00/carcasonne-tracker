@@ -1,15 +1,13 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import PostGameForm  from './components/PostGameForm';
-import Library       from './components/Library';
+import RealmsTab     from './components/RealmsTab';
 import Profile       from './components/Profile';
 import { GUEST_ALLOWED_MINIS } from './data/expansions';
 import Board         from './components/Board';
-import Lobby         from './components/Lobby';
 import PreGameSetup  from './components/PreGameSetup';
 import Auth          from './components/Auth';
 import Landing       from './components/Landing';
 import InvitePrompt  from './components/InvitePrompt';
-import { HowToPlayModal } from './components/HowToGuide';
 import { useGameData } from './hooks/useGameData';
 import { useAuth }     from './hooks/useAuth';
 import { resetBoard }  from './data/boardStorage';
@@ -20,7 +18,6 @@ import { DEFAULT_EXPANSIONS } from './data/expansions';
 import { DEMO_REALMS, DEMO_GAMES, DEMO_USER_ID, DEMO_USER_NAME } from './data/demoData';
 import { TABS, APP_CONFIG, EXPANSION_TYPES, PINNED_EXPANSIONS } from './constants';
 import { normalizeMeeples } from './utils/formatters';
-import { createSession, endSession, deleteSession } from './data/partySession';
 
 
 function Toast({ message }) {
@@ -38,15 +35,50 @@ export default function App() {
   const [gameKey,        setGameKey]        = useState(0);
   const [toast,          setToast]          = useState(null);
   const [openGame,       setOpenGame]       = useState(null);
+  const [hubResetKey,    setHubResetKey]    = useState(0);
+  // Lifted (not owned by RealmsTab) because the Realms guided tour spans a
+  // chest click into PreGameSetup and back — RealmsTab unmounts for that
+  // whole stretch (App.jsx swaps in PreGameSetup while `session` is set), so
+  // "is the tour on" has to live somewhere that survives the boundary.
+  const [tourActive,    setTourActive]      = useState(false);
+  // Whether the Realms guided tour's two forked paths (Chests / Log Book)
+  // have each been visited at least once this tour — once both are true the
+  // tour closes itself instead of looping at the hub forever. Lifted here
+  // (not owned by RealmsTab) for the same reason as `tourActive`: the chest
+  // path's walkthrough unmounts RealmsTab entirely while PreGameSetup is
+  // swapped in, so local state there wouldn't survive the round trip.
+  const [tourVisitedChest, setTourVisitedChest] = useState(false);
+  const [tourVisitedBook,  setTourVisitedBook]  = useState(false);
+  // True only for the guided tour that auto-starts right after a guest
+  // creates their realm. That flow forces demo data on (a brand new realm
+  // has no game history yet, so the tour needs *some* content to walk
+  // through) and needs it cleaned back up once the tour ends, so the
+  // guest's own, now-real, realm is what's left showing underneath. The
+  // general "See how it works!" tour leaves demo toggling as a separate,
+  // manual action (the hub's "Click to exit" chip) — this flag keeps that
+  // behavior untouched.
+  const [guestPostCreateTour, setGuestPostCreateTour] = useState(false);
+  // Whichever realm the hub should scroll to and briefly highlight next —
+  // one just created, or one just returned from (pregame setup's own
+  // "back", or the post-game form's chest icon once a game's recorded) —
+  // so that realm's card doesn't just vanish back into the grid unseen.
+  // Cleared once RealmsHub has actually scrolled to it (see
+  // onScrollToRealmConsumed below), or on leaving the tab as a safety net.
+  const [hubSpotlightRealmId, setHubSpotlightRealmId] = useState(null);
+  const handleTourActiveChange = useCallback((active) => {
+    setTourActive(active);
+    if (active) {
+      setTourVisitedChest(false);
+      setTourVisitedBook(false);
+    } else if (guestPostCreateTour) {
+      setShowDemoData(false);
+      setGuestPostCreateTour(false);
+    }
+  }, [guestPostCreateTour]);
   // Which gameKey the guest how-to guide has already auto-shown for — lives here (not in
   // Board) so switching tabs away and back to the same game doesn't re-trigger it, while a
   // genuinely new game (new gameKey) still gets a fresh auto-show.
   const howToShownForGameRef = useRef(null);
-  // Guest-only "How to Play" modal — re-shown every time a guest navigates to the play tab.
-  const [showHowToPlay, setShowHowToPlay] = useState(false);
-  // Set right after a guest creates their group so PreGameSetup continues forward to mode
-  // selection; cleared on any navigation away so a fresh visit restarts at Choose Group.
-  const [guestResumeAtMode, setGuestResumeAtMode] = useState(false);
 
   // Check for recovery mode once on mount
   const [isRecoveryMode, setIsRecoveryMode] = useState(() => {
@@ -75,7 +107,14 @@ export default function App() {
   const displayName = isGuest ? '' : (user?.user_metadata?.display_name || '');
   const { games, expansions, realms, pendingInvites, loading, addGame, deleteGame, toggleExpansion, addRealm, updateRealm, removeRealm, acceptInvite, declineInvite, leaveSharedRealm } = useGameData(isGuest ? null : user, authLoading || (isGuest && false));
 
-  // Guest mode state
+  // Guest mode state — realms/games/expansions live here as plain React
+  // state rather than localStorage, so a guest's data never survives a
+  // reload; that's intentional, not a gap (a guest can't sign back into
+  // anything, so persisting it would just be data with nowhere to go).
+  // Board state (data/boardStorage.js) and meta rank (utils/metaRank.js)
+  // DO persist to localStorage for guests, each independently, since both
+  // are keyed by something stable across a session (a board's realm/players,
+  // a rank number) rather than needing the realm list itself to survive.
   const [guestRealms,   setGuestRealms]   = useState([]);
   const [showDemoData,  setShowDemoData]  = useState(false);
   const [guestExpansionOverrides, setGuestExpansionOverrides] = useState({});
@@ -145,7 +184,6 @@ export default function App() {
   const goHome = useCallback(() => {
     setSession(null);
     setTab('home');
-    setGuestResumeAtMode(false);
   }, []);
 
   const showToast = useCallback((msg) => {
@@ -162,42 +200,37 @@ export default function App() {
       // addRealm embeds the creator's 'owner' element from data.selfPlayer —
       // no separate claim step needed anymore.
       const realm = await appOperations.addRealm(data);
-      setSession({ realm, showRealmCreation: false });
-      if (isGuest) setGuestResumeAtMode(true);
+      // Everyone lands back on the Realms hub (not straight into meeple
+      // selection) so they can see the chest/logbook combo they just picked
+      // sitting on its own realm card — see the scroll-to effect this feeds
+      // in RealmsHub. "Play Again" (a *different* flow, off an existing
+      // realm — see handlePlayAgain) still goes straight back to Players.
+      setHubSpotlightRealmId(realm.id);
+      setSession(null);
+      if (isGuest) {
+        // Guests additionally get the guided tour on (always, for a
+        // first-timer). Demo data is forced on for the tour's duration
+        // (their brand new realm has no games yet to walk through) and
+        // cleared once the tour ends, leaving their own real realm showing
+        // (see handleTourActiveChange) — which is also the moment the
+        // scroll-to-new-realm effect above can finally find it in the list.
+        setShowDemoData(true);
+        setGuestPostCreateTour(true);
+        handleTourActiveChange(true);
+      }
     } catch (err) {
       console.error('create realm failed', err);
       showToast(`Failed to create realm: ${err?.message || 'Unknown error'}`);
     }
-  }, [appOperations.addRealm, showToast, isGuest]);
+  }, [appOperations.addRealm, showToast, isGuest, handleTourActiveChange]);
 
 
   const handleGameStart = useCallback(async (setup) => {
     const extraTypes = (setup.expansions || []).flatMap(e => EXPANSION_TYPES[e] || []);
-
-    // Delete any lingering party session before starting fresh
-    const prevSessionId = session?.partySessionId;
-    if (prevSessionId) { try { await deleteSession(prevSessionId); } catch {} }
-
     await resetBoard(userId, setup.players, extraTypes, isGuest);
-
-    if (setup.mode === 'party' && userId && !isGuest) {
-      try {
-        const { id, code } = await createSession({
-          runnerUserId: userId,
-          roster: setup.players,
-          expansions: setup.expansions || [],
-        });
-        setSession(prev => ({ ...prev, ...setup, finalScores: null, partySessionId: id, partyCode: code, partyStarted: false }));
-      } catch (err) {
-        console.error('Failed to create party session:', err);
-        setSession(prev => ({ ...prev, ...setup, finalScores: null }));
-      }
-    } else {
-      setSession(prev => ({ ...prev, ...setup, finalScores: null }));
-    }
-
+    setSession(prev => ({ ...prev, ...setup, finalScores: null }));
     setGameKey(k => k + 1);
-  }, [userId, isGuest, session?.partySessionId]);
+  }, [userId, isGuest]);
 
   const handleBoardReset = useCallback(() => {
     setSession(prev => ({
@@ -207,29 +240,9 @@ export default function App() {
     }));
   }, []);
 
-  const handleLobbyStart = useCallback(() => {
-    setSession(prev => ({ ...prev, partyStarted: true }));
-  }, []);
-
-  const handleLobbyCancel = useCallback(async () => {
-    const id = session?.partySessionId;
-    if (id) { try { await deleteSession(id); } catch {} }
-    setSession(prev => ({
-      realm: prev.realm,
-      lastMeeples:    normalizeMeeples(prev.meeples),
-      lastExpansions: prev.expansions,
-    }));
-  }, [session?.partySessionId]);
-
-  const handleClaimUpdate = useCallback((roster) => {
-    const meepleMap = {};
-    roster.forEach(r => { if (r.meeple) meepleMap[r.name] = r.meeple; });
-    setSession(prev => ({ ...prev, meeples: { ...(prev.meeples || {}), ...meepleMap } }));
-  }, []);
-
   const handleFinishGame = useCallback((finalScores, scoreBreakdown, farmWin, gameDuration, maxFeatures, scoreTimeline) => {
     setSession(prev => ({ ...prev, finalScores, scoreBreakdown, farmWin, gameDuration, maxFeatures, scoreTimeline }));
-    setTab('board');
+    setTab('realms');
     window.scrollTo(0, 0);
   }, []);
 
@@ -237,7 +250,7 @@ export default function App() {
     if (isGuest) {
       // For guests, redirect to sign-in instead of recording
       setSession(null);
-      setTab('history');
+      setTab('realms');
       signOutGuest();
       return;
     }
@@ -261,7 +274,7 @@ export default function App() {
       lastMeeples: meeples,
       lastExpansions: expansions,
     });
-    setTab('board');
+    setTab('realms');
   }, [session, resetBoard, userId, isGuest]);
 
   const handleDelete = useCallback(async (id) => {
@@ -277,7 +290,7 @@ export default function App() {
         setSession({ realm: remaining[0] });
       } else {
         setSession(null);
-        setTab('history');
+        setTab('realms');
       }
     }
     window.scrollTo(0, 0); // Delete button sits at the page bottom
@@ -322,36 +335,40 @@ export default function App() {
   }, [session, appOperations.updateRealm]);
 
   const handleTabChange = useCallback((id) => {
-    if (id === 'board') {
-      // Guests get the "How to Play" popup on every visit to the play tab
-      if (isGuest) setShowHowToPlay(true);
-      // Entering Play should always land on the chest-row chooser unless
-      // there's an active game (players dealt) or a just-finished one waiting
-      // on final scores to resume. session.realm can get set as a side effect
-      // of just VIEWING a realm elsewhere (e.g. Library's onRealmChange keeps
-      // the app-wide selection in sync when you open a logbook) — so check on
-      // every entry, not just when leaving Play, or that contaminates the
-      // next visit into jumping straight to that realm's Players screen.
+    if (id === 'realms') {
+      // Re-clicking the Realms tab while already there backs out to the hub —
+      // closes an open logbook, or resets a non-active in-progress session.
+      if (tab === 'realms') setHubResetKey(k => k + 1);
+      // Entering (or re-entering) the hub should always land there unless
+      // there's an active game (players dealt) or a just-finished one
+      // waiting on final scores to resume — check on every visit, not just
+      // when leaving, so a stale in-progress setup never persists underneath.
       if (!session?.players && !session?.finalScores) setSession(null);
     } else {
-      // Leaving the play tab abandons any in-progress pregame setup, so the next visit restarts
-      setGuestResumeAtMode(false);
-      // Clear postgame state and players when leaving board tab to return to pregame setup
+      // Clear postgame state and players when leaving the Realms tab to return to pregame setup
       if (session?.finalScores) {
         setSession(prev => ({ ...prev, finalScores: null, scoreBreakdown: null, players: null }));
       }
     }
-    // Demo mode is per-visit — switching tabs always exits it
-    setShowDemoData(false);
+    // Demo mode is per-visit — switching tabs always exits it. Re-clicking
+    // the tab you're already on isn't "switching" — doing it anyway would
+    // yank demo data out from under an in-progress guided tour, leaving its
+    // spotlighted popups pointing at a now-empty container.
+    if (id !== tab) {
+      setShowDemoData(false);
+      setHubSpotlightRealmId(null); // safety net if the scroll-to effect never got to consume it
+    }
     setTab(id);
-  }, [session, isGuest]);
+  }, [session, isGuest, tab]);
 
-  // When demo mode is on for guests, swap in the demo dataset
-  const demoOn = isGuest && showDemoData;
-  const displayGames        = demoOn ? DEMO_GAMES        : appData.games;
-  const displayRealms       = demoOn ? DEMO_REALMS       : appData.realms;
-  const displayCurrentRealm = demoOn ? DEMO_REALMS[0]    : (session?.realm || null);
-  const toggleDemo          = () => setShowDemoData(v => !v);
+  // When demo mode is on, swap in the demo dataset — guests toggle this
+  // manually ("See how it works!"); signed-in users get it auto-enabled by
+  // the Profile/Library guided tours when their real account has no games
+  // to show (see the `?` tour handlers in those components).
+  const demoOn = showDemoData;
+  const displayGames  = demoOn ? DEMO_GAMES  : appData.games;
+  const displayRealms = demoOn ? DEMO_REALMS : appData.realms;
+  const toggleDemo    = () => setShowDemoData(v => !v);
 
   // Carcassonne expansion priority: Always show River and Abbot first since they're
   // commonly used foundational expansions that integrate well with other expansions.
@@ -445,7 +462,7 @@ export default function App() {
 
           <div className="app-wrapper">
           <div className="section-panel">
-            {tab === 'board' && (
+            {tab === 'realms' && (
               session
                 ? session.finalScores
                   ? <PostGameForm
@@ -454,29 +471,20 @@ export default function App() {
                       onSubmit={handleRecordGame}
                       onCancel={() => setSession(prev => ({ ...prev, finalScores: null }))}
                       onPlayAgain={handlePlayAgain}
+                      onExitToHub={() => { setHubSpotlightRealmId(session.realm.id); setSession(null); }}
                       isGuest={isGuest}
                     />
                   : session.players
-                    ? <>
-                        <Board
-                          key={gameKey}
-                          userId={userId}
-                          isGuest={isGuest}
-                          session={session}
-                          onFinish={handleFinishGame}
-                          onReset={handleBoardReset}
-                          autoShowHowTo={howToShownForGameRef.current !== gameKey}
-                          onHowToShown={() => { howToShownForGameRef.current = gameKey; }}
-                        />
-                        {session.mode === 'party' && !session.partyStarted && session.partySessionId && (
-                          <Lobby
-                            session={session}
-                            onStart={handleLobbyStart}
-                            onCancel={handleLobbyCancel}
-                            onClaimUpdate={handleClaimUpdate}
-                          />
-                        )}
-                      </>
+                    ? <Board
+                        key={gameKey}
+                        userId={userId}
+                        isGuest={isGuest}
+                        session={session}
+                        onFinish={handleFinishGame}
+                        onReset={handleBoardReset}
+                        autoShowHowTo={howToShownForGameRef.current !== gameKey}
+                        onHowToShown={() => { howToShownForGameRef.current = gameKey; }}
+                      />
                     : session?.showRealmCreation
                       ? <PreGameSetup
                           key="realm-creation"
@@ -487,7 +495,7 @@ export default function App() {
                           defaultExpansions={null}
                           realms={appData.realms}
                           currentRealm={null}
-                          onRealmChange={handleRealmSelect}
+                          onExitToHub={() => setSession(null)}
                           onRealmCreate={handleRealmCreate}
                           onExportGroup={isGuest ? null : handleExportGroup}
                           startAtRealmCreation={true}
@@ -495,6 +503,8 @@ export default function App() {
                           selfName={displayName}
                           onToggleOwned={appOperations.toggleExpansion}
                           selfRank={selfRank}
+                          tourActive={tourActive}
+                          onTourActiveChange={handleTourActiveChange}
                         />
                       : <PreGameSetup
                         key={session.realm.id}
@@ -505,14 +515,15 @@ export default function App() {
                         defaultExpansions={session.lastExpansions}
                         realms={appData.realms}
                         currentRealm={session?.realm || null}
-                        onRealmChange={handleRealmSelect}
+                        onExitToHub={() => { setHubSpotlightRealmId(session.realm.id); setSession(null); }}
                         onRealmCreate={handleRealmCreate}
                         onExportGroup={isGuest ? null : handleExportGroup}
-                        startAtModeSelection={isGuest && guestResumeAtMode}
                         isGuest={isGuest}
                         selfName={displayName}
                         onToggleOwned={appOperations.toggleExpansion}
                         selfRank={selfRank}
+                        tourActive={tourActive}
+                        onTourActiveChange={handleTourActiveChange}
                       />
                 : appData.realms.length === 0
                   ? <PreGameSetup
@@ -524,7 +535,7 @@ export default function App() {
                       defaultExpansions={null}
                       realms={appData.realms}
                       currentRealm={null}
-                      onRealmChange={handleRealmSelect}
+                      onExitToHub={() => setSession(null)}
                       onRealmCreate={handleRealmCreate}
                       onExportGroup={isGuest ? null : handleExportGroup}
                       startAtRealmCreation={true}
@@ -532,47 +543,36 @@ export default function App() {
                       selfName={displayName}
                       onToggleOwned={appOperations.toggleExpansion}
                       selfRank={selfRank}
+                      tourActive={tourActive}
+                      onTourActiveChange={handleTourActiveChange}
                     />
-                  : <PreGameSetup
-                      key="choose-realm"
-                      realm={null}
-                      ownedExpansions={ownedExpansions}
-                      onStart={handleGameStart}
-                      defaultMeeples={null}
-                      defaultExpansions={null}
-                      realms={appData.realms}
-                      currentRealm={null}
-                      onRealmChange={handleRealmSelect}
-                      onRealmCreate={handleRealmCreate}
-                      onExportGroup={isGuest ? null : handleExportGroup}
-                      isGuest={isGuest}
-                      selfName={displayName}
-                      onToggleOwned={appOperations.toggleExpansion}
+                  : <RealmsTab
+                      realms={displayRealms}
+                      games={displayGames}
+                      onPlayRealm={handleRealmSelect}
+                      onCreateRealm={() => setSession({ showRealmCreation: true })}
+                      onDeleteGame={handleDelete}
+                      onDeleteRealm={handleRealmDelete}
+                      onLeaveRealm={handleRealmLeave}
+                      onUpdateRealm={appOperations.updateRealm}
                       selfRank={selfRank}
+                      isGuest={isGuest}
+                      showDemoData={showDemoData}
+                      onToggleDemoData={toggleDemo}
+                      openGame={openGame}
+                      onOpenGameClear={() => setOpenGame(null)}
+                      resetSignal={hubResetKey}
+                      tourActive={tourActive}
+                      onTourActiveChange={handleTourActiveChange}
+                      tourVisitedChest={tourVisitedChest}
+                      tourVisitedBook={tourVisitedBook}
+                      onTourVisitChest={() => setTourVisitedChest(true)}
+                      onTourVisitBook={() => setTourVisitedBook(true)}
+                      scrollToRealmId={hubSpotlightRealmId}
+                      onScrollToRealmConsumed={() => setHubSpotlightRealmId(null)}
                     />
-            )}
-            {tab === 'board' && isGuest && showHowToPlay && !session?.players && !session?.finalScores && (
-              <HowToPlayModal onClose={() => setShowHowToPlay(false)} />
             )}
             {tab === 'home' && <Landing />}
-            {tab === 'history' && (
-              <Library
-                games={displayGames}
-                realms={displayRealms}
-                currentRealm={displayCurrentRealm}
-                onRealmChange={handleRealmSelect}
-                onDeleteGame={handleDelete}
-                onDeleteRealm={handleRealmDelete}
-                onLeaveRealm={handleRealmLeave}
-                onUpdateRealm={appOperations.updateRealm}
-                selfRank={selfRank}
-                isGuest={isGuest}
-                showDemoData={showDemoData}
-                onToggleDemoData={isGuest ? toggleDemo : null}
-                openGame={openGame}
-                onOpenGameClear={() => setOpenGame(null)}
-              />
-            )}
             {tab === 'me' && (
               <Profile
                 games={demoOn ? DEMO_GAMES : appData.games}
@@ -581,7 +581,7 @@ export default function App() {
                 displayName={demoOn ? DEMO_USER_NAME : displayName}
                 isGuest={isGuest}
                 showDemoData={showDemoData}
-                onToggleDemoData={isGuest ? toggleDemo : null}
+                onToggleDemoData={toggleDemo}
                 storedMetaRank={storedMetaRank}
                 onMetaRankAchieved={isGuest ? setGuestMetaRank : updateHighestMetaRank}
                 onChangeDisplayName={updateDisplayName}

@@ -23,7 +23,7 @@ export const ACCOUNT_MILESTONES = [
     unit: 'Games',
     alwaysVisible: true,
     tiers: [
-      { tierNumber: 1, threshold: 1,  name: 'Folding Table',        img: null },
+      { tierNumber: 1, threshold: 10,  name: 'Folding Table',        img: null },
       { tierNumber: 2, threshold: 100,  name: 'Dining Table', img: null },
       { tierNumber: 3, threshold: 500, name: 'Oak Table',  img: null },
       { tierNumber: 4, threshold: 1000, name: 'Banquet Table', img: null },
@@ -36,7 +36,7 @@ export const ACCOUNT_MILESTONES = [
     unit: 'City Points',
     alwaysVisible: true,
     tiers: [
-      { tierNumber: 1, threshold: 10,  name: 'Camp',  img: null },
+      { tierNumber: 1, threshold: 100,  name: 'Camp',  img: null },
       { tierNumber: 2, threshold: 1000, name: 'Town',   img: null },
       { tierNumber: 3, threshold: 5000, name: 'Metropolis', img: null },
       { tierNumber: 4, threshold: 10000, name: 'Iron Kingdom', img: null },
@@ -49,7 +49,7 @@ export const ACCOUNT_MILESTONES = [
     unit: 'Road Points',
     alwaysVisible: true,
     tiers: [
-      { tierNumber: 1, threshold: 5,  name: "Footpath", img: null },
+      { tierNumber: 1, threshold: 50,  name: "Footpath", img: null },
       { tierNumber: 2, threshold: 500,  name: "Cobblestone Road", img: null },
       { tierNumber: 3, threshold: 2500,  name: "King's Highway", img: null },
       { tierNumber: 4, threshold: 5000, name: 'The Silk Road', img: null },
@@ -62,7 +62,7 @@ export const ACCOUNT_MILESTONES = [
     unit: 'Monastery Points',
     alwaysVisible: true,
     tiers: [
-      { tierNumber: 1, threshold: 10,  name: 'Hermitage',     img: null },
+      { tierNumber: 1, threshold: 100,  name: 'Hermitage',     img: null },
       { tierNumber: 2, threshold: 1000, name: 'Sacred Brotherhood',img: null },
       { tierNumber: 3, threshold: 5000, name: 'Monastic Order', img: null },
       { tierNumber: 4, threshold: 10000, name: 'Holy Dominion', img: null },
@@ -74,7 +74,7 @@ export const ACCOUNT_MILESTONES = [
     types: ['field'],
     unit: 'Field Points',
     tiers: [
-      { tierNumber: 1, threshold: 10,  name: 'Meadow',img: null },
+      { tierNumber: 1, threshold: 100,  name: 'Meadow',img: null },
       { tierNumber: 2, threshold: 1000,  name: 'Pasture',img: null },
       { tierNumber: 3, threshold: 5000,  name: 'Farmland', img: null },
       { tierNumber: 4, threshold: 10000, name: 'Estate',img: null },
@@ -86,7 +86,7 @@ export const ACCOUNT_MILESTONES = [
     types: ['abbot'],
     unit: 'Abbot Points',
     tiers: [
-      { tierNumber: 1, threshold: 5,  name: 'Devotee', img: null },
+      { tierNumber: 1, threshold: 50,  name: 'Devotee', img: null },
       { tierNumber: 2, threshold: 500,  name: 'Servant', img: null },
       { tierNumber: 3, threshold: 2500, name: 'Elder', img: null },
       { tierNumber: 4, threshold: 5000, name: 'Saint',img: null },
@@ -98,7 +98,7 @@ export const ACCOUNT_MILESTONES = [
     types: ['cathedral'],
     unit: 'Cathedral Points',
     tiers: [
-      { tierNumber: 1, threshold: 5,  name: 'Shrine',  img: null },
+      { tierNumber: 1, threshold: 50,  name: 'Shrine',  img: null },
       { tierNumber: 2, threshold: 500,  name: 'Chapel', img: null },
       { tierNumber: 3, threshold: 2500, name: 'Sanctuary',  img: null },
       { tierNumber: 4, threshold: 5000,  name: 'Grand Basilica',  img: null }
@@ -110,7 +110,7 @@ export const ACCOUNT_MILESTONES = [
     types: ['inn'],
     unit: 'Inn Points',
     tiers: [
-      { tierNumber: 1, threshold: 5,  name: 'Alehouse',  img: null },
+      { tierNumber: 1, threshold: 50,  name: 'Alehouse',  img: null },
       { tierNumber: 2, threshold: 500,  name: 'Tavern',  img: null },
       { tierNumber: 3, threshold: 2500, name: "Traveler's Haven", img: null },
       { tierNumber: 4, threshold: 5000, name: "The King's Rest", img: null },
@@ -122,7 +122,7 @@ export const ACCOUNT_MILESTONES = [
     types: ['pig'],
     unit: 'Pig Points',
     tiers: [
-      { tierNumber: 1, threshold: 5,  name: 'Piglet',      img: null },
+      { tierNumber: 1, threshold: 50,  name: 'Piglet',      img: null },
       { tierNumber: 2, threshold: 500,  name: 'Prized Hog',      img: null },
       { tierNumber: 3, threshold: 2500, name: 'Fat Swine', img: null },
       { tierNumber: 4, threshold: 5000, name: 'Golden Boar',     img: null },
@@ -134,7 +134,7 @@ export const ACCOUNT_MILESTONES = [
     types: ['barn'],
     unit: 'Barn Points',
     tiers: [
-      { tierNumber: 1, threshold: 5,  name: 'Shed',        img: null },
+      { tierNumber: 1, threshold: 50,  name: 'Shed',        img: null },
       { tierNumber: 2, threshold: 500,  name: 'Stable',        img: null },
       { tierNumber: 3, threshold: 2500, name: 'Homestead',     img: null },
       { tierNumber: 4, threshold: 5000, name: 'Great Manor', img: null },
@@ -146,7 +146,7 @@ export const ACCOUNT_MILESTONES = [
     types: ['wine', 'grain', 'cloth'],
     unit: 'Goods Points',
     tiers: [
-      { tierNumber: 1, threshold: 5,  name: 'Trading Post',      img: null },
+      { tierNumber: 1, threshold: 50,  name: 'Trading Post',      img: null },
       { tierNumber: 2, threshold: 500,  name: 'Market Stand',      img: null },
       { tierNumber: 3, threshold: 2500, name: 'Bazaar',       img: null },
       { tierNumber: 4, threshold: 5000, name: 'Royal Marketplace', img: null },

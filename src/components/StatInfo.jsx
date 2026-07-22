@@ -18,7 +18,7 @@ export default function StatInfo({ children, className }) {
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >
-      <span className="stat-info-icon">ⓘ</span>
+      <span className="stat-info-icon" />
       {visible && (
         <span ref={tooltipRef} className="stat-info-tooltip" style={tooltipStyle}>{children}</span>
       )}

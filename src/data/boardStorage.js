@@ -31,7 +31,13 @@ const BASE_TYPES = ['road', 'city', 'monastery', 'field'];
 // Default score breakdown for new players (all categories start at 0)
 const BASE_BREAKDOWN = Object.fromEntries(BASE_TYPES.map(t => [t, 0]));
 
-// Guest mode helpers - use localStorage for temporary session storage
+// Guest mode helpers - use localStorage for temporary session storage.
+// Board state persists here (unlike realms/games/expansions, which live as
+// plain in-memory state in App.jsx for guests) because it's keyed off a
+// single active board rather than a list that needs to survive a reload to
+// be useful — a guest resuming an in-progress game after an accidental
+// refresh is worth persisting; a guest's realm list isn't reachable again
+// anyway once they can't sign back in.
 const GUEST_STORAGE_KEY = 'carcassonne_guest_board';
 
 function getGuestBoard(players = []) {
@@ -113,7 +119,6 @@ function makeDefault(players = [], extraTypes = []) {
     finalScoringIndex: null, // Index when final scoring started (null = not in final scoring)
     finalScoringTime: null,  // Timestamp when final scoring was initiated
     undoLog: [],            // Track undo events with timestamps for display log
-    lastEventSeq: 0,        // Party mode: highest score_events.seq consumed so far
   };
 }
 
@@ -187,7 +192,6 @@ export async function getBoard(userId, players = [], isGuest = false) {
       finalScoringIndex: data.final_scoring_index || null,
       finalScoringTime:  data.final_scoring_time || null,
       undoLog:           data.undo_log          || [],
-      lastEventSeq:      data.last_event_seq    || 0,
     };
   } catch {
     // Database error or corrupt data - fall back to clean state
@@ -231,7 +235,6 @@ export function saveBoard(board, userId, isGuest = false) {
     final_scoring_index:  board.finalScoringIndex || null,
     final_scoring_time:   board.finalScoringTime || null,
     undo_log:             board.undoLog     || [],
-    last_event_seq:       board.lastEventSeq || 0,
   }, { onConflict: 'user_id' }).then(({ error }) => {
     if (error) console.warn('Failed to save board:', error);
   });
@@ -274,7 +277,6 @@ export async function resetBoard(userId, players = [], extraTypes = [], isGuest 
     final_scoring_index:  d.finalScoringIndex,
     final_scoring_time:   d.finalScoringTime,
     undo_log:             d.undoLog,
-    last_event_seq:       0,
   }, { onConflict: 'user_id' });
   return d;
 }

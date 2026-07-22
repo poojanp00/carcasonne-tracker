@@ -1,4 +1,4 @@
-// Presentational stat widgets shared by the per-realm Library book pages and
+// Presentational stat widgets shared by the per-realm RealmBook pages and
 // the account-wide Profile page.
 
 import ValInfo from './ValInfo';

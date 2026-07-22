@@ -1,34 +1,12 @@
-// Book spine art — folders 1, 2, 3, ... under images/logbook, flattened
-// folder-major into one stable list so a realm's persisted `spine` index
-// always resolves to the same image forever, regardless of the viewer's
-// current rank. Folder count is auto-detected from what's on disk, so adding
-// folder 4, 5, etc. later needs no code change here — and folders aren't
-// assumed to all hold the same number of books; each folder's own image
-// count is tracked so the picker's unlock boundary lands at the real edge
-// of a folder, not an assumed size.
-const SPINE_MODULES = import.meta.glob('../../images/logbook/*/*.png', { eager: true, import: 'default' });
-const byFolder = {};
-for (const [path, img] of Object.entries(SPINE_MODULES)) {
-  const m = path.match(/logbook\/(\d+)\/(\d+)\.png$/);
-  if (!m) continue;
-  const folder = Number(m[1]);
-  const idx = Number(m[2]);
-  (byFolder[folder] ??= []).push([idx, img]);
-}
-const folderKeys = Object.keys(byFolder).map(Number).sort((a, b) => a - b);
-export const LOGBOOK_FOLDER_COUNT = folderKeys.length;
-
-// Each folder's images sorted by filename number, then compacted — a skipped
-// filename number (e.g. 6.png missing) shouldn't leave a hole in the array.
-const folderImages = folderKeys.map(f => byFolder[f].sort((a, b) => a[0] - b[0]).map(([, img]) => img));
-export const SPINES = folderImages.flat();
-
-// Cumulative book count through folder N (1-indexed) — e.g. [5, 10, 14] if
-// the folders hold 5, 5, 4 books respectively.
-const FOLDER_CUM = folderImages.reduce((acc, imgs) => {
-  acc.push((acc[acc.length - 1] || 0) + imgs.length);
-  return acc;
-}, []);
+// Book spine art — images/logbook/*.png, flattened into one flat, ordered
+// list. Filenames are the sort key so a realm's persisted `spine` index
+// always resolves to the same image forever, regardless of viewer rank or
+// how many more spines get added later. Drop new art in as the next
+// number(s) in sequence.
+const SPINE_MODULES = import.meta.glob('../../images/logbook/*.png', { eager: true, import: 'default' });
+export const SPINES = Object.keys(SPINE_MODULES)
+  .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+  .map(key => SPINE_MODULES[key]);
 
 // Legacy fallback for realms created before spines were stored: stable id hash
 function hashIndex(realmId) {
@@ -45,16 +23,40 @@ export function spineFor(realm) {
   return SPINES[spineIndex(realm)];
 }
 
-// How many logbook folders are unlocked at a given account rank — folder 1
-// is always available; every 4 ranks unlocks the next one (same schedule as
-// chests — see data/chests.js), capping at however many folders exist so far.
-export function unlockedLogbookFolders(rank) {
-  return Math.min(LOGBOOK_FOLDER_COUNT, Math.floor(Math.max(0, rank) / 4) + 1);
+// Cumulative logbook count unlocked AT each rank — same shape as
+// CHEST_UNLOCK_SCHEDULE in data/chests.js: 3 available from the start, then
+// +1 per rank up to rank 20. Only 12 logbook images exist today, so
+// unlockedSpineCount's clamp to SPINES.length caps this out well before the
+// schedule itself would (same "ahead of the art" spirit as chests).
+const LOGBOOK_UNLOCK_SCHEDULE = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22];
+
+// How many logbooks are unlocked at a given account rank — clamped to
+// however many logbook images actually exist on disk today (same spirit as
+// unlockedChestCount in data/chests.js).
+export function unlockedSpineCount(rank) {
+  const r = Math.min(Math.max(Math.floor(rank) || 1, 1), LOGBOOK_UNLOCK_SCHEDULE.length);
+  return Math.min(LOGBOOK_UNLOCK_SCHEDULE[r - 1], SPINES.length);
 }
 
-// The logbooks selectable in the picker at a given rank — a prefix of
-// SPINES, so its indices always line up with spineFor/realm.spine.
+// A prefix of SPINES — used only for picking a randomized starting logbook.
 export function unlockedSpines(rank) {
-  const n = unlockedLogbookFolders(rank);
-  return SPINES.slice(0, n > 0 ? FOLDER_CUM[n - 1] : 0);
+  return SPINES.slice(0, unlockedSpineCount(rank));
+}
+
+// Lowest rank at which SPINES[index] becomes unlocked — drives the per-tile
+// "Unlocks at Rank N" tooltip in the picker.
+export function spineUnlockRank(index) {
+  for (let r = 1; r <= LOGBOOK_UNLOCK_SCHEDULE.length; r++) {
+    if (LOGBOOK_UNLOCK_SCHEDULE[r - 1] > index) return r;
+  }
+  return LOGBOOK_UNLOCK_SCHEDULE.length;
+}
+
+// How many logbooks the picker renders at all — unlocked + whatever the
+// NEXT rank that unlocks something adds (same spirit as visibleChestCount
+// in data/chests.js).
+export function visibleSpineCount(rank) {
+  const current = unlockedSpineCount(rank);
+  if (current >= SPINES.length) return current;
+  return unlockedSpineCount(spineUnlockRank(current));
 }

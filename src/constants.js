@@ -8,8 +8,7 @@
 // ── Navigation ──
 export const TABS = [
   { id: 'home',       label: 'About'       },
-  { id: 'board',      label: 'Play'        },
-  { id: 'history',    label: 'Library'     },
+  { id: 'realms',     label: 'Realms'      },
   { id: 'me',         label: 'Profile'     },
 ];
 
