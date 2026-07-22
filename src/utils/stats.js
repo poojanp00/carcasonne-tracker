@@ -428,7 +428,7 @@ export function buildAccountGames(games, realms, userId) {
   return out;
 }
 
-export function calcAccountStats(games, realms, userId) {
+export function calcAccountStats(games, realms, userId, expansions = []) {
   const accountGames = buildAccountGames(games, realms, userId);
   const stats = calcStats(accountGames, ACCOUNT_ME);
   const breakdown = calcBreakdown(accountGames, ACCOUNT_ME);
@@ -525,6 +525,7 @@ export function calcAccountStats(games, realms, userId) {
     rival,
     longestGame,
     favExpansions: { full: topOf(full), mini: topOf(mini) },
+    expansionsFullCount: expansions.filter(e => e.owned && e.type === 'full').length,
     playingSince,
     totalPlaytime,
     biggestPlay,

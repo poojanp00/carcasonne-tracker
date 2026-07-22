@@ -824,7 +824,12 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
                   onChange={e => { setRealmName(e.target.value); setNameError(''); }}
                   placeholder={isGuest ? "e.g. Club Thursday's (optional)" : "e.g. Club Thursday's"}
                   maxLength={20}
-                  autoFocus
+                  // Not for guests: the name's optional for them, and the
+                  // create-realm tour auto-opens right on top of this step
+                  // (see createTourOn's default) — stealing focus into the
+                  // field (and popping the mobile keyboard) would fight
+                  // with actually seeing that tour popup.
+                  autoFocus={!isGuest}
                 />
                 {nameError && (
                   // position+zIndex above .tour-highlight's 9500 — otherwise the
@@ -1185,7 +1190,7 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
         <button
           ref={beginRef}
           type="button"
-          className={`btn${tourStage === 'begin' ? ' tour-highlight' : ''}`}
+          className={`btn pregame-begin-btn${tourStage === 'begin' ? ' tour-highlight' : ''}`}
           onClick={tourActive ? onExitToHub : handleStart}
           disabled={tourActive && tourStage !== 'begin'}
           title={tourActive && tourStage !== 'begin' ? 'Close the tour to start a real game' : undefined}

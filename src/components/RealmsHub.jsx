@@ -6,29 +6,27 @@ import ValInfo from './ValInfo';
 import RealmSettingsModal from './RealmSettingsModal';
 
 function RealmCard({
-  realm, isGuest, showDemoData, tourActive, highlighted = false,
+  realm, isGuest, tourActive, highlighted = false,
   isNew = false, cardRef = null, onPlayRealm, onOpenBook, onOpenSettings,
 }) {
-  // Demo data normally locks the chest (starting a real game from fake data
-  // makes no sense), but two things prop it back open: the guided tour,
-  // which walks the chest/play path as a no-commitment practice run (Begin
-  // is disabled/repurposed throughout); and guests generally, mirroring
-  // bookLocked below — a guest's only way to preview what the chest/play
-  // flow even looks like is through demo data (their own real chest is
-  // never blocked by demo, since demo replaces the whole realm list while
-  // it's on), so it stays open for them any time demo is up, tour or not.
-  const chestLocked  = showDemoData && !tourActive && !isGuest;
-  const bookLocked   = isGuest && !showDemoData;
-  // Guests get no settings/delete affordance at all — their one realm has
-  // nothing to configure and nothing worth a dedicated delete flow.
-  const showSettings = !showDemoData && !tourActive && !isGuest;
+  // The demo card's chest/book are always clickable — no lock, no tooltip
+  // nudge. Clicking either one just engages the guided tour on that
+  // specific path (see handlePlayRealm/handleOpenBook in RealmsTab.jsx),
+  // starting it first if it isn't already running, instead of requiring
+  // the tour to already be active or a separate "?" click first. A guest's
+  // *own* realm has a separate, unrelated book lock (sign-in required for
+  // the library) that's untouched by any of this.
+  const bookLocked = isGuest && !realm.isDemo;
+  // No settings/delete for the demo card (nothing real to configure) or a
+  // guest's own realm (no dedicated delete flow), and not mid-tour, when
+  // only the tour's own actions should be live.
+  const showSettings = !realm.isDemo && !tourActive && !isGuest;
 
   const chestBtn = (
     <button
       type="button"
-      className={`realm-card-chest${chestLocked ? ' locked-tile' : ''}`}
-      disabled={chestLocked}
-      onClick={chestLocked ? undefined : () => onPlayRealm(realm)}
+      className="realm-card-chest"
+      onClick={() => onPlayRealm(realm)}
     >
       <img src={chestFor(realm)} alt="" draggable={false} />
     </button>
@@ -47,8 +45,8 @@ function RealmCard({
   return (
     <div ref={cardRef} className={`realm-card${highlighted ? ' tour-highlight' : ''}${isNew ? ' realm-card-just-created' : ''}`}>
       <div className="realm-card-art-row">
-        {chestLocked ? <ValInfo tip="Exit demo mode to play">{chestBtn}</ValInfo> : chestBtn}
-        {bookLocked ? <ValInfo tip="Sign in to access the library">{bookBtn}</ValInfo> : bookBtn}
+        {chestBtn}
+        {bookLocked ? <ValInfo tip="Sign in to access the logbook">{bookBtn}</ValInfo> : bookBtn}
       </div>
       <span className="realm-card-name">{realm.name}</span>
       {showSettings && (
@@ -70,33 +68,39 @@ function RealmCard({
 // gear icon (signed-in users only — guests get no settings/delete
 // affordance) is the sole settings entry point.
 export default function RealmsHub({
-  realms = [], gamesLength = 0, onPlayRealm, onOpenBook, onCreateRealm,
+  realms = [], onPlayRealm, onOpenBook, onCreateRealm,
   onDeleteRealm, onLeaveRealm, onUpdateRealm, selfRank = 1, isGuest = false,
-  showDemoData = false, onToggleDemoData = null, onSeeHowItWorks = null,
-  tourActive = false, highlightRealmId = null, onStartTour = null, hubRef = null,
+  tourActive = false, highlightRealmId = null,
+  onStartTour = null, hubRef = null,
   scrollToRealmId = null, onScrollToRealmConsumed = null,
 }) {
   const [settingsRealm,     setSettingsRealm]     = useState(null);
   const newRealmRef = useRef(null);
 
+  // Demo realms (guests only, see App.jsx) sort first regardless of date —
+  // their fixed `created_at` isn't meaningful against a real realm's
+  // actual creation time, and the demo card belongs at the front of the
+  // shelf either way.
   const shelfRealms = useMemo(
-    () => [...realms].sort((a, b) => new Date(a.createdAt || a.created_at) - new Date(b.createdAt || b.created_at)),
+    () => [...realms].sort((a, b) =>
+      (a.isDemo ? 0 : 1) - (b.isDemo ? 0 : 1)
+      || new Date(a.createdAt || a.created_at) - new Date(b.createdAt || b.created_at)
+    ),
     [realms]
   );
 
   // Scrolls to (and briefly spotlights, see .realm-card-just-created) the
   // realm `scrollToRealmId` points at — one just created, or one just
   // returned from (App.jsx's `hubSpotlightRealmId`, or RealmsTab's own
-  // `localSpotlightId` for the book's back button) — so the chest/logbook
-  // combo doesn't just vanish back into the grid unseen. Guarded on the
-  // realm actually being in `realms`: a guest's fresh realm isn't there yet
-  // while its post-creation tour has demo data swapped in — this just
-  // waits, re-checking whenever `realms` changes, and fires for real the
-  // moment demo clears and the real realm reappears. Consumption (clearing
-  // `scrollToRealmId`, which drops the spotlight class) is delayed rather
-  // than immediate so the CSS fade — driven by that class's presence, not a
-  // timer of its own — actually gets to play instead of being cut off the
-  // instant the class is removed.
+  // `localSpotlightId` for the book's back button; App.jsx skips setting
+  // either while the tour is what's driving the exit, since the tour's own
+  // steady highlight already provides focus) — so the chest/logbook combo
+  // doesn't just vanish back into the grid unseen. Guarded on the realm
+  // actually being in `realms`, re-checking whenever it changes.
+  // Consumption (clearing `scrollToRealmId`, which drops the spotlight
+  // class) is delayed rather than immediate so the CSS fade — driven by
+  // that class's presence, not a timer of its own — actually gets to play
+  // instead of being cut off the instant the class is removed.
   useEffect(() => {
     if (!scrollToRealmId || !realms.some(r => r.id === scrollToRealmId)) return;
     newRealmRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -124,32 +128,31 @@ export default function RealmsHub({
       )}
 
       {/* tour-inert: while a tour is open, only the one spotlighted realm
-          card should be clickable — not "+ New", the demo toggle, the "?"
-          itself, or any other realm's card. */}
+          card should be clickable — not "+ New", the "?" itself, or any
+          other realm's card. */}
       <div className={tourActive ? 'tour-inert' : ''}>
         <div className="section-title">
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <h2>Realms</h2>
+            {/* The sole tour entry point — demo data is baked permanently
+                into guest mode now (see App.jsx), no separate "See how it
+                works!" chip or toggle needed. Green while the tour's
+                actually running is the only state that matters here — the
+                button itself goes inert (see tour-inert above) the moment
+                it starts, so this is purely "you're in it right now." */}
             {onStartTour && (
               <button
                 type="button"
-                title="How the Realms hub works"
+                title={tourActive ? 'Tour in progress' : 'How the Realms hub works'}
                 onClick={onStartTour}
-                style={{ background: 'none', border: '1px solid var(--warm-gold)', borderRadius: '50%', width: 'clamp(1.15rem, 4vw, 1.5rem)', height: 'clamp(1.15rem, 4vw, 1.5rem)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'var(--cursor-pointer)', fontFamily: 'Cinzel, serif', fontSize: 'clamp(0.62rem, 2vw, 0.8rem)', fontWeight: 700, color: 'var(--earth-brown)', padding: 0, flexShrink: 0 }}
+                style={{ background: 'none', border: `1px solid ${tourActive ? 'var(--forest-green)' : 'var(--warm-gold)'}`, borderRadius: '50%', width: 'clamp(1.15rem, 4vw, 1.5rem)', height: 'clamp(1.15rem, 4vw, 1.5rem)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'var(--cursor-pointer)', fontFamily: 'Cinzel, serif', fontSize: 'clamp(0.62rem, 2vw, 0.8rem)', fontWeight: 700, color: tourActive ? 'var(--forest-green)' : 'var(--earth-brown)', padding: 0, flexShrink: 0 }}
               >
                 ?
               </button>
             )}
           </div>
           <div className="section-title-line" />
-          {!showDemoData && (
-            <button type="button" className="btn btn-ghost btn-sm" onClick={onCreateRealm}>+ New</button>
-          )}
-          {(isGuest || showDemoData || gamesLength === 0) && onToggleDemoData && !(showDemoData && tourActive) && (
-            <button type="button" className={`expansion-chip${showDemoData ? ' selected' : ''}`} onClick={showDemoData ? onToggleDemoData : onSeeHowItWorks} style={{ fontSize: 'clamp(0.72rem, 2.4vw, 1rem)', padding: 'clamp(0.5rem, 1.6vw, 0.6rem) clamp(1.1rem, 3.4vw, 1.3rem)', marginLeft: '0.5rem' }}>
-              {showDemoData ? 'Click to exit' : 'See how it works!'}
-            </button>
-          )}
+          <button type="button" className="btn btn-ghost btn-sm" onClick={onCreateRealm}>+ New</button>
         </div>
 
         {realms.length === 0 ? (
@@ -163,7 +166,6 @@ export default function RealmsHub({
                   key={realm.id}
                   realm={realm}
                   isGuest={isGuest}
-                  showDemoData={showDemoData}
                   tourActive={tourActive}
                   highlighted={isTourTarget}
                   cardRef={isTourTarget ? hubRef : realm.id === scrollToRealmId ? newRealmRef : null}

@@ -249,7 +249,7 @@ function GameLogPage({ pageGames, onSelectGame, gamelogRef }) {
 // (rename/chest/logbook/delete/leave) live in RealmSettingsModal, opened
 // from the realm's hub card — this component has no edit affordance of its
 // own, so every page's Back button behaves identically.
-export default function RealmBook({ realm, games, page, onPageChange, selectedGame, onSelectGame, onDeleteGame, isGuest = false, showDemoData = false, tourActive = false, chartRef, rosterRef, gamelogRef, tourHighlight = null }) {
+export default function RealmBook({ realm, games, page, onPageChange, selectedGame, onSelectGame, onDeleteGame, tourActive = false, chartRef, rosterRef, gamelogRef, tourHighlight = null }) {
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
 
   const realmGames = useMemo(
@@ -329,7 +329,7 @@ export default function RealmBook({ realm, games, page, onPageChange, selectedGa
           games={realmGames}
           onNavigate={onSelectGame}
           onClose={() => onSelectGame(null)}
-          onDeleteRequest={tourActive || (isGuest && showDemoData) || realm?.isOwner === false ? null : () => setConfirmDeleteId(selectedGame.id)}
+          onDeleteRequest={tourActive || realm?.isDemo || realm?.isOwner === false ? null : () => setConfirmDeleteId(selectedGame.id)}
         />
       )}
 

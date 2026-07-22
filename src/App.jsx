@@ -15,7 +15,7 @@ import { deleteAccount, sendRealmInvite, updateDisplayName, updateHighestMetaRan
 import { getGuestMetaRank, setGuestMetaRank, countUnlockedTiers, getCurrentRank } from './utils/metaRank';
 import { calcAccountStats } from './utils/stats';
 import { DEFAULT_EXPANSIONS } from './data/expansions';
-import { DEMO_REALMS, DEMO_GAMES, DEMO_USER_ID, DEMO_USER_NAME } from './data/demoData';
+import { DEMO_REALMS, DEMO_GAMES, DEMO_USER_ID, DEMO_USER_NAME, DEMO_EXPANSIONS } from './data/demoData';
 import { TABS, APP_CONFIG, EXPANSION_TYPES, PINNED_EXPANSIONS } from './constants';
 import { normalizeMeeples } from './utils/formatters';
 
@@ -49,15 +49,6 @@ export default function App() {
   // swapped in, so local state there wouldn't survive the round trip.
   const [tourVisitedChest, setTourVisitedChest] = useState(false);
   const [tourVisitedBook,  setTourVisitedBook]  = useState(false);
-  // True only for the guided tour that auto-starts right after a guest
-  // creates their realm. That flow forces demo data on (a brand new realm
-  // has no game history yet, so the tour needs *some* content to walk
-  // through) and needs it cleaned back up once the tour ends, so the
-  // guest's own, now-real, realm is what's left showing underneath. The
-  // general "See how it works!" tour leaves demo toggling as a separate,
-  // manual action (the hub's "Click to exit" chip) — this flag keeps that
-  // behavior untouched.
-  const [guestPostCreateTour, setGuestPostCreateTour] = useState(false);
   // Whichever realm the hub should scroll to and briefly highlight next —
   // one just created, or one just returned from (pregame setup's own
   // "back", or the post-game form's chest icon once a game's recorded) —
@@ -65,16 +56,20 @@ export default function App() {
   // Cleared once RealmsHub has actually scrolled to it (see
   // onScrollToRealmConsumed below), or on leaving the tab as a safety net.
   const [hubSpotlightRealmId, setHubSpotlightRealmId] = useState(null);
+  // Whether the Realms/Profile guided tours have already auto-opened once
+  // this guest session — each only auto-opens the *first* time a guest
+  // reaches that tab; after that they have to click "?" themselves (see
+  // RealmsTab.jsx/Profile.jsx). Reset when guest mode is exited, below, so
+  // a later guest session starts fresh.
+  const [guestRealmsTourShown,  setGuestRealmsTourShown]  = useState(false);
+  const [guestProfileTourShown, setGuestProfileTourShown] = useState(false);
   const handleTourActiveChange = useCallback((active) => {
     setTourActive(active);
     if (active) {
       setTourVisitedChest(false);
       setTourVisitedBook(false);
-    } else if (guestPostCreateTour) {
-      setShowDemoData(false);
-      setGuestPostCreateTour(false);
     }
-  }, [guestPostCreateTour]);
+  }, []);
   // Which gameKey the guest how-to guide has already auto-shown for — lives here (not in
   // Board) so switching tabs away and back to the same game doesn't re-trigger it, while a
   // genuinely new game (new gameKey) still gets a fresh auto-show.
@@ -116,7 +111,6 @@ export default function App() {
   // are keyed by something stable across a session (a board's realm/players,
   // a rank number) rather than needing the realm list itself to survive.
   const [guestRealms,   setGuestRealms]   = useState([]);
-  const [showDemoData,  setShowDemoData]  = useState(false);
   const [guestExpansionOverrides, setGuestExpansionOverrides] = useState({});
 
   // Unified data - guest mode provides default data, user mode uses database
@@ -137,8 +131,8 @@ export default function App() {
   // Guests always sit at rank 1 (folder 1 only), matching their locked-down
   // chest/logbook picker.
   const selfAccountStats = useMemo(
-    () => calcAccountStats(appData.games, appData.realms, userId),
-    [appData.games, appData.realms, userId]
+    () => calcAccountStats(appData.games, appData.realms, userId, appData.expansions),
+    [appData.games, appData.realms, userId, appData.expansions]
   );
   const selfRank = isGuest ? 1 : getCurrentRank(countUnlockedTiers(selfAccountStats));
 
@@ -175,6 +169,8 @@ export default function App() {
     if (!isGuest) {
       setGuestRealms([]);
       setGuestExpansionOverrides({});
+      setGuestRealmsTourShown(false);
+      setGuestProfileTourShown(false);
       if (session && session.realm?.id?.includes('guest-realm')) {
         setSession(null);
       }
@@ -195,6 +191,24 @@ export default function App() {
     setSession({ realm });
   }, []);
 
+  // Shared by every PreGameSetup instance's onExitToHub (the chest icon,
+  // "← Back", and the play-path tour's own Begin/Next/× all funnel through
+  // this single prop — see PreGameSetup.jsx) so "return to hub" is wired
+  // the same correct way regardless of which route got us into
+  // PreGameSetup: an existing realm (`session.realm` set) spotlights it;
+  // the realm-creation and no-realms routes have no realm yet at this
+  // point, so `session?.realm?.id` is just undefined and nothing lights up.
+  // Skipped entirely while the tour is driving this exit — the tour's own
+  // steady highlight on that realm's card (RealmsTab.jsx's
+  // highlightRealmId) already provides the focus; layering the brief
+  // just-created-style fade spotlight on top of it doubles up and fights
+  // for attention instead of helping.
+  const exitPreGameToHub = useCallback(() => {
+    const realmId = session?.realm?.id;
+    if (realmId && !tourActive) setHubSpotlightRealmId(realmId);
+    setSession(null);
+  }, [session, tourActive]);
+
   const handleRealmCreate = useCallback(async (data) => {
     try {
       // addRealm embeds the creator's 'owner' element from data.selfPlayer —
@@ -208,15 +222,12 @@ export default function App() {
       setHubSpotlightRealmId(realm.id);
       setSession(null);
       if (isGuest) {
-        // Guests additionally get the guided tour on (always, for a
-        // first-timer). Demo data is forced on for the tour's duration
-        // (their brand new realm has no games yet to walk through) and
-        // cleared once the tour ends, leaving their own real realm showing
-        // (see handleTourActiveChange) — which is also the moment the
-        // scroll-to-new-realm effect above can finally find it in the list.
-        setShowDemoData(true);
-        setGuestPostCreateTour(true);
+        // Guests additionally get the guided tour on immediately, always,
+        // for a first-timer — the demo realm is already baked into their
+        // realm list permanently (see displayRealms below), so there's no
+        // separate "turn demo on" step needed here anymore.
         handleTourActiveChange(true);
+        setGuestRealmsTourShown(true);
       }
     } catch (err) {
       console.error('create realm failed', err);
@@ -350,25 +361,31 @@ export default function App() {
         setSession(prev => ({ ...prev, finalScores: null, scoreBreakdown: null, players: null }));
       }
     }
-    // Demo mode is per-visit — switching tabs always exits it. Re-clicking
-    // the tab you're already on isn't "switching" — doing it anyway would
-    // yank demo data out from under an in-progress guided tour, leaving its
-    // spotlighted popups pointing at a now-empty container.
-    if (id !== tab) {
-      setShowDemoData(false);
-      setHubSpotlightRealmId(null); // safety net if the scroll-to effect never got to consume it
-    }
+    // Safety net if the scroll-to effect never got to consume it
+    if (id !== tab) setHubSpotlightRealmId(null);
     setTab(id);
   }, [session, isGuest, tab]);
 
-  // When demo mode is on, swap in the demo dataset — guests toggle this
-  // manually ("See how it works!"); signed-in users get it auto-enabled by
-  // the Profile/Library guided tours when their real account has no games
-  // to show (see the `?` tour handlers in those components).
-  const demoOn = showDemoData;
-  const displayGames  = demoOn ? DEMO_GAMES  : appData.games;
-  const displayRealms = demoOn ? DEMO_REALMS : appData.realms;
-  const toggleDemo    = () => setShowDemoData(v => !v);
+  // Demo data is baked permanently into guest mode — no toggle, no "turn it
+  // on for the tour" step: a guest's own games are never real (see
+  // appData.games above), so there's nothing else the Realms/Profile tours
+  // could walk through, and nothing else for a guest to see day to day
+  // either. A signed-in account, even with 0 recorded games, just uses its
+  // own real (if sparse) realms/stats instead — no demo data involved, and
+  // (see RealmsTab.jsx/Profile.jsx) it doesn't get the tour auto-opened for
+  // it either, unlike guests. For the Realms hub, the demo realm is
+  // *prepended* before whatever real realm a guest already has (see
+  // RealmsTab.jsx/RealmsHub.jsx's shelf sort, which pins it first
+  // regardless of date) rather than replacing it. Its chest/book are
+  // always clickable, not locked — clicking either one just engages the
+  // tour on that path (see handlePlayRealm/handleOpenBook in
+  // RealmsTab.jsx), starting it first if needed. Profile shows one
+  // account's aggregate stats rather than a list, so it keeps the simpler
+  // full-replace behavior via its own inline isGuest ternaries below
+  // instead of this prepended version.
+  const demoOn = isGuest;
+  const displayGames  = demoOn ? [...DEMO_GAMES,  ...appData.games]  : appData.games;
+  const displayRealms = demoOn ? [...DEMO_REALMS, ...appData.realms] : appData.realms;
 
   // Carcassonne expansion priority: Always show River and Abbot first since they're
   // commonly used foundational expansions that integrate well with other expansions.
@@ -471,7 +488,7 @@ export default function App() {
                       onSubmit={handleRecordGame}
                       onCancel={() => setSession(prev => ({ ...prev, finalScores: null }))}
                       onPlayAgain={handlePlayAgain}
-                      onExitToHub={() => { setHubSpotlightRealmId(session.realm.id); setSession(null); }}
+                      onExitToHub={exitPreGameToHub}
                       isGuest={isGuest}
                     />
                   : session.players
@@ -482,6 +499,7 @@ export default function App() {
                         session={session}
                         onFinish={handleFinishGame}
                         onReset={handleBoardReset}
+                        onExitToHub={exitPreGameToHub}
                         autoShowHowTo={howToShownForGameRef.current !== gameKey}
                         onHowToShown={() => { howToShownForGameRef.current = gameKey; }}
                       />
@@ -495,7 +513,7 @@ export default function App() {
                           defaultExpansions={null}
                           realms={appData.realms}
                           currentRealm={null}
-                          onExitToHub={() => setSession(null)}
+                          onExitToHub={exitPreGameToHub}
                           onRealmCreate={handleRealmCreate}
                           onExportGroup={isGuest ? null : handleExportGroup}
                           startAtRealmCreation={true}
@@ -515,7 +533,7 @@ export default function App() {
                         defaultExpansions={session.lastExpansions}
                         realms={appData.realms}
                         currentRealm={session?.realm || null}
-                        onExitToHub={() => { setHubSpotlightRealmId(session.realm.id); setSession(null); }}
+                        onExitToHub={exitPreGameToHub}
                         onRealmCreate={handleRealmCreate}
                         onExportGroup={isGuest ? null : handleExportGroup}
                         isGuest={isGuest}
@@ -535,7 +553,7 @@ export default function App() {
                       defaultExpansions={null}
                       realms={appData.realms}
                       currentRealm={null}
-                      onExitToHub={() => setSession(null)}
+                      onExitToHub={exitPreGameToHub}
                       onRealmCreate={handleRealmCreate}
                       onExportGroup={isGuest ? null : handleExportGroup}
                       startAtRealmCreation={true}
@@ -557,8 +575,6 @@ export default function App() {
                       onUpdateRealm={appOperations.updateRealm}
                       selfRank={selfRank}
                       isGuest={isGuest}
-                      showDemoData={showDemoData}
-                      onToggleDemoData={toggleDemo}
                       openGame={openGame}
                       onOpenGameClear={() => setOpenGame(null)}
                       resetSignal={hubResetKey}
@@ -568,6 +584,8 @@ export default function App() {
                       tourVisitedBook={tourVisitedBook}
                       onTourVisitChest={() => setTourVisitedChest(true)}
                       onTourVisitBook={() => setTourVisitedBook(true)}
+                      tourShown={guestRealmsTourShown}
+                      onTourShown={() => setGuestRealmsTourShown(true)}
                       scrollToRealmId={hubSpotlightRealmId}
                       onScrollToRealmConsumed={() => setHubSpotlightRealmId(null)}
                     />
@@ -577,11 +595,12 @@ export default function App() {
               <Profile
                 games={demoOn ? DEMO_GAMES : appData.games}
                 realms={demoOn ? DEMO_REALMS : appData.realms}
-                userId={demoOn ? DEMO_USER_ID : user?.id}
+                expansions={demoOn ? DEMO_EXPANSIONS : appData.expansions}
+                userId={demoOn ? DEMO_USER_ID : userId}
                 displayName={demoOn ? DEMO_USER_NAME : displayName}
                 isGuest={isGuest}
-                showDemoData={showDemoData}
-                onToggleDemoData={toggleDemo}
+                tourShown={guestProfileTourShown}
+                onTourShown={() => setGuestProfileTourShown(true)}
                 storedMetaRank={storedMetaRank}
                 onMetaRankAchieved={isGuest ? setGuestMetaRank : updateHighestMetaRank}
                 onChangeDisplayName={updateDisplayName}

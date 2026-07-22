@@ -3,8 +3,19 @@
 // their player slot is linked via DEMO_USER_ID, so the demo Profile
 // aggregates stats across the shelf.
 
+import { DEFAULT_EXPANSIONS } from './expansions';
+
 export const DEMO_USER_ID   = 'demo-user';
 export const DEMO_USER_NAME = 'Alex';
+
+// Owned set matches what actually shows up in the generated games below
+// (EXP_SETS' full expansions) so the demo's Expansions milestone card
+// reflects a shelf a player who's played these games would plausibly have.
+const DEMO_OWNED_FULL = new Set(['Inns & Cathedrals', 'Traders & Builders', 'Abbey & Mayor']);
+export const DEMO_EXPANSIONS = DEFAULT_EXPANSIONS.map(exp => ({
+  ...exp,
+  owned: exp.type === 'mini' ? exp.owned : DEMO_OWNED_FULL.has(exp.name),
+}));
 
 const demoPlayers = (names) => names.map((name, i) =>
   i === 0
@@ -12,6 +23,11 @@ const demoPlayers = (names) => names.map((name, i) =>
     : { name, userId: null, status: 'uninvited' }
 );
 
+// `isDemo` marks this as fake data even when it's appended alongside a
+// real account's own realms (see App.jsx's displayRealms) rather than
+// replacing them outright — RealmsHub/RealmBook use it to keep demo-only
+// restrictions (locked chest, no delete, no settings) scoped to this card
+// specifically instead of accidentally locking the user's real realms too.
 export const DEMO_REALMS = [
   {
     id: 'demo-realm-3',
@@ -20,6 +36,7 @@ export const DEMO_REALMS = [
     created_at: '2026-02-10T00:00:00.000Z',
     isOwner: true,
     spine: 14,
+    isDemo: true,
   },
 ];
 
