@@ -24,11 +24,11 @@ export function spineFor(realm) {
 }
 
 // Cumulative logbook count unlocked AT each rank — same shape as
-// CHEST_UNLOCK_SCHEDULE in data/chests.js: 3 available from the start, then
-// +1 per rank up to rank 20. Only 12 logbook images exist today, so
+// CHEST_UNLOCK_SCHEDULE in data/chests.js: one logbook per rank, starting
+// with 001.png at rank 1. Only 12 logbook images exist today, so
 // unlockedSpineCount's clamp to SPINES.length caps this out well before the
 // schedule itself would (same "ahead of the art" spirit as chests).
-const LOGBOOK_UNLOCK_SCHEDULE = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22];
+const LOGBOOK_UNLOCK_SCHEDULE = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20];
 
 // How many logbooks are unlocked at a given account rank — clamped to
 // however many logbook images actually exist on disk today (same spirit as

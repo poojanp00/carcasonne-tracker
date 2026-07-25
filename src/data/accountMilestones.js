@@ -180,6 +180,52 @@ export const ACCOUNT_MILESTONES = [
   },
 ];
 
+// Replaces ACCOUNT_MILESTONES's contents IN PLACE (never reassigns the
+// export binding) with the authoritative numeric config from
+// migrations/milestone_config.sql (categories: id/metric/types/sort_order,
+// tiers: category_id/tier_number/threshold) — every existing
+// `import { ACCOUNT_MILESTONES } from '../data/accountMilestones'` call site
+// keeps working unchanged, since they all hold a live reference to this same
+// array. Cosmetic fields (label/unit/alwaysVisible/tier name/img) are never
+// fetched — they're carried over from whatever's already in ACCOUNT_MILESTONES
+// (the hardcoded fallback below, until this runs) so the DB never needs to
+// know about display text at all.
+export function applyMilestoneConfig(categories, tiers) {
+  if (!categories || !tiers) return; // fetch failed — keep the built-in fallback
+
+  const tiersByCategory = {};
+  for (const t of tiers) {
+    (tiersByCategory[t.category_id] ||= []).push(t);
+  }
+  // Captured from the CURRENT (pre-mutation) contents, before the array is
+  // cleared below.
+  const displayById = Object.fromEntries(ACCOUNT_MILESTONES.map(c => [c.id, c]));
+
+  const merged = [...categories]
+    .sort((a, b) => a.sort_order - b.sort_order)
+    .map(c => {
+      const display = displayById[c.id] || {};
+      const tierDisplayByNumber = Object.fromEntries((display.tiers || []).map(t => [t.tierNumber, t]));
+      return {
+        id: c.id,
+        label: display.label ?? c.id,
+        metric: c.metric ?? undefined,
+        types: c.types ?? undefined,
+        unit: display.unit ?? '',
+        alwaysVisible: !!display.alwaysVisible,
+        tiers: (tiersByCategory[c.id] || [])
+          .sort((a, b) => a.tier_number - b.tier_number)
+          .map(t => {
+            const td = tierDisplayByNumber[t.tier_number] || {};
+            return { tierNumber: t.tier_number, threshold: Number(t.threshold), name: td.name ?? `Tier ${t.tier_number}`, img: td.img ?? null };
+          }),
+      };
+    });
+
+  ACCOUNT_MILESTONES.length = 0;
+  ACCOUNT_MILESTONES.push(...merged);
+}
+
 // Current progress toward a category's tiers from the account aggregate
 // ({ gamesCount, breakdown } as returned by calcAccountStats)
 export function accountMilestoneProgress(category, account) {

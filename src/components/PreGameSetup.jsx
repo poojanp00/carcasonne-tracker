@@ -25,7 +25,8 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { MAX_GAME_PLAYERS, MAX_REALMS } from '../constants';
 import { formatPieceName } from '../utils/formatters';
 import { DEFAULT_EXPANSIONS, GUEST_ALLOWED_MINIS } from '../data/expansions';
-import { getRealmMemberEmails } from '../data/storage';
+import { getRealmMemberEmails, getRealmMemberProgress } from '../data/storage';
+import { rankTitle } from '../utils/metaRank';
 import { CreateRealmTourModal, RealmTourModal } from './HowToGuide';
 import { CHESTS, chestFor, unlockedChestCount, chestUnlockRank, visibleChestCount, unlockedChests } from '../data/chests';
 import { SPINES, unlockedSpineCount, spineUnlockRank, visibleSpineCount, unlockedSpines } from '../data/spines';
@@ -166,6 +167,18 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
   const createTourStage = createTourOn ? createSubStep - 1 : null; // 0 or 1
   const createNameRef = useRef(null);
   const createChestRef = useRef(null);
+  // Re-triggers the tour on the chest/logbook page even if the guest
+  // dismissed it (X) on the name page first — closing the tour there only
+  // closes stage 0, it shouldn't suppress stage 1 too. Fires once per mount
+  // the first time the guest actually reaches sub-step 2, however they got
+  // there (the tour's own "Next →", or the real form's).
+  const [chestTourSeen, setChestTourSeen] = useState(false);
+  useEffect(() => {
+    if (isGuest && createSubStep === 2 && !chestTourSeen) {
+      setCreateTourOn(true);
+      setChestTourSeen(true);
+    }
+  }, [isGuest, createSubStep, chestTourSeen]);
   useEffect(() => {
     if (createTourStage === 0) createNameRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     else if (createTourStage === 1) createChestRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -219,6 +232,25 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
     getRealmMemberEmails(currentRealm.id).then(m => { if (!stale) setMemberEmails(m); });
     return () => { stale = true; };
   }, [isGuest, currentRealm?.id]);
+
+  // Linked co-members' current rank, shown as a title (e.g. "Steward") next
+  // to their name on the meeple-selection step — same fetch shape as
+  // RealmBook's Fellowship page, just keyed by name here since that's what
+  // the meeple picker iterates over.
+  const [memberRanks, setMemberRanks] = useState({});
+  useEffect(() => {
+    if (isGuest || !currentRealm?.id) { setMemberRanks({}); return; }
+    let stale = false;
+    getRealmMemberProgress(currentRealm.id).then(map => {
+      if (stale) return;
+      const byName = {};
+      for (const p of currentRealm.players || []) {
+        if (p.userId && map[p.userId]) byName[p.name] = map[p.userId].rank;
+      }
+      setMemberRanks(byName);
+    });
+    return () => { stale = true; };
+  }, [isGuest, currentRealm?.id, currentRealm?.players]);
 
   const openExport = (playerName) => {
     setInviteEmail('');
@@ -661,7 +693,14 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
                         minWidth: '1rem',
                         textAlign: 'right',
                       }}>{i + 1}</span>
-                      <span className="meeple-picker-name" style={{ minWidth: 0, flex: '0 1 auto' }}>{name}</span>
+                      <span className="meeple-picker-name" style={{ minWidth: 0, flex: '0 1 auto' }}>
+                        {name}
+                        {memberRanks[name] && (
+                          <span style={{ fontFamily: 'Crimson Text, serif', fontStyle: 'italic', fontSize: '0.72rem', color: 'var(--stone-gray)', opacity: 0.7, marginLeft: '0.4rem' }}>
+                            {rankTitle(memberRanks[name])}
+                          </span>
+                        )}
+                      </span>
                       {/* Right side: the player's link status — or an Invite
                           action while the slot is unclaimed (any member) —
                           sits right after the name, pushed flush to the
@@ -810,7 +849,7 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
         </div>
 
         {createTourStage !== null && (
-          <CreateRealmTourModal stage={createTourStage} onNext={advanceCreateTour} onBack={backCreateTour} onClose={() => { setCreateTourOn(false); setCreateSubStep(1); }} targetRef={createTourStage === 0 ? createNameRef : createChestRef} />
+          <CreateRealmTourModal stage={createTourStage} onNext={advanceCreateTour} onBack={backCreateTour} onClose={() => { setCreateTourOn(false); if (createTourStage === 0) setCreateSubStep(1); }} targetRef={createTourStage === 0 ? createNameRef : createChestRef} />
         )}
 
         <form ref={createFormRef} onSubmit={handleCreateFormSubmit} noValidate>
@@ -885,6 +924,7 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
                             setNameError('');
                           }}
                           placeholder={`Player ${i + 1}`}
+                          maxLength={20}
                         />
                         {isSelf && (
                           <span style={{

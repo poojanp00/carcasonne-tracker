@@ -134,8 +134,9 @@ export default function RealmsHub({
         <div className="section-title">
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <h2>Realms</h2>
-            {/* The sole tour entry point — demo data is baked permanently
-                into guest mode now (see App.jsx), no separate "See how it
+            {/* The sole manual tour entry point — the demo realm the tour's
+                logbook leg leans on (see RealmsTab.jsx's DEMO_REALM) never
+                actually shows up on the shelf, no separate "See how it
                 works!" chip or toggle needed. Green while the tour's
                 actually running is the only state that matters here — the
                 button itself goes inert (see tour-inert above) the moment

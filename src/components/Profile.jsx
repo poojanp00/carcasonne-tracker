@@ -2,7 +2,7 @@ import { useMemo, useState, useEffect, useRef } from 'react';
 import { SCORE_TYPE_ORDER, SCORE_TYPE_COLORS } from '../constants';
 import { calcAccountStats } from '../utils/stats';
 import { visibleAccountMilestones } from '../data/accountMilestones';
-import { getCurrentRank, countUnlockedTiers, rankTitle, tiersRequiredForRank, MAX_RANK, TOTAL_TIERS } from '../utils/metaRank';
+import { getCurrentRank, countUnlockedTiers, rankTitle, tiersRequiredForRank, getMaxRank, getTotalTiers } from '../utils/metaRank';
 import CategoryMilestoneCard from './CategoryMilestoneCard';
 import MilestoneCarousel from './MilestoneCarousel';
 import { MEEPLE_IMGS, TYPE_LABELS } from './StatWidgets';
@@ -10,6 +10,7 @@ import { ACHIEVEMENT_DISPLAY_ORDER, ACHIEVEMENT_BADGE, ACHIEVEMENT_LABEL_OVERRID
 
 import { formatAchievementName } from '../utils/achievements';
 import { getExpansions } from '../data/storage';
+import { DEMO_GAMES, DEMO_REALMS, DEMO_EXPANSIONS, DEMO_USER_ID, DEMO_USER_NAME } from '../data/demoData';
 import ValInfo from './ValInfo';
 import Lightbox from './Lightbox';
 import { GearIcon, TrashIcon } from './icons';
@@ -152,7 +153,7 @@ function TrophyCabinet({ account }) {
 
 // The strategy-game hero card: large meeple, name, rank title, and the
 // primary career numbers at a glance.
-function ProfileHero({ account, userId, displayName, title, titleTip, onOpenSettings, heroRef, highlighted = false }) {
+function ProfileHero({ account, userId, displayName, title, titleTip, tierCount, totalTiers, onOpenSettings, heroRef, highlighted = false }) {
   const { stats, favMeeple, favMeepleCount, playingSince, totalPlaytime } = account;
   // No games played yet means no real favorite meeple — assigned one
   // (see pickDefaultMeeple) instead of showing an empty hero card.
@@ -160,8 +161,8 @@ function ProfileHero({ account, userId, displayName, title, titleTip, onOpenSett
   const meepleImg = MEEPLE_IMGS[favMeeple || pickDefaultMeeple(userId)] ?? null;
 
   const primaryStats = [
-    ['Games Played', <span className="profile-stat-value">{account.gamesCount}</span>],
     ['Victories', <ValInfo tip={`${stats.winRate}% win rate`}><span className="profile-stat-value" style={{ color: 'var(--forest-green)' }}>{stats.wins}</span></ValInfo>],
+    ['Milestones', <ValInfo tip={`${tierCount} of ${totalTiers} milestone tiers unlocked`}><span className="profile-stat-value">{tierCount}</span></ValInfo>],
     ['Realms', <span className="profile-stat-value">{account.realmsCount}</span>],
     ['Career Points', <span className="profile-stat-value">{stats.totalPoints.toLocaleString()}</span>],
     ['Time Played', <span className="profile-stat-value">{formatDuration(totalPlaytime)}</span>],
@@ -269,8 +270,7 @@ function CareerHighlights({ account, onNavigateToGame }) {
   );
 }
 
-export default function Profile({ games, realms, expansions = [], userId, displayName, isGuest = false, tourShown = false, onTourShown = null, storedMetaRank = 0, onMetaRankAchieved = null, onChangeDisplayName, onDeleteAccount, onSignOut }) {
-  const account = useMemo(() => calcAccountStats(games, realms, userId, expansions), [games, realms, userId, expansions]);
+export default function Profile({ games: realGames, realms: realRealms, expansions: realExpansions = [], userId: realUserId, displayName: realDisplayName, isGuest = false, tourShown = false, onTourShown = null, storedMetaRank = 0, onGuestMetaRankAchieved = null, onChangeDisplayName, onDeleteAccount, onSignOut }) {
   const [selectedGame, setSelectedGame] = useState(null);
 
   // Guided tour opened from the "?" button: null = closed, 0-3 = which
@@ -284,12 +284,20 @@ export default function Profile({ games, realms, expansions = [], userId, displa
   const tourRefs = [heroRef, milestonesRef, careerHighlightsRef, trophyCabinetRef];
   // The popup docks beside whichever section the current step spotlights.
   const tourTargetRef = tourStep !== null ? tourRefs[tourStep] : null;
-  // No demo toggle to flip anymore — a guest's `games`/`realms`/`userId`/
-  // `displayName` props are already the demo persona's, permanently (see
-  // App.jsx), and a signed-in account just tours its own real (if sparse)
-  // stats — calcAccountStats returns sane zeroed-out values for 0 games
-  // (no wins, no records, "—" placeholders throughout), so there's always
-  // something real to render either way.
+  // Demo data only stands in for a guest's own account while their tour is
+  // actually up — otherwise (including a guest who hasn't toured yet, or is
+  // done touring) they see their own real, if sparse or empty, stats, same
+  // as a signed-in account. calcAccountStats returns sane zeroed-out values
+  // for 0 games (no wins, no records, "—" placeholders throughout), so
+  // there's always something real to render either way; the demo persona
+  // just gives the guided tour a populated account to point at.
+  const demoActive = isGuest && tourStep !== null;
+  const games = demoActive ? DEMO_GAMES : realGames;
+  const realms = demoActive ? DEMO_REALMS : realRealms;
+  const expansions = demoActive ? DEMO_EXPANSIONS : realExpansions;
+  const userId = demoActive ? DEMO_USER_ID : realUserId;
+  const displayName = demoActive ? DEMO_USER_NAME : realDisplayName;
+  const account = useMemo(() => calcAccountStats(games, realms, userId, expansions), [games, realms, userId, expansions]);
   const startTour = () => setTourStep(0);
   // Auto-opens the tour the *first* time a guest reaches this tab this
   // session (see App.jsx's guestProfileTourShown/onTourShown — lifted, not
@@ -358,7 +366,7 @@ export default function Profile({ games, realms, expansions = [], userId, displa
   // line visual language. Each row's number is the tier count required for
   // that rank, not the rank's own ordinal.
   const ladderRanks = [];
-  if (displayedRank < MAX_RANK) ladderRanks.push({ rank: displayedRank + 1, state: 'next' });
+  if (displayedRank < getMaxRank()) ladderRanks.push({ rank: displayedRank + 1, state: 'next' });
   for (let r = displayedRank; r >= 1; r--) ladderRanks.push({ rank: r, state: r === displayedRank ? 'current' : 'earned' });
 
   const rankTip = (
@@ -384,12 +392,14 @@ export default function Profile({ games, realms, expansions = [], userId, displa
     </div>
   );
 
-  // Persist a new personal-best rank upward; the computed > stored guard is
-  // the loop-breaker once the refreshed user_metadata flows back in as a prop
+  // Guest-only rank persistence (localStorage) — real accounts are handled
+  // entirely server-side now (migrations/server_side_progress.sql), but a
+  // guest has no auth user_id/user_progress row for any trigger to update,
+  // so this is the only place a guest's highest-ever rank ever gets saved.
   useEffect(() => {
-    if (isGuest) return; // never persist a rank computed from demo data
-    if (computedRank > (storedMetaRank || 0)) onMetaRankAchieved?.(computedRank);
-  }, [computedRank, storedMetaRank, isGuest, onMetaRankAchieved]);
+    if (!isGuest) return;
+    if (computedRank > (storedMetaRank || 0)) onGuestMetaRankAchieved?.(computedRank);
+  }, [computedRank, storedMetaRank, isGuest, onGuestMetaRankAchieved]);
 
   const [settingsView, setSettingsView] = useState(null); // null | 'menu' | 'rename'
   const [nameInput,    setNameInput]    = useState('');
@@ -646,17 +656,15 @@ export default function Profile({ games, realms, expansions = [], userId, displa
           or empty-state stand-in, and it's what gives the guided tour
           something real to point at for a brand new account too. */}
       <div className={tourStep !== null ? 'tour-inert' : ''}>
-        <ProfileHero heroRef={heroRef} highlighted={tourStep === 0} account={account} userId={userId} displayName={displayName} title={`Rank ${displayedRank} ${rankTitle(displayedRank)}`} titleTip={rankTip} onOpenSettings={isGuest ? null : openSettings} />
-        <div ref={milestonesRef} className={`milestone-carousel-section${tourStep === 1 ? ' tour-highlight' : ''}`} style={{ marginBottom: '1.2rem' }}>
-          <div className="tile-card-header" style={{ ...sectionHeaderStyle, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span>Milestones</span>
-            <span className="game-count">{tierCount}/{TOTAL_TIERS}</span>
+        <div className="me-hero-grid" style={{ marginBottom: '1.2rem', alignItems: 'stretch' }}>
+          <ProfileHero heroRef={heroRef} highlighted={tourStep === 0} account={account} userId={userId} displayName={displayName} title={`Rank ${displayedRank} ${rankTitle(displayedRank)}`} titleTip={rankTip} tierCount={tierCount} totalTiers={getTotalTiers()} onOpenSettings={isGuest ? null : openSettings} />
+          <div ref={milestonesRef} className={`milestone-carousel-section${tourStep === 1 ? ' tour-highlight' : ''}`}>
+            <MilestoneCarousel pauseKeyboard={!!selectedGame || !!settingsView || deleteStep > 0 || (tourStep !== null && tourStep !== 1)}>
+              {visibleCats.map((cat) => (
+                <CategoryMilestoneCard key={cat.id} category={cat} account={account} />
+              ))}
+            </MilestoneCarousel>
           </div>
-          <MilestoneCarousel pauseKeyboard={!!selectedGame || !!settingsView || deleteStep > 0 || (tourStep !== null && tourStep !== 1)}>
-            {visibleCats.map((cat) => (
-              <CategoryMilestoneCard key={cat.id} category={cat} account={account} />
-            ))}
-          </MilestoneCarousel>
         </div>
         <div className="me-hero-grid" style={{ marginBottom: '1.2rem' }}>
           <div ref={careerHighlightsRef} className={`tile-card${tourStep === 2 ? ' tour-highlight' : ''}`}>

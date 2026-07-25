@@ -30,8 +30,12 @@ export default function CategoryMilestoneCard({ category, account }) {
   return (
     <div className="player-card p2 milestone-card">
       <div className="milestone-card-header">
-        <span className="milestone-card-name">{category.label}</span>
+        <span className="milestone-card-name">Milestones - {category.label}</span>
       </div>
+      {/* Reserved for a category illustration (not built yet) — pushes the
+          progress block down near the bottom of the card instead of it
+          stacking directly under the header. */}
+      <div className="milestone-card-image-slot" aria-hidden="true" />
       <div className="milestone-card-tier">
         {maxed
           ? `Tier ${currentTierNumber} — ${currentTier.name} (MAXED)`

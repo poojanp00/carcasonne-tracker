@@ -203,7 +203,7 @@ export default function RealmSettingsModal({ realm, realms = [], selfRank = 1, o
           <div className="realm-modal tile-card" onClick={e => e.stopPropagation()}>
             <h3 style={{ color: 'var(--deep-red)', marginBottom: '0.5rem' }}>Are you sure?</h3>
             <p style={{ fontSize: '0.95rem', marginBottom: '1.2rem', lineHeight: 1.5 }}>
-              This will permanently delete <strong>{realm.name}</strong> and all its recorded games. This cannot be undone.
+              This will permanently delete <strong>{realm.name}</strong> and all its data.
             </p>
             <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'flex-end' }}>
               <button className="btn btn-ghost btn-sm" onClick={() => { setConfirmDelete(false); onClose(); }}>Cancel</button>

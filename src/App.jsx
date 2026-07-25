@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import PostGameForm  from './components/PostGameForm';
 import RealmsTab     from './components/RealmsTab';
 import Profile       from './components/Profile';
@@ -11,11 +11,16 @@ import InvitePrompt  from './components/InvitePrompt';
 import { useGameData } from './hooks/useGameData';
 import { useAuth }     from './hooks/useAuth';
 import { resetBoard }  from './data/boardStorage';
-import { deleteAccount, sendRealmInvite, updateDisplayName, updateHighestMetaRank } from './data/storage';
-import { getGuestMetaRank, setGuestMetaRank, countUnlockedTiers, getCurrentRank } from './utils/metaRank';
-import { calcAccountStats } from './utils/stats';
-import { DEFAULT_EXPANSIONS } from './data/expansions';
-import { DEMO_REALMS, DEMO_GAMES, DEMO_USER_ID, DEMO_USER_NAME, DEMO_EXPANSIONS } from './data/demoData';
+import {
+  deleteAccount, sendRealmInvite, updateDisplayName,
+  getUserProgress, acknowledgeRankUp,
+  getRealmCelebrations, acknowledgeRankUpFor,
+  getMilestoneConfig, getFullExpansionNames, getMaxRankConfig,
+} from './data/storage';
+import { getGuestMetaRank, setGuestMetaRank, buildRankUpDiff, applyMaxRank } from './utils/metaRank';
+import { applyMilestoneConfig } from './data/accountMilestones';
+import RankUpModal from './components/RankUpModal';
+import { DEFAULT_EXPANSIONS, applyFullExpansionNames } from './data/expansions';
 import { TABS, APP_CONFIG, EXPANSION_TYPES, PINNED_EXPANSIONS } from './constants';
 import { normalizeMeeples } from './utils/formatters';
 
@@ -124,17 +129,117 @@ export default function App() {
     loading: isGuest ? false : loading
   };
 
-  const storedMetaRank = isGuest ? getGuestMetaRank() : (user?.user_metadata?.highest_meta_rank || 0);
+  // App-wide config (category/tier thresholds, full-expansion names, max
+  // rank) — fetched once from Supabase (migrations/milestone_config.sql) and
+  // applied in place to the existing JS config modules, so every component
+  // that already imports ACCOUNT_MILESTONES/etc keeps working unchanged.
+  // Not user-specific — runs once regardless of auth state. Falls back to
+  // the hardcoded values already in those modules if the fetch fails.
+  useEffect(() => {
+    let stale = false;
+    (async () => {
+      const [milestoneConfig, fullExpansionNames, maxRank] = await Promise.all([
+        getMilestoneConfig(),
+        getFullExpansionNames(),
+        getMaxRankConfig(),
+      ]);
+      if (stale) return;
+      if (milestoneConfig) applyMilestoneConfig(milestoneConfig.categories, milestoneConfig.tiers);
+      applyFullExpansionNames(fullExpansionNames);
+      if (maxRank) applyMaxRank(maxRank);
+    })();
+    return () => { stale = true; };
+  }, []);
 
-  // The signed-in account's live rank — used only to gate which chest
-  // folders are unlocked in the realm-creation picker (see data/chests.js).
-  // Guests always sit at rank 1 (folder 1 only), matching their locked-down
-  // chest/logbook picker.
-  const selfAccountStats = useMemo(
-    () => calcAccountStats(appData.games, appData.realms, userId, appData.expansions),
-    [appData.games, appData.realms, userId, appData.expansions]
-  );
-  const selfRank = isGuest ? 1 : getCurrentRank(countUnlockedTiers(selfAccountStats));
+  // Cached rank/milestone snapshot — the signed-in account's own row,
+  // computed and kept up to date entirely server-side (a trigger recomputes
+  // it whenever any relevant game/realm/expansion change happens — see
+  // migrations/server_side_progress.sql) — the client only ever reads it.
+  // Null until the fetch resolves, or for an account with no row yet (no
+  // games/realms/expansions ever recorded) — treated as rank 1 / 0 tiers.
+  const [selfProgress, setSelfProgress] = useState(null);
+  // Queue of celebration payloads for the modal — one shared device at the
+  // table, not each player checking their own phone later, so after a game
+  // is recorded the controller's own screen shows EVERY linked player's
+  // pending celebration in turn (see handleRecordGame), not just the
+  // controller's own. Each entry carries which realm it came from (needed
+  // to acknowledge on another account's behalf) or null for the self-only
+  // mount-time fallback below. Cleared on close (after acknowledging the
+  // current head) or when a new session starts (handlePlayAgain/
+  // exitPreGameToHub) so a stale queue can't resurface.
+  const [rankUpQueue, setRankUpQueue] = useState([]);
+  const rankUpInfo = rankUpQueue[0] ?? null;
+
+  const queueCelebration = useCallback((entry) => {
+    setRankUpQueue(q => [...q, entry]);
+  }, []);
+
+  // Self-only fallback, checked once at app load — this account's OWN
+  // progress may have moved without anything in THIS session causing it
+  // (e.g. played as a non-controlling member on someone else's device
+  // earlier). No realmId, so handleCloseRankUp always acknowledges this one
+  // via the plain self-only acknowledgeRankUp.
+  const checkAndCelebrate = useCallback((row) => {
+    if (!row || row.tierCount <= row.lastCelebratedTierCount) return;
+    const diff = buildRankUpDiff({
+      beforeCategoryProgress: row.lastCelebratedCategoryProgress,
+      afterCategoryProgress: row.categoryProgress,
+      beforeRank: row.lastCelebratedRank,
+      afterRank: row.rank,
+    });
+    queueCelebration({
+      userId,
+      realmId: null,
+      playerName: displayName,
+      beforeRank: row.lastCelebratedRank,
+      afterRank: row.rank,
+      beforeTierCount: row.lastCelebratedTierCount,
+      tierCount: row.tierCount,
+      categoryProgress: row.categoryProgress, // the "after" state, needed to acknowledge on close
+      ...diff,
+    });
+  }, [userId, displayName, queueCelebration]);
+
+  useEffect(() => {
+    if (isGuest || !userId) { setSelfProgress(null); return; }
+    if (appData.loading) return;
+    let stale = false;
+    getUserProgress(userId).then(row => {
+      if (stale || !row) return;
+      setSelfProgress(row);
+      checkAndCelebrate(row);
+    });
+    return () => { stale = true; };
+  }, [userId, isGuest, appData.loading, checkAndCelebrate]);
+
+  const storedMetaRank = isGuest ? getGuestMetaRank() : (selfProgress?.rank || 0);
+
+  // The signed-in account's rank — used only to gate which chest folders are
+  // unlocked in the realm-creation picker (see data/chests.js). Guests always
+  // sit at rank 1 (folder 1 only), matching their locked-down chest/logbook
+  // picker.
+  const selfRank = isGuest ? 1 : (selfProgress?.rank ?? 1);
+
+  const handleCloseRankUp = useCallback(() => {
+    const info = rankUpInfo;
+    setRankUpQueue(q => q.slice(1)); // advance to the next queued celebration, if any
+    if (!info) return;
+    const isSelf = !info.realmId || info.userId === userId;
+    const ack = isSelf
+      ? acknowledgeRankUp(info.afterRank, info.tierCount, info.categoryProgress)
+      : acknowledgeRankUpFor(info.realmId, info.userId, info.afterRank, info.tierCount, info.categoryProgress);
+    ack
+      .then(() => {
+        if (!isSelf) return; // only this account's own selfProgress cache needs updating
+        setSelfProgress(prev => (prev ? {
+          ...prev,
+          lastCelebratedRank: info.afterRank,
+          lastCelebratedTierCount: info.tierCount,
+          lastCelebratedCategoryProgress: info.categoryProgress,
+        } : prev));
+      })
+      .catch(err => console.warn('acknowledgeRankUp failed:', err.message));
+  }, [rankUpInfo, userId]);
 
   // Unified operations - guest mode uses no-ops, user mode uses database
   const appOperations = {
@@ -207,6 +312,7 @@ export default function App() {
     const realmId = session?.realm?.id;
     if (realmId && !tourActive) setHubSpotlightRealmId(realmId);
     setSession(null);
+    setRankUpQueue([]);
   }, [session, tourActive]);
 
   const handleRealmCreate = useCallback(async (data) => {
@@ -223,9 +329,7 @@ export default function App() {
       setSession(null);
       if (isGuest) {
         // Guests additionally get the guided tour on immediately, always,
-        // for a first-timer — the demo realm is already baked into their
-        // realm list permanently (see displayRealms below), so there's no
-        // separate "turn demo on" step needed here anymore.
+        // for a first-timer.
         handleTourActiveChange(true);
         setGuestRealmsTourShown(true);
       }
@@ -257,7 +361,7 @@ export default function App() {
     window.scrollTo(0, 0);
   }, []);
 
-  const handleRecordGame = useCallback((gameData) => {
+  const handleRecordGame = useCallback(async (gameData) => {
     if (isGuest) {
       // For guests, redirect to sign-in instead of recording
       setSession(null);
@@ -265,11 +369,65 @@ export default function App() {
       signOutGuest();
       return;
     }
-    appOperations.addGame({ ...gameData, realmId: session.realm.id });
+    // Idempotency guard: PostGameForm auto-submits via a mount-local ref,
+    // which resets if it ever remounts (e.g. a background Supabase token
+    // refresh briefly flips appData.loading, unmounting/remounting the whole
+    // signed-in tree — see useGameData.js). `session` lives in App, not in
+    // that subtree, so it survives such a remount and reliably blocks a
+    // second auto-submit from re-inserting the same game.
+    if (session?.recorded) return;
+    setSession(prev => ({ ...prev, recorded: true }));
+    const fullGameData = { ...gameData, realmId: session.realm.id };
+    try {
+      await appOperations.addGame(fullGameData);
+    } catch (err) {
+      showToast(`Failed to record game: ${err?.message || 'Unknown error'}`);
+      return;
+    }
     showToast('Game recorded in the logbook.');
     // Keep the session as-is so PostGameForm can still show breakdown/winner
     // User will click "Play Again" to reset and go back to scoreboard
-  }, [appOperations.addGame, session, showToast, isGuest, signOutGuest]);
+
+    // The games-insert trigger (migrations/server_side_progress.sql) already
+    // recomputed user_progress for every LINKED account in this realm
+    // (owner and every member), synchronously within that same insert — not
+    // just this one. One shared device at the table, so show every linked
+    // player's pending celebration on THIS screen, not just whoever's
+    // holding it — this one fetch covers both the controller's own
+    // celebration and everyone else's.
+    try {
+      const rows = await getRealmCelebrations(session.realm.id);
+      const ownRow = rows.find(r => r.userId === userId);
+      if (ownRow) setSelfProgress(ownRow);
+
+      // Controller's own entry first (if any), then everyone else.
+      const sorted = [...rows].sort((a, b) => (a.userId === userId ? -1 : b.userId === userId ? 1 : 0));
+      const newEntries = sorted
+        .filter(r => r.tierCount > r.lastCelebratedTierCount)
+        .map(r => {
+          const diff = buildRankUpDiff({
+            beforeCategoryProgress: r.lastCelebratedCategoryProgress,
+            afterCategoryProgress: r.categoryProgress,
+            beforeRank: r.lastCelebratedRank,
+            afterRank: r.rank,
+          });
+          return {
+            userId: r.userId,
+            realmId: session.realm.id,
+            playerName: r.name,
+            beforeRank: r.lastCelebratedRank,
+            afterRank: r.rank,
+            beforeTierCount: r.lastCelebratedTierCount,
+            tierCount: r.tierCount,
+            categoryProgress: r.categoryProgress,
+            ...diff,
+          };
+        });
+      if (newEntries.length > 0) setRankUpQueue(q => [...q, ...newEntries]);
+    } catch (err) {
+      console.warn('post-save progress refresh failed:', err.message);
+    }
+  }, [appOperations.addGame, session, showToast, isGuest, signOutGuest, userId]);
 
   const handlePlayAgain = useCallback(async () => {
     // Reset board and show expansion selection screen
@@ -285,16 +443,32 @@ export default function App() {
       lastMeeples: meeples,
       lastExpansions: expansions,
     });
+    setRankUpQueue([]);
     setTab('realms');
   }, [session, resetBoard, userId, isGuest]);
 
   const handleDelete = useCallback(async (id) => {
-    await appOperations.deleteGame(id);
+    try {
+      await appOperations.deleteGame(id);
+    } catch (err) {
+      showToast(`Failed to remove game: ${err?.message || 'Unknown error'}`);
+      return;
+    }
     showToast('Game removed.');
+    // No manual resync needed — the games-delete trigger
+    // (migrations/server_side_progress.sql) already recomputed user_progress
+    // server-side for every linked account in that realm. Deleting a game
+    // can only lower (never raise) milestone progress, so no celebration
+    // modal here either way.
   }, [appOperations.deleteGame, showToast]);
 
   const handleRealmDelete = useCallback(async (realmId) => {
-    await appOperations.removeRealm(realmId);
+    try {
+      await appOperations.removeRealm(realmId);
+    } catch (err) {
+      showToast(`Failed to delete realm: ${err?.message || 'Unknown error'}`);
+      return;
+    }
     const remaining = appData.realms.filter(r => r.id !== realmId);
     if (session?.realm?.id === realmId) {
       if (remaining.length > 0) {
@@ -365,27 +539,6 @@ export default function App() {
     if (id !== tab) setHubSpotlightRealmId(null);
     setTab(id);
   }, [session, isGuest, tab]);
-
-  // Demo data is baked permanently into guest mode — no toggle, no "turn it
-  // on for the tour" step: a guest's own games are never real (see
-  // appData.games above), so there's nothing else the Realms/Profile tours
-  // could walk through, and nothing else for a guest to see day to day
-  // either. A signed-in account, even with 0 recorded games, just uses its
-  // own real (if sparse) realms/stats instead — no demo data involved, and
-  // (see RealmsTab.jsx/Profile.jsx) it doesn't get the tour auto-opened for
-  // it either, unlike guests. For the Realms hub, the demo realm is
-  // *prepended* before whatever real realm a guest already has (see
-  // RealmsTab.jsx/RealmsHub.jsx's shelf sort, which pins it first
-  // regardless of date) rather than replacing it. Its chest/book are
-  // always clickable, not locked — clicking either one just engages the
-  // tour on that path (see handlePlayRealm/handleOpenBook in
-  // RealmsTab.jsx), starting it first if needed. Profile shows one
-  // account's aggregate stats rather than a list, so it keeps the simpler
-  // full-replace behavior via its own inline isGuest ternaries below
-  // instead of this prepended version.
-  const demoOn = isGuest;
-  const displayGames  = demoOn ? [...DEMO_GAMES,  ...appData.games]  : appData.games;
-  const displayRealms = demoOn ? [...DEMO_REALMS, ...appData.realms] : appData.realms;
 
   // Carcassonne expansion priority: Always show River and Abbot first since they're
   // commonly used foundational expansions that integrate well with other expansions.
@@ -502,6 +655,8 @@ export default function App() {
                         onExitToHub={exitPreGameToHub}
                         autoShowHowTo={howToShownForGameRef.current !== gameKey}
                         onHowToShown={() => { howToShownForGameRef.current = gameKey; }}
+                        onSessionUpdate={patch => setSession(prev => ({ ...prev, ...patch }))}
+                        ownedExpansions={ownedExpansions}
                       />
                     : session?.showRealmCreation
                       ? <PreGameSetup
@@ -565,8 +720,8 @@ export default function App() {
                       onTourActiveChange={handleTourActiveChange}
                     />
                   : <RealmsTab
-                      realms={displayRealms}
-                      games={displayGames}
+                      realms={appData.realms}
+                      games={appData.games}
                       onPlayRealm={handleRealmSelect}
                       onCreateRealm={() => setSession({ showRealmCreation: true })}
                       onDeleteGame={handleDelete}
@@ -593,16 +748,16 @@ export default function App() {
             {tab === 'home' && <Landing />}
             {tab === 'me' && (
               <Profile
-                games={demoOn ? DEMO_GAMES : appData.games}
-                realms={demoOn ? DEMO_REALMS : appData.realms}
-                expansions={demoOn ? DEMO_EXPANSIONS : appData.expansions}
-                userId={demoOn ? DEMO_USER_ID : userId}
-                displayName={demoOn ? DEMO_USER_NAME : displayName}
+                games={appData.games}
+                realms={appData.realms}
+                expansions={appData.expansions}
+                userId={userId}
+                displayName={displayName}
                 isGuest={isGuest}
                 tourShown={guestProfileTourShown}
                 onTourShown={() => setGuestProfileTourShown(true)}
                 storedMetaRank={storedMetaRank}
-                onMetaRankAchieved={isGuest ? setGuestMetaRank : updateHighestMetaRank}
+                onGuestMetaRankAchieved={isGuest ? setGuestMetaRank : null}
                 onChangeDisplayName={updateDisplayName}
                 onDeleteAccount={async () => { await deleteAccount(user?.id); signOut(); }}
                 onSignOut={() => { signOut(); goHome(); }}
@@ -614,7 +769,34 @@ export default function App() {
       )}
 
       {toast && <Toast message={toast} />}
-      
+
+      {/* Reachable regardless of tab/session. One shared device at the
+          table, so after a game is recorded this shows EVERY linked
+          player's pending celebration in turn (queue head = rankUpInfo,
+          advanced on each close) — playerName comes from the queue entry
+          itself, not always this account's own displayName, since most
+          entries here belong to other players in the realm. */}
+      {rankUpInfo && (
+        <RankUpModal
+          // Forces a full remount per queue entry — without a key tied to
+          // the current player, React reuses the same RankUpModal (and every
+          // Reel inside it) across queue advances, so each Reel's own
+          // `revealed` state (already true from the PREVIOUS player's
+          // completed animation) carries over and the next player's reel
+          // renders already-settled instead of replaying the scroll.
+          key={rankUpInfo.userId}
+          playerName={rankUpInfo.playerName}
+          beforeRank={rankUpInfo.beforeRank}
+          afterRank={rankUpInfo.afterRank}
+          beforeTierCount={rankUpInfo.beforeTierCount}
+          tierCount={rankUpInfo.tierCount}
+          categoryDiffs={rankUpInfo.categoryDiffs}
+          newChests={rankUpInfo.newChests}
+          newSpines={rankUpInfo.newSpines}
+          onClose={handleCloseRankUp}
+        />
+      )}
+
       {/* Footer */}
       <footer className="site-footer">
         {/* Space for future footer content */}

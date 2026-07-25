@@ -4,7 +4,7 @@ import RecordBadge from './RecordBadge';
 import ValInfo from './ValInfo';
 import ScoreTimelineChart from './ScoreTimelineChart';
 import { SCORE_TYPE_ORDER, SCORE_TYPE_COLORS, STATISTICS_CONFIG } from '../constants';
-import { getMeepleColor } from '../utils/formatters';
+import { getMeepleColor, formatDurationHMS } from '../utils/formatters';
 import pigImg from '../../images/icons/pig.png';
 import cImg   from '../../images/icons/C.png';
 
@@ -107,13 +107,10 @@ export default function Lightbox({ game, games = [], onNavigate, onClose, onDele
             {(game.gameDuration || 0) > 0 && (
               <>
                 <div style={{ width: '1px', height: '20px', background: 'var(--stone-gray)', opacity: 0.3 }} />
-                <div style={{ fontFamily: "'Crimson Text', serif", fontSize: 'clamp(0.8rem, 2.2vw, 0.95rem)', color: 'var(--stone-gray)', fontStyle: 'italic', whiteSpace: 'nowrap' }}>
-                  {(() => {
-                    const s = Math.floor(game.gameDuration / 1000);
-                    const h = Math.floor(s / 3600);
-                    const m = Math.floor((s % 3600) / 60);
-                    return h > 0 ? `${h}h ${m}m` : `${m}m`;
-                  })()}
+                <div className="game-clock">
+                  <div className="game-clock-housing">
+                    <span className="game-clock-digits game-clock-digits--record">{formatDurationHMS(game.gameDuration)}</span>
+                  </div>
                 </div>
               </>
             )}
@@ -158,20 +155,7 @@ export default function Lightbox({ game, games = [], onNavigate, onClose, onDele
                       }}>
                         {p.name}
                       </span>
-                      {/* Col 2: score — fixed width so every row's columns match */}
-                      <span style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        flexShrink: 0,
-                        width: 'calc(4ch + 0.85rem)',
-                        padding: '0 0.35rem 0 0.5rem',
-                        alignSelf: 'stretch',
-                      }}>
-                        <div className="postgame-score-display">
-                          {p.score}
-                        </div>
-                      </span>
-                      {/* Col 3: medal chips — reserved at the widest badge holder's count so
+                      {/* Col 2: medal chips — reserved at the widest badge holder's count so
                           every row matches, even players with none; badges left-align, wrap,
                           and shrink with the viewport */}
                       {maxBadgeCount > 0 && (
@@ -185,6 +169,22 @@ export default function Lightbox({ game, games = [], onNavigate, onClose, onDele
                           )}
                         </span>
                       )}
+                      {/* Col 3: score — pushed flush to the row's right edge (marginLeft:
+                          auto) regardless of whether badges are present */}
+                      <span style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        flexShrink: 0,
+                        marginLeft: 'auto',
+                        padding: '0 0 0 0.5rem',
+                        alignSelf: 'stretch',
+                      }}>
+                        <div className="game-clock">
+                          <div className="game-clock-housing">
+                            <span className="game-clock-digits game-clock-digits--score">{p.score}</span>
+                          </div>
+                        </div>
+                      </span>
                     </div>
                   </div>
                 );

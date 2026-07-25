@@ -77,7 +77,19 @@ export function useGameData(user, authLoading) {
       setLoading(false);
     }
     init();
-  }, [user, authLoading]);
+    // Keyed on user?.id, not the whole user object: Supabase's auth client
+    // silently refreshes the session (e.g. on browser-tab refocus) and fires
+    // onAuthStateChange with a NEW user object for the same account every
+    // time — depending on the object itself re-ran this full refetch (and
+    // its loading:true/false flip) on every such event, briefly unmounting
+    // the entire signed-in app tree (see App.jsx's `!appData.loading` gate)
+    // and, with it, anything that guards against re-firing via a mount-local
+    // ref, e.g. PostGameForm's auto-submit. Re-fetching only needs to happen
+    // on an actual sign-in/out/account-switch, which user?.id already
+    // captures — migrateFromLocalStorage/getExpansions/getRealms inside only
+    // ever read user.id/user.email anyway.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, authLoading]);
 
   /**
    * ADD GAME OPERATION

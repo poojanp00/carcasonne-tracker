@@ -14,9 +14,8 @@ export function chestFor(realm) {
 }
 
 // Cumulative chest count unlocked AT each rank (index 0 = rank 1 .. index 19
-// = rank 20/MAX_RANK). 3 chests available from the start, then +1 per rank
-// up to rank 20 (022.png).
-const CHEST_UNLOCK_SCHEDULE = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22];
+// = rank 20/MAX_RANK). One chest per rank, starting with 001.png at rank 1.
+const CHEST_UNLOCK_SCHEDULE = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20];
 
 // How many chests are unlocked at a given account rank — clamped to however
 // many chest images actually exist on disk today, so the schedule can be

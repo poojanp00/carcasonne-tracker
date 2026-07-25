@@ -30,3 +30,20 @@ export const DEFAULT_EXPANSIONS = [
   { name: 'Robbers',                     category: 'mini', type: 'mini', tiles: 8, perPlayer: ['robber'], fixed: [], owned: false, complete: false },
   { name: 'Crop Circles',                category: 'mini', type: 'mini', tiles: 6, perPlayer: [], fixed: [], owned: false, complete: false },
 ];
+
+// Full-type expansion names — used only by utils/stats.js calcAccountStats
+// to compute the 'expansions' milestone category's progress. Defaults to
+// deriving from DEFAULT_EXPANSIONS above; applyFullExpansionNames() replaces
+// the contents in place (once, at app load) from the authoritative
+// migrations/milestone_config.sql full_expansions table, so this always
+// agrees with the same list the server-side rank computation uses — see
+// data/storage.js getFullExpansionNames.
+export const FULL_EXPANSION_NAMES = new Set(
+  DEFAULT_EXPANSIONS.filter(e => e.type === 'full').map(e => e.name)
+);
+
+export function applyFullExpansionNames(names) {
+  if (!names) return; // fetch failed — keep the built-in fallback
+  FULL_EXPANSION_NAMES.clear();
+  for (const n of names) FULL_EXPANSION_NAMES.add(n);
+}

@@ -13,7 +13,7 @@ const STEPS = [
 // the Realms hub's loop above since it only ever runs on the two
 // create-realm sub-steps in PreGameSetup.jsx.
 const CREATE_REALM_TOUR_STAGES = [
-  { title: 'Create New Realm', text: 'Name your realm and the players.' },
+  { title: 'Create New Realm', text: 'Name your realm and add the players.' },
   { title: 'Chest & Logbook', text: 'Chests store game pieces while logbooks record game history.' },
 ];
 
@@ -28,8 +28,8 @@ const PLAY_PATH_STAGES = [
   { key: 'begin',      title: 'Begin',      text: 'Click Begin when you\'re ready to start the game.' },
 ];
 const BOOK_PATH_STAGES = [
-  { key: 'overview', title: 'Overview', text: 'The logbook contains the realm\'s overall statistics.' },
-  { key: 'roster',   title: 'Roster',   text: 'Player stats are stored here. Tap a player\'s card to view their trophies.' },
+  { key: 'overview', title: 'Overview', text: 'The overview contains general realm statistics.' },
+  { key: 'roster',   title: 'Roster',   text: 'Individual player stats are stored here. Tap a player\'s card to view their trophies.' },
   { key: 'gamelog',  title: 'Game log', text: 'Explore match history. Click an entry to inspect its data.' },
 ];
 const REALM_TOUR_STAGES = [...PLAY_PATH_STAGES, ...BOOK_PATH_STAGES];

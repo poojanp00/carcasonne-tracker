@@ -606,9 +606,85 @@ input[type="search"], input[type="number"] {
 }
 
 /* Board styles */
+
+/* Stadium-clock game timer (Board.jsx) — a brass bezel (echoing the app's
+   warm-gold tile borders) framing a black recessed LED housing, so it reads
+   as a scoreboard clock bolted into the rest of the medieval scoreboard
+   rather than a foreign sci-fi element. Sized small and inline, next to the
+   Score Log title. */
+.game-clock {
+  display: inline-flex;
+  flex-shrink: 0;
+  padding: 1px;
+  border-radius: 4px;
+  background: linear-gradient(135deg, #E4C878, var(--warm-gold) 45%, #7A5B24);
+  box-shadow: var(--shadow-sm);
+}
+.game-clock-housing {
+  background: linear-gradient(180deg, #161616, #000000);
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(0.02rem, 2.5cqw, 0.24rem) clamp(0.04rem, 3cqw, 0.32rem);
+  box-shadow:
+    inset 0 1px 2px rgba(0, 0, 0, 0.95),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.05),
+    0 1px 0 rgba(255, 255, 255, 0.08);
+}
+.game-clock-digits {
+  display: block;
+  /* Width fixed in em (fits "00:00", the widest of MM:SS / H:MM) so the
+     housing never resizes as digits change — Orbitron doesn't reliably
+     honor tabular-nums, so relying on shrink-to-fit content jitters every
+     tick. Font-size is a container-width clamp (cqw, keyed off .board-log's
+     own inline-size — see container-type there) rather than vw, so it
+     shrinks off the actual narrow grid column instead of the viewport,
+     which barely moves within this column's realistic width range — the
+     em width just tracks whichever size the clamp lands on. */
+  width: 3.8em;
+  text-align: center;
+  font-family: 'Orbitron', 'Courier New', monospace;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  font-size: clamp(0.4rem, 7cqw, 0.68rem);
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  color: #FFB300;
+  text-shadow:
+    0 0 2px rgba(255, 179, 0, 0.9),
+    0 0 6px rgba(255, 179, 0, 0.5);
+}
+
+/* Record-view variant of the stadium clock, used wherever a FINISHED game's
+   duration is read back (post-game form, logbook lightbox) rather than
+   ticking live — same brass-bezel/LED-housing look as .game-clock-digits
+   above, but sized in vw instead of cqw (these info bars aren't nested in
+   .board-log's inline-size container) and widened to fit the full HH:MM:SS
+   these views always show, all six digits, since it's a record, not a timer. */
+.game-clock-digits--record {
+  width: 6.4em; /* fits "00:00:00" without clipping the last digit */
+  font-size: clamp(0.68rem, 2vw, 0.8rem);
+}
+
+/* Final-score variant of the same stadium-clock housing (post-game form,
+   logbook lightbox) — a player's score read back as another "record"
+   number, same LED look, just narrower (3 digits comfortably covers every
+   real Carcassonne score) and a touch larger since it's the focal number
+   of the row rather than a secondary detail. */
+.game-clock-digits--score {
+  width: 2.6em;
+  font-size: clamp(0.8rem, 2.4vw, 1rem);
+}
+
 .board-ui {
   display: grid;
-  grid-template-columns: 1fr 3fr 1.2fr;
+  /* board-log's Score Log title + game-clock header need a real floor —
+     plain `1fr` has no minimum and can shrink arbitrarily narrow, which is
+     what was actually forcing that row to wrap regardless of how far the
+     header's own font-size clamps were pushed down. 200px comfortably fits
+     both at their normal (ceiling) size. */
+  grid-template-columns: minmax(200px, 1fr) 3fr 1.2fr;
   gap: 1.2rem;
   align-items: stretch;
 }
@@ -682,6 +758,11 @@ input[type="search"], input[type="number"] {
   overflow: hidden;
   height: 0;                    /* don't drive grid row height — board canvas defines it */
   min-height: max(220px, 100%); /* floor on narrow screens; stretch to fill row on wide */
+  /* Its own narrow grid column (not the viewport) is what actually squeezes
+     the Score Log title + game-clock header — container queries (cqw below,
+     in Board.jsx's inline styles and .game-clock*) size off THIS box's width
+     instead of vw, which barely moves within this column's realistic range. */
+  container-type: inline-size;
 }
 
 .board-log-entries {
@@ -789,6 +870,25 @@ input[type="search"], input[type="number"] {
 }
 .p1 .player-card-name { color: var(--deep-red); }
 .p2 .player-card-name { color: var(--royal-blue); }
+
+/* Account rank badge — shown on a PlayerCard only for players linked to a
+   real account (self or a realm co-member); see PlayerCard.jsx's `progress`
+   prop. A real button (not a span) — click opens MemberProgressModal, that
+   member's current milestone standing; background/cursor reset since it's a
+   <button>, not just a display chip. */
+.player-card-rank-badge {
+  font-family: 'Cinzel', serif;
+  font-size: 0.6rem;
+  font-weight: 600;
+  padding: 0.1rem 0.4rem;
+  border: 1px solid var(--warm-gold);
+  border-radius: 8px;
+  background: none;
+  color: var(--stone-gray);
+  white-space: nowrap;
+  flex-shrink: 0;
+  cursor: var(--cursor-pointer);
+}
 
 /* ── Player card subtitle ── */
 .milestones-subtitle {
@@ -1949,7 +2049,7 @@ input[type="file"] { display: none; }
      to a book cover's ~0.75 aspect than the old narrow-spine ~0.2) — at
      max chest+book height the row can now need up to ~250px, which the
      old 240px cap didn't leave room for. */
-  width: clamp(200px, 34vw, 300px);
+  width: clamp(140px, 34vw, 300px);
 }
 .realm-card-art-row {
   display: flex;
@@ -1971,13 +2071,13 @@ input[type="file"] { display: none; }
 .realm-card-book:disabled { cursor: var(--cursor-arrow); }
 .realm-card-chest img {
   display: block;
-  height: clamp(84px, 14vw, 120px);
+  height: clamp(58px, 14vw, 120px);
   width: auto;
   filter: drop-shadow(3px 4px 6px rgba(43, 27, 10, 0.4));
 }
 .realm-card-book img {
   display: block;
-  height: clamp(78px, 13vw, 110px);
+  height: clamp(54px, 13vw, 110px);
   width: auto;
   filter: drop-shadow(3px 4px 6px rgba(43, 27, 10, 0.4));
 }
@@ -2046,14 +2146,6 @@ input[type="file"] { display: none; }
   flex-shrink: 0;
 }
 
-.postgame-score-display {
-  font-family: 'Cinzel', serif;
-  font-size: clamp(0.88rem, 2.2vw, 1.1rem);
-  font-weight: 700;
-  color: var(--earth-brown);
-  letter-spacing: 0.04em;
-  flex-shrink: 0;
-}
 
 /* ── History results column ── */
 .history-results {
@@ -2323,6 +2415,7 @@ input[type="file"] { display: none; }
   font-size: clamp(1.05rem, 3vw, 1.5rem);
   color: var(--charcoal);
   line-height: 1;
+  text-align: center;
 }
 .profile-stat-label {
   font-family: 'Cinzel', serif;
@@ -2333,12 +2426,27 @@ input[type="file"] { display: none; }
   text-align: center;
 }
 
-/* Account milestones carousel (Profile tab) */
+/* Account milestones carousel (Profile tab). The section stretches to match
+   the hero card's height (me-hero-grid's first row is align-items: stretch,
+   set inline in Profile.jsx) — the carousel itself grows to fill that, with
+   only the dot pagination below taking its own natural (small) height, per
+   the "same height as the character card, minus room for the paginator" ask. */
+.milestone-carousel-section {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
 .milestone-carousel {
   position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
 }
 .milestone-carousel-track {
   display: flex;
+  flex: 1;
+  min-height: 0; /* let the flex item size from its container instead of its content */
   overflow-x: auto;
   scroll-snap-type: x mandatory;
   -webkit-overflow-scrolling: touch;
@@ -2353,7 +2461,12 @@ input[type="file"] { display: none; }
   scroll-snap-stop: always;
   display: flex; /* equal-height slides */
 }
-.milestone-carousel-slide > * { width: 100%; }
+/* Card is narrower than its slide (not 100%) so a visible gutter shows on
+   both sides — reads as "a card in a scrollable deck" rather than a single
+   full-bleed panel. The slide itself stays 100% (JS scroll-position math in
+   MilestoneCarousel.jsx assumes one el.clientWidth per slide) — only the
+   card inside is narrower. */
+.milestone-carousel-slide > * { width: 84%; margin: 0 auto; }
 .milestone-carousel-arrow {
   position: absolute;
   top: 50%;
@@ -2403,9 +2516,18 @@ input[type="file"] { display: none; }
 .milestone-card {
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  justify-content: flex-start; /* header pinned top; .milestone-card-image-slot pushes the progress block to the bottom */
+  height: 100%;
   gap: 0.55rem;
   padding: 1rem 2.6rem; /* keeps text clear of the overlapping arrows */
+}
+/* Flexible spacer reserving room for a future category illustration —
+   grows to fill whatever height the card has (it matches the hero card's
+   height, see .milestone-carousel-section) beyond the header + progress
+   block's natural size. */
+.milestone-card-image-slot {
+  flex: 1;
+  min-height: 3rem;
 }
 @media (hover: none) and (pointer: coarse) {
   .milestone-card { padding: 1rem 1.2rem; } /* arrows hidden on touch — reclaim the space */
@@ -2599,6 +2721,7 @@ input[type="file"] { display: none; }
   padding-top: 1rem;
   border-top: 1px dashed var(--warm-gold);
 }
+.book-header button:disabled,
 .book-nav button:disabled {
   opacity: 0.35;
   pointer-events: none;
@@ -2658,4 +2781,191 @@ input[type="file"] { display: none; }
 
 @media (max-width: 640px) {
   .profile-hero-stats { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* ── Rank-up / milestone celebration modal (RankUpModal.jsx) ── */
+.rankup-modal {
+  position: relative;
+  overflow: hidden;
+}
+/* Many categories crossing a tier at once (or several new chests/logbooks)
+   can outgrow the viewport. Rather than an inner scrollbox inside the card
+   (a max-height + overflow-y on .rankup-modal), the OVERLAY itself scrolls,
+   top-anchored — the whole thing scrolls along like a normal page (the
+   Library/game-log pages), not a boxed-in scroll pane. Scoped to this
+   modal's own overlay instance, not the shared .realm-modal-overlay default
+   every other (short, always-fits) modal uses. */
+.rankup-modal-overlay {
+  align-items: flex-start;
+  overflow-y: auto;
+  padding-top: 3rem;
+  padding-bottom: 3rem;
+}
+
+/* Floating golden embers drifting up from the bottom of the card, looping for
+   as long as the modal stays open — a subtle ambient "juice" layer, not tied
+   to any one moment. */
+.rankup-embers {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+.rankup-ember {
+  position: absolute;
+  bottom: -10px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff2c9 0%, #c9a34a 55%, transparent 75%);
+  box-shadow: 0 0 6px 2px rgba(201, 163, 74, 0.55);
+  opacity: 0;
+  animation: rankup-ember-rise linear infinite;
+}
+@keyframes rankup-ember-rise {
+  0%   { transform: translateY(0) scale(1);     opacity: 0; }
+  12%  { opacity: 1; }
+  100% { transform: translateY(-220px) scale(0.3); opacity: 0; }
+}
+
+/* One-shot light burst behind the title on reveal — a quick radial flash,
+   not a loop, so it reads as "this moment" rather than ambient background. */
+.rankup-burst {
+  position: absolute;
+  top: -40px;
+  left: 50%;
+  width: 320px;
+  height: 320px;
+  transform: translateX(-50%);
+  background: radial-gradient(circle, rgba(255, 236, 180, 0.55) 0%, rgba(201, 163, 74, 0.18) 45%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+  animation: rankup-burst-flash 1.1s ease-out forwards;
+}
+@keyframes rankup-burst-flash {
+  0%   { opacity: 0; transform: translateX(-50%) scale(0.6); }
+  30%  { opacity: 1; }
+  100% { opacity: 0; transform: translateX(-50%) scale(1.15); }
+}
+
+/* Generic slot-machine reel — see Reel in RankUpModal.jsx. The track holds
+   every item stacked vertically; translateY animates it into view. Purely
+   structural (position/overflow/transition) so the same mechanism drives the
+   rank line, a milestone category's tier-name transition, and the total-
+   milestones count — each variant supplies its own look below. */
+.rankup-reel {
+  position: relative;
+  overflow: hidden;
+  z-index: 1;
+}
+.rankup-reel-track {
+  transition-property: transform;
+  transition-timing-function: cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+.rankup-reel-row {
+  display: flex;
+  align-items: center;
+}
+
+/* Rank reel's own box — the player name sits beside it (plain text, not
+   part of the box); passed as the Reel's className like the other variants. */
+.rankup-reel-rank {
+  padding: 0 1.1rem;
+  border-top: 1px solid rgba(201, 163, 74, 0.35);
+  border-bottom: 1px solid rgba(201, 163, 74, 0.35);
+  background: rgba(255, 250, 235, 0.5);
+}
+.rankup-player-name {
+  font-family: 'Cinzel', serif;
+  font-weight: 700;
+  font-size: clamp(0.85rem, 2.4vw, 1.05rem);
+  color: var(--earth-brown);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rankup-rank-text {
+  font-family: 'Cinzel', serif;
+  font-weight: 700;
+  font-size: clamp(0.95rem, 2.6vw, 1.15rem);
+  color: var(--earth-brown);
+}
+
+/* Per-category tier-name reel — only the tier name itself sits in a light
+   box (the category label beside it is plain text), pushed to the row's
+   right edge by the row's own justify-content: space-between, the same way
+   the total-milestones count sits at the right of its heading row.
+   Horizontal padding only — this element also has overflow:hidden and a
+   fixed height (rowHeight, set inline by Reel); vertical padding would grow
+   the box past that height in the content-box model, widening the clipped
+   "window" so the next stacked item peeks in from the edge. Reel's rowHeight
+   prop is the only thing that should ever control this box's height. */
+.rankup-reel-tier {
+  flex-shrink: 0;
+  padding: 0 1.1rem;
+  border-radius: 8px;
+  /* Same box color as the rank reel above (.rankup-reel-rank) for a
+     consistent look across every boxed reel in the modal. */
+  background: rgba(255, 250, 235, 0.5);
+  border: 1px solid rgba(201, 163, 74, 0.35);
+}
+.rankup-reel-tier .rankup-reel-row {
+  font-family: 'Crimson Text', serif;
+  font-size: 1.05rem;
+  color: var(--charcoal);
+  white-space: nowrap;
+}
+
+/* Total-milestones count, next to the "Milestones Achieved" heading — the
+   same stadium-clock LED-housing look as the board's game-clock (.game-clock
+   in the Board styles section), just in yellow and with no colon to separate
+   (it's a plain count, not a time). */
+.rankup-milestone-count {
+  padding: 0 2px;
+  border-radius: 6px;
+  background: linear-gradient(135deg, #E4C878, var(--warm-gold) 45%, #7A5B24);
+  box-shadow: var(--shadow-sm);
+}
+.rankup-milestone-count .rankup-reel-track {
+  min-width: 2.6rem;
+  padding: 0 0.7rem;
+  border-radius: 5px;
+  background: linear-gradient(180deg, #161616, #000000);
+  box-shadow:
+    inset 0 1px 2px rgba(0, 0, 0, 0.95),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.05),
+    0 1px 0 rgba(255, 255, 255, 0.08);
+}
+.rankup-milestone-count .rankup-reel-row {
+  font-family: 'Orbitron', 'Courier New', monospace;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  font-size: 1.2rem;
+  letter-spacing: 0.04em;
+  color: #FFEB3B;
+  text-shadow:
+    0 0 2px rgba(255, 235, 59, 0.9),
+    0 0 6px rgba(255, 235, 59, 0.5);
+}
+
+/* Glowing frame around newly-unlocked chest/logbook art. */
+.rankup-art-frame {
+  position: relative;
+  z-index: 1;
+  padding: 8px;
+  border-radius: 10px;
+  border: 2px solid var(--warm-gold);
+  background: radial-gradient(circle, rgba(255, 236, 180, 0.3), transparent 70%);
+  box-shadow: 0 0 10px 3px rgba(201, 163, 74, 0.5);
+  animation: rankup-frame-pulse 2s ease-in-out infinite;
+}
+@keyframes rankup-frame-pulse {
+  0%, 100% { box-shadow: 0 0 8px 2px rgba(201, 163, 74, 0.4); }
+  50%      { box-shadow: 0 0 16px 5px rgba(201, 163, 74, 0.75); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rankup-ember, .rankup-burst, .rankup-art-frame { animation: none; }
+  .rankup-reel-track { transition: none; }
 }

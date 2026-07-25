@@ -70,3 +70,19 @@ export function formatPieceName(name) {
 export function getToday() {
   return new Date().toISOString().split('T')[0];
 }
+
+/**
+ * Format a finished game's duration as a fixed HH:MM:SS record — all six
+ * digits always shown (unlike the board's live MM:SS/H:MM clock, which
+ * drops the hour digit while it's still ticking) since this is a frozen
+ * record being read back, not a timer counting up.
+ * @param {number} ms - Duration in milliseconds
+ * @returns {string} e.g. "01:23:45"
+ */
+export function formatDurationHMS(ms) {
+  const s = Math.max(0, Math.floor((ms || 0) / 1000));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  return [h, m, sec].map((n) => String(n).padStart(2, '0')).join(':');
+}
