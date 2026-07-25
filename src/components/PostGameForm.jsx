@@ -5,7 +5,7 @@ import ValInfo from './ValInfo';
 import PointBreakdownChart from './PointBreakdownChart';
 import ScoreTimelineChart from './ScoreTimelineChart';
 import { transformMaxFeaturesToUI } from '../utils/achievements';
-import { getMeepleColor, getToday } from '../utils/formatters';
+import { getMeepleColor, getToday, formatDurationHMS } from '../utils/formatters';
 import { computeWinners } from '../utils/scoring';
 import { chestFor } from '../data/chests';
 import { STATISTICS_CONFIG } from '../constants';
@@ -142,8 +142,10 @@ export default function GameLogForm({ session, ownedExpansions, onSubmit, onCanc
           {new Date(date).toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}
         </div>
         <div style={{ width: '1px', height: '20px', background: 'var(--stone-gray)', opacity: 0.3 }} />
-        <div style={{ fontFamily: "'Crimson Text', serif", fontSize: 'clamp(0.8rem, 2.2vw, 0.95rem)', color: 'var(--stone-gray)', fontStyle: 'italic' }}>
-          {Math.floor(gameDuration / 60000)}m {Math.floor((gameDuration % 60000) / 1000)}s
+        <div className="game-clock">
+          <div className="game-clock-housing">
+            <span className="game-clock-digits game-clock-digits--record">{formatDurationHMS(gameDuration)}</span>
+          </div>
         </div>
         <div style={{ width: '1px', height: '20px', background: 'var(--stone-gray)', opacity: 0.3 }} />
         <div style={{ fontFamily: "'Crimson Text', serif", fontSize: 'clamp(0.8rem, 2.2vw, 0.95rem)', color: 'var(--stone-gray)', fontStyle: 'italic' }}>
@@ -190,20 +192,7 @@ export default function GameLogForm({ session, ownedExpansions, onSubmit, onCanc
                   }}>
                     {name}
                   </span>
-                  {/* Col 2: score — fixed width so every row's columns match */}
-                  <span style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    flexShrink: 0,
-                    width: 'calc(4ch + 0.85rem)',
-                    padding: '0 0.35rem 0 0.5rem',
-                    alignSelf: 'stretch',
-                  }}>
-                    <div className="postgame-score-display">
-                      {finalScores[name] ?? 0}
-                    </div>
-                  </span>
-                  {/* Col 3: medal chips — reserved at the widest badge holder's count so
+                  {/* Col 2: medal chips — reserved at the widest badge holder's count so
                       every row matches, even players with none; badges left-align, wrap,
                       and shrink with the viewport */}
                   {maxBadgeCount > 0 && (
@@ -217,6 +206,22 @@ export default function GameLogForm({ session, ownedExpansions, onSubmit, onCanc
                       )}
                     </span>
                   )}
+                  {/* Col 3: score — pushed flush to the row's right edge (marginLeft:
+                      auto) regardless of whether badges are present */}
+                  <span style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    flexShrink: 0,
+                    marginLeft: 'auto',
+                    padding: '0 0 0 0.5rem',
+                    alignSelf: 'stretch',
+                  }}>
+                    <div className="game-clock">
+                      <div className="game-clock-housing">
+                        <span className="game-clock-digits game-clock-digits--score">{finalScores[name] ?? 0}</span>
+                      </div>
+                    </div>
+                  </span>
                 </div>
               </div>
             );

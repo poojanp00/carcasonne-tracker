@@ -102,9 +102,11 @@ export async function saveRealm(realm, userId) {
  */
 export async function deleteRealm(realmId) {
   // Step 1: Delete all games in this realm
-  await supabase.from('games').delete().eq('realm_id', realmId);
+  const { error: gamesErr } = await supabase.from('games').delete().eq('realm_id', realmId);
+  if (gamesErr) throw new Error(gamesErr.message || 'Failed to delete realm games');
   // Step 2: Delete the realm itself
-  await supabase.from('realms').delete().eq('id', realmId);
+  const { error: realmErr } = await supabase.from('realms').delete().eq('id', realmId);
+  if (realmErr) throw new Error(realmErr.message || 'Failed to delete realm');
 }
 
 // ── Realm sharing (invites & membership) ─────────────────────────────────────
@@ -255,7 +257,7 @@ export async function insertGame(game) {
   // Map to database column names
   const maxFeatures = game.maxFeatures || {};
 
-  await supabase.from('games').insert({
+  const { error } = await supabase.from('games').insert({
     id:               game.id,
     realm_id:         game.realmId  || null, // Optional realm association
     date:             game.date,              // YYYY-MM-DD format
@@ -277,6 +279,7 @@ export async function insertGame(game) {
     most_monastery:    maxFeatures.monastery   || null,
     best_trader:       maxFeatures.bestTrader  || null,
   });
+  if (error) throw new Error(error.message || 'Failed to record game');
 }
 
 /**
@@ -288,7 +291,8 @@ export async function insertGame(game) {
  * @param {string} id - Game UUID to delete
  */
 export async function removeGame(id) {
-  await supabase.from('games').delete().eq('id', id);
+  const { error } = await supabase.from('games').delete().eq('id', id);
+  if (error) throw new Error(error.message || 'Failed to remove game');
 }
 
 // ── Expansions ────────────────────────────────────────────────────────────────
@@ -342,17 +346,173 @@ export async function updateDisplayName(name) {
   if (error) throw new Error(error.message || 'Failed to update display name');
 }
 
+// ── Rank/milestone progress (migrations/add_user_progress.sql +
+//    migrations/server_side_progress.sql + migrations/rank_up_acknowledgement.sql) ──
+// Computed and kept up to date entirely server-side now: a trigger recomputes
+// every linked account's row whenever any game is inserted/deleted, a realm
+// is deleted, expansion ownership changes, or a realm invite is accepted —
+// see server_side_progress.sql. The client's only remaining write is
+// acknowledgeRankUp, marking a celebration as already shown; it never
+// computes or pushes the progress numbers themselves anymore.
+
 /**
- * Persist the highest meta-rank the account has ever achieved
- * (auth user_metadata.highest_meta_rank). Only ever written upward — the
- * displayed rank is max(computed, stored) so it never visibly regresses,
- * even if the total tier pool grows later.
+ * This account's own cached rank/milestone snapshot, including the
+ * "last celebrated" markers used to decide whether to show RankUpModal.
+ * Read directly from the table (RLS already permits self-select), no RPC
+ * needed. Null if no row exists yet (an account with no games/realms/
+ * expansions ever recorded — the games/realm/expansions triggers create the
+ * row on first activity) — callers should treat that as rank 1 / 0 tiers.
  *
- * @param {number} rank - Meta rank (1-20)
+ * @param {string} userId
+ * @returns {Promise<{rank:number, tierCount:number, categoryProgress:object, gamesCount:number, lastCelebratedRank:number, lastCelebratedTierCount:number, lastCelebratedCategoryProgress:object}|null>}
  */
-export async function updateHighestMetaRank(rank) {
-  const { error } = await supabase.auth.updateUser({ data: { highest_meta_rank: rank } });
-  if (error) throw new Error(error.message || 'Failed to update meta rank');
+export async function getUserProgress(userId) {
+  if (!userId) return null;
+  const { data, error } = await supabase
+    .from('user_progress')
+    .select('rank, tier_count, category_progress, games_count, last_celebrated_rank, last_celebrated_tier_count, last_celebrated_category_progress')
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (error || !data) return null;
+  return {
+    rank:                           data.rank,
+    tierCount:                      data.tier_count,
+    categoryProgress:               data.category_progress || {},
+    gamesCount:                     data.games_count,
+    lastCelebratedRank:             data.last_celebrated_rank,
+    lastCelebratedTierCount:        data.last_celebrated_tier_count,
+    lastCelebratedCategoryProgress: data.last_celebrated_category_progress || {},
+  };
+}
+
+/**
+ * Mark a rank-up/milestone celebration as shown, so it doesn't re-fire next
+ * time this account's progress is checked. Ratchets server-side (never
+ * regresses "have I shown this," even if called from two devices) — see
+ * acknowledge_rank_up in rank_up_acknowledgement.sql.
+ *
+ * @param {number} rank - the rank just celebrated (the "after" value)
+ * @param {number} tierCount
+ * @param {object} categoryProgress - { [categoryId]: { progress, tierNumber } }
+ */
+export async function acknowledgeRankUp(rank, tierCount, categoryProgress) {
+  const { error } = await supabase.rpc('acknowledge_rank_up', {
+    p_rank: rank,
+    p_tier_count: tierCount,
+    p_category_progress: categoryProgress,
+  });
+  if (error) throw new Error(error.message || 'Failed to acknowledge rank-up');
+}
+
+/**
+ * Every linked account's full progress snapshot for one realm (migrations/
+ * realm_celebrations.sql) — used to show every player's pending rank-up/
+ * milestone celebration on the controller's own screen right after a shared
+ * game is recorded (this app is used around one shared device at the table,
+ * not each player checking their own phone later). Wider payload than
+ * getRealmMemberProgress (rank badge only, a separate feature) — same
+ * access-gating shape (can_access_realm), just more data since everyone
+ * playing is right there anyway. Returns [] on error.
+ */
+export async function getRealmCelebrations(realmId) {
+  const { data, error } = await supabase.rpc('get_realm_celebrations', {
+    p_realm_id: realmId,
+  });
+  if (error) {
+    console.warn('getRealmCelebrations failed:', error.message);
+    return [];
+  }
+  return (data || []).map(r => ({
+    userId:                         r.user_id,
+    name:                           r.name,
+    rank:                           r.rank,
+    tierCount:                      r.tier_count,
+    categoryProgress:               r.category_progress || {},
+    gamesCount:                     r.games_count,
+    lastCelebratedRank:             r.last_celebrated_rank,
+    lastCelebratedTierCount:        r.last_celebrated_tier_count,
+    lastCelebratedCategoryProgress: r.last_celebrated_category_progress || {},
+  }));
+}
+
+/**
+ * Acknowledge a rank-up/milestone celebration on behalf of a DIFFERENT
+ * linked account in a shared realm (the controller dismissing a co-member's
+ * celebration on the shared screen) — gated by realm co-membership rather
+ * than requiring the target account itself to call it.
+ *
+ * @param {string} realmId
+ * @param {string} targetUserId - the OTHER account being acknowledged for
+ */
+export async function acknowledgeRankUpFor(realmId, targetUserId, rank, tierCount, categoryProgress) {
+  const { error } = await supabase.rpc('acknowledge_rank_up_for', {
+    p_realm_id: realmId,
+    p_user_id: targetUserId,
+    p_rank: rank,
+    p_tier_count: tierCount,
+    p_category_progress: categoryProgress,
+  });
+  if (error) throw new Error(error.message || 'Failed to acknowledge rank-up');
+}
+
+// ── Milestone/rank numeric config (migrations/milestone_config.sql) ──────────
+// Single source of truth for category/tier thresholds, which expansions
+// count as "full", and max rank — shared with the server-side computation in
+// compute_account_progress, so the client's own math can never silently
+// disagree with it. Display-only fields (names, images, labels) stay
+// static JS; see data/accountMilestones.js applyMilestoneConfig / data/
+// expansions.js applyFullExpansionNames / utils/metaRank.js applyMaxRank.
+
+export async function getMilestoneConfig() {
+  const [{ data: categories, error: catErr }, { data: tiers, error: tierErr }] = await Promise.all([
+    supabase.from('milestone_categories').select('id, metric, types, sort_order'),
+    supabase.from('milestone_tiers').select('category_id, tier_number, threshold'),
+  ]);
+  if (catErr || tierErr || !categories || !tiers) {
+    console.warn('getMilestoneConfig failed (using built-in fallback values):', catErr?.message || tierErr?.message);
+    return null;
+  }
+  return { categories, tiers };
+}
+
+export async function getFullExpansionNames() {
+  const { data, error } = await supabase.from('full_expansions').select('name');
+  if (error || !data) {
+    console.warn('getFullExpansionNames failed (using built-in fallback values):', error?.message);
+    return null;
+  }
+  return data.map(r => r.name);
+}
+
+export async function getMaxRankConfig() {
+  const { data, error } = await supabase.from('app_config').select('value').eq('key', 'max_rank').maybeSingle();
+  if (error || !data) {
+    console.warn('getMaxRankConfig failed (using built-in fallback value):', error?.message);
+    return null;
+  }
+  return Number(data.value);
+}
+
+/**
+ * Rank + current milestone standing for a realm's linked co-members
+ * (Fellowship/PlayerCard) — current state only, not a history of past
+ * rank-up/milestone events. Same access-gating shape as getRealmMemberEmails.
+ * Returns a { userId: { rank, tierCount, categoryProgress } } map; empty on
+ * error (rank badges/milestone views just don't show).
+ */
+export async function getRealmMemberProgress(realmId) {
+  const { data, error } = await supabase.rpc('get_realm_member_progress', {
+    p_realm_id: realmId,
+  });
+  if (error) {
+    console.warn('getRealmMemberProgress failed (rank badges disabled):', error.message);
+    return {};
+  }
+  return Object.fromEntries((data || []).map(r => [r.user_id, {
+    rank:             r.rank,
+    tierCount:        r.tier_count,
+    categoryProgress: r.category_progress || {},
+  }]));
 }
 
 // ── Account deletion ──────────────────────────────────────────────────────────

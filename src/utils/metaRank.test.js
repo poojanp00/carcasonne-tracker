@@ -1,16 +1,16 @@
 import { describe, it, expect } from 'vitest';
 import {
-  TOTAL_TIERS,
-  MAX_RANK,
+  getTotalTiers,
+  getMaxRank,
   tiersRequiredForRank,
   getCurrentRank,
   rankTitle,
   countUnlockedTiers,
 } from './metaRank';
 
-describe('TOTAL_TIERS', () => {
+describe('getTotalTiers', () => {
   it('is derived from the config (13 categories × 4 tiers today)', () => {
-    expect(TOTAL_TIERS).toBe(52);
+    expect(getTotalTiers()).toBe(52);
   });
 });
 
@@ -37,8 +37,8 @@ describe('getCurrentRank', () => {
   });
 
   it('returns max rank with every tier unlocked', () => {
-    expect(getCurrentRank(33, 33)).toBe(MAX_RANK);
-    expect(rankTitle(MAX_RANK)).toBe('Master of Carcassonne');
+    expect(getCurrentRank(33, 33)).toBe(getMaxRank());
+    expect(rankTitle(getMaxRank())).toBe('Master of Carcassonne');
   });
 
   it('holds a rank until the next requirement is met', () => {
@@ -56,8 +56,8 @@ describe('getCurrentRank', () => {
     expect(getCurrentRank(2, 33)).toBe(3);
   });
 
-  it('never exceeds MAX_RANK even with excess tiers', () => {
-    expect(getCurrentRank(1000, 33)).toBe(MAX_RANK);
+  it('never exceeds getMaxRank() even with excess tiers', () => {
+    expect(getCurrentRank(1000, 33)).toBe(getMaxRank());
   });
 });
 

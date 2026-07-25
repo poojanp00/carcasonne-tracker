@@ -23,11 +23,12 @@ const demoPlayers = (names) => names.map((name, i) =>
     : { name, userId: null, status: 'uninvited' }
 );
 
-// `isDemo` marks this as fake data even when it's appended alongside a
-// real account's own realms (see App.jsx's displayRealms) rather than
-// replacing them outright — RealmsHub/RealmBook use it to keep demo-only
-// restrictions (locked chest, no delete, no settings) scoped to this card
-// specifically instead of accidentally locking the user's real realms too.
+// `isDemo` marks this as fake data — RealmBook/RealmsTab use it to keep
+// demo-only handling (locked chest, no delete, no settings, never rendered
+// as its own shelf card, see RealmsTab.jsx's DEMO_REALM) scoped to this
+// realm specifically. Logbook is pinned to 001.png (index 0) — the same one
+// every guest's own real realm is locked to — so the demo logbook the tour
+// shows matches what they'd actually get.
 export const DEMO_REALMS = [
   {
     id: 'demo-realm-3',
@@ -35,7 +36,7 @@ export const DEMO_REALMS = [
     players: demoPlayers(['Alex', 'Sam', 'Jordan', 'Elena']),
     created_at: '2026-02-10T00:00:00.000Z',
     isOwner: true,
-    spine: 14,
+    spine: 0,
     isDemo: true,
   },
 ];

@@ -1,6 +1,7 @@
 import { useMemo, useState, useEffect } from 'react';
 import { DEFAULT_EXPANSIONS } from '../data/expansions';
 import { calcGroupStats, calcPlayerRecords, calcRealmStandings, calcPlayerTrophyTallies } from '../utils/stats';
+import { getRealmMemberProgress } from '../data/storage';
 import PlayerCard, { PLAYER_COLOR_CLASSES } from './PlayerCard';
 import PointBreakdownChart from './PointBreakdownChart';
 import Lightbox from './Lightbox';
@@ -162,7 +163,7 @@ function OverviewPage({ realm, realmGames, standings, onOpenGame }) {
   );
 }
 
-function FellowshipPage({ standings, realmGames, onOpenGame, rosterRef }) {
+function FellowshipPage({ standings, realmGames, onOpenGame, rosterRef, progressByName }) {
   const { sorted, leaders } = standings;
   return (
     <div>
@@ -181,6 +182,7 @@ function FellowshipPage({ standings, realmGames, onOpenGame, rosterRef }) {
             colorClass={PLAYER_COLOR_CLASSES[i % PLAYER_COLOR_CLASSES.length]}
             isLeader={leaders.has(ps.name)}
             onNavigateToGame={onOpenGame}
+            progress={progressByName[ps.name.toLowerCase()] ?? null}
           />
         ))}
       </div>
@@ -258,6 +260,29 @@ export default function RealmBook({ realm, games, page, onPageChange, selectedGa
   );
   const standings  = useMemo(() => calcRealmStandings(realmGames, realm), [realmGames, realm]);
 
+  // Co-members' rank + current milestone standing (Fellowship page) —
+  // fetched via a SECURITY DEFINER RPC since another account's progress
+  // can't be computed from this client (no access to the rest of their
+  // realms/games). Current state only, not a history of past rank-up/
+  // milestone events. Skipped entirely for guest/demo realms, whose players
+  // never have a linked userId.
+  const [memberProgress, setMemberProgress] = useState({}); // user_id -> { rank, tierCount, categoryProgress }
+  useEffect(() => {
+    let stale = false;
+    const hasLinked = (realm.players || []).some(p => p.userId);
+    if (!hasLinked) { setMemberProgress({}); return; }
+    getRealmMemberProgress(realm.id).then(map => { if (!stale) setMemberProgress(map); });
+    return () => { stale = true; };
+  }, [realm.id, realm.players]);
+
+  const progressByName = useMemo(() => {
+    const map = {};
+    for (const p of (realm.players || [])) {
+      if (p.userId && memberProgress[p.userId]) map[p.name.toLowerCase()] = memberProgress[p.userId];
+    }
+    return map;
+  }, [realm.players, memberProgress]);
+
   const logPages   = Math.max(1, Math.ceil(realmGames.length / GAMES_PER_PAGE));
   const totalPages = FIRST_LOG_PAGE + logPages;
 
@@ -312,7 +337,7 @@ export default function RealmBook({ realm, games, page, onPageChange, selectedGa
           <div className="realm-modal tile-card" onClick={e => e.stopPropagation()}>
             <h3 style={{ color: 'var(--deep-red)', marginBottom: '0.5rem' }}>Remove this game?</h3>
             <p style={{ fontSize: '0.95rem', marginBottom: '1.2rem', lineHeight: 1.5 }}>
-              This will permanently remove the game from the logbook. This cannot be undone.
+              This will permanently remove the game from the logbook.
             </p>
             <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'flex-end' }}>
               <button className="btn btn-ghost btn-sm" onClick={() => setConfirmDeleteId(null)}>Cancel</button>
@@ -343,7 +368,16 @@ export default function RealmBook({ realm, games, page, onPageChange, selectedGa
             GameLogPage. */}
         <div ref={chartRef} className={tourHighlight ? 'tour-highlight' : ''}>
         <div className="book-header">
+          {/* Same Back/Next as .book-nav below, so paging doesn't require
+              scrolling to the bottom — but unlike that one, these sit INSIDE
+              the tour-highlighted chartRef div, which stays clickable
+              (pointer-events: auto) even while the rest of the page goes
+              .tour-inert. Explicitly disabled during a tour so they can't be
+              used to page away from whatever stage it's demonstrating —
+              matching what the ancestor-inert bottom nav already prevents. */}
+          <button type="button" className="btn btn-ghost btn-sm" disabled={page === 0 || tourActive} onClick={() => onPageChange(Math.max(0, page - 1))}>‹ Back</button>
           <span className="book-nav-label" style={{ flex: 1 }}>{pageLabel}</span>
+          <button type="button" className="btn btn-ghost btn-sm" disabled={page >= totalPages - 1 || tourActive} onClick={() => onPageChange(Math.min(totalPages - 1, page + 1))}>Next ›</button>
         </div>
 
         <div className="book-page" key={page}>
@@ -356,7 +390,7 @@ export default function RealmBook({ realm, games, page, onPageChange, selectedGa
             />
           )}
           {page === 1 && (
-            <FellowshipPage standings={standings} realmGames={realmGames} onOpenGame={onSelectGame} rosterRef={rosterRef} />
+            <FellowshipPage standings={standings} realmGames={realmGames} onOpenGame={onSelectGame} rosterRef={rosterRef} progressByName={progressByName} />
           )}
           {page >= FIRST_LOG_PAGE && (
             <GameLogPage

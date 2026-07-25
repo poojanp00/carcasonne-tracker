@@ -17,11 +17,13 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import BOARD_PATH from '../data/boardCoords';
 import { getBoard, saveBoard, resetBoard } from '../data/boardStorage';
 import { computeWinners } from '../utils/scoring';
-import { MONASTERY_LIKE_TYPES, MONASTERY_LIKE_MAX, LIVE_PLAY_ONLY_RECORD_TYPES, MONASTERY_RECORD_TYPES } from '../constants';
+import { MONASTERY_LIKE_TYPES, MONASTERY_LIKE_MAX, LIVE_PLAY_ONLY_RECORD_TYPES, MONASTERY_RECORD_TYPES, MAX_GAME_PLAYERS } from '../constants';
 import HowToModal from './HowToGuide';
-import { TrashIcon } from './icons';
+import BoardSettingsModal from './BoardSettingsModal';
+import { TrashIcon, GearIcon } from './icons';
 import { chestFor } from '../data/chests';
 import boardImg from '../../images/score-board.jpg';
+import leaderIcon from '../../images/icons/leader.png';
 
 /**
  * MEEPLE IMAGE LOADING SYSTEM
@@ -72,6 +74,17 @@ const MEEPLE_COLOR_MAP = {
 };
 const FALLBACK_COLOR = '#8B5E3C'; // Earth brown for unrecognized colors
 
+// Which board move `type`s belong to each expansion — used by the in-game
+// settings modal to warn before hiding an expansion that already has
+// recorded points this game (see expansionHasPoints/removeExpansion below).
+const EXPANSION_MOVE_TYPES = {
+  'Traders & Builders':         ['wine', 'grain', 'cloth', 'pig', 'goods_wine', 'goods_grain', 'goods_cloth'],
+  'Inns & Cathedrals':          ['inn', 'cathedral'],
+  'Bridges, Castles & Bazaars': ['inn', 'cathedral'],
+  'Abbey & Mayor':              ['abbey', 'barn'],
+  'The Abbot':                  ['abbot'],
+};
+
 /**
  * Extract player color from meeple filename for UI theming.
  * Examples: '1red.png' → '#DC2626', 'fun/naruto.png' → FALLBACK_COLOR
@@ -101,7 +114,7 @@ const STACK_OFFSETS = [
   { x: 0,  y: -5 }, // Player 6: more upward
 ];
 
-export default function Board({ userId, isGuest, session, onFinish, onReset, onExitToHub, autoShowHowTo, onHowToShown }) {
+export default function Board({ userId, isGuest, session, onFinish, onReset, onExitToHub, autoShowHowTo, onHowToShown, onSessionUpdate, ownedExpansions = [] }) {
   const players   = session?.players  || [];
   const meepleMap = session?.meeples  || {};
 
@@ -120,6 +133,9 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, onE
   const [showHowTo, setShowHowTo] = useState(() => isGuest && !!autoShowHowTo);
   const [confirmReset,         setConfirmReset]         = useState(false); // Reset board confirmation
   const [confirmExit,          setConfirmExit]          = useState(false); // Back-to-hub confirmation
+  const [showSettings,          setShowSettings]          = useState(false); // In-game settings modal (players/meeples/expansions)
+  const [pendingPlayerRemoval,  setPendingPlayerRemoval]  = useState(null); // player name awaiting removal confirm (has recorded points)
+  const [pendingExpansionRemoval, setPendingExpansionRemoval] = useState(null); // expansion name awaiting keep/remove-points choice
   const [warning,             setWarning]             = useState(null); // Warning toast (e.g. monastery/abbot/abbey point cap)
   const [editMode, setEditMode] = useState(false); // Score log edit mode — reveals a delete icon on each entry
   const [pendingDeleteMoveIdx, setPendingDeleteMoveIdx] = useState(null); // moves[] index, or 'final-scoring', awaiting delete confirmation
@@ -228,6 +244,12 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, onE
     : []), [board, players]);
 
 
+  // Deliberately NOT keyed on `players` — a genuinely new game gets a fresh
+  // Board mount (key={gameKey} in App.jsx), so this only needs to run once
+  // per mount. Re-running it whenever the in-game settings modal edits
+  // session.players would re-fetch against the OLD persisted player list,
+  // which (since it no longer matches) wipes the board back to a blank
+  // state — see getBoard's player-list validation in boardStorage.js.
   useEffect(() => {
     setBoard(null); // Clear old board before loading new one
     getBoard(userId, players, isGuest).then(b => {
@@ -238,7 +260,8 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, onE
         setFinishStep(1);
       }
     });
-  }, [userId, players, isGuest]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, isGuest]);
 
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 1000);
@@ -365,13 +388,16 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, onE
 
   if (!board) return null;
 
+  // Fixed-width display for the stadium-clock (.game-clock below): MM:SS
+  // under an hour; once a game runs that long, seconds aren't interesting
+  // anymore, so it switches to H:MM instead of growing to H:MM:SS.
   function formatElapsed(ms) {
-    const s = Math.floor(ms / 1000);
+    const s = Math.max(0, Math.floor(ms / 1000));
     const h = Math.floor(s / 3600);
     const m = Math.floor((s % 3600) / 60);
     const sec = s % 60;
-    if (h > 0) return `${h}h ${m}m`;
-    return `${m}m ${String(sec).padStart(2, '0')}s`;
+    if (h > 0) return `${h}:${String(m).padStart(2, '0')}`;
+    return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
   }
   const elapsed = formatElapsed(now - (board.startTime || now));
 
@@ -642,6 +668,127 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, onE
     setConfirmExit(true); // Show confirmation modal
   }
 
+  /**
+   * IN-GAME SETTINGS — players / meeples / expansions
+   *
+   * Reached from the Settings button (BoardSettingsModal). Every edit here
+   * applies immediately, no separate Save step, so the scoring buttons
+   * below (hasTB/hasIC/hasAM/hasAbbot) react live as the user toggles
+   * things. session.players/meeples/expansions are pushed up via
+   * onSessionUpdate; `board`'s own per-player tracking (positions/laps/
+   * scoreTotals/goodsTokens/moves) is patched here directly.
+   */
+
+  function playerHasPoints(name) {
+    return (board.moves || []).some(m => m.player === name);
+  }
+
+  function expansionHasPoints(name) {
+    const types = EXPANSION_MOVE_TYPES[name];
+    return !!types && (board.moves || []).some(m => types.includes(m.type));
+  }
+
+  // Bulk-remove every move matching `predicate`, then re-derive moveIndex/
+  // finalScoringIndex against the shorter array — same approach as
+  // deleteMoveAt, generalized to more than one entry. The positions/laps/
+  // scoreTotals/goodsTokens/maxFeatures rebuild effect (keyed on
+  // moveIndex/moves.length, above) picks up the recompute automatically.
+  function removeMovesWhere(predicate) {
+    setBoard(prev => {
+      const keep = prev.moves.map(m => !predicate(m));
+      const moves = prev.moves.filter((_, i) => keep[i]);
+      let moveIndex = -1;
+      for (let i = 0; i <= prev.moveIndex && i < prev.moves.length; i++) if (keep[i]) moveIndex++;
+      let finalScoringIndex = prev.finalScoringIndex;
+      if (finalScoringIndex !== null) {
+        let count = 0;
+        for (let i = 0; i < finalScoringIndex && i < prev.moves.length; i++) if (keep[i]) count++;
+        finalScoringIndex = count;
+      }
+      return { ...prev, moves, moveIndex, finalScoringIndex };
+    });
+  }
+
+  function addPlayerToGame(name) {
+    const newPlayers = [...players, name];
+    // Re-added player keeps whatever meeple they had before; a genuinely new
+    // one gets the first standard color nobody currently active is using.
+    const standardKeys = Object.keys(MEEPLE_IMGS).filter(k => !k.startsWith('fun/'));
+    const usedMeeples = new Set(players.map(p => meepleMap[p]).filter(Boolean));
+    const assignedMeeple = meepleMap[name] || standardKeys.find(k => !usedMeeples.has(k)) || standardKeys[0];
+    setBoard(prev => ({
+      ...prev,
+      players: newPlayers,
+      positions:   { ...prev.positions,   [name]: 0 },
+      laps:        { ...prev.laps,        [name]: 0 },
+      scoreTotals: { ...prev.scoreTotals, [name]: { road: 0, city: 0, monastery: 0, field: 0 } },
+      goodsTokens: { ...prev.goodsTokens, [name]: { wine: 0, grain: 0, cloth: 0 } },
+    }));
+    onSessionUpdate({ players: newPlayers, meeples: { ...meepleMap, [name]: assignedMeeple } });
+  }
+
+  function removePlayerFromGame(name) {
+    const newPlayers = players.filter(p => p !== name);
+    removeMovesWhere(m => m.player === name);
+    setBoard(prev => {
+      const positions   = { ...prev.positions };   delete positions[name];
+      const laps        = { ...prev.laps };        delete laps[name];
+      const scoreTotals = { ...prev.scoreTotals }; delete scoreTotals[name];
+      const goodsTokens = { ...prev.goodsTokens }; delete goodsTokens[name];
+      return { ...prev, players: newPlayers, positions, laps, scoreTotals, goodsTokens };
+    });
+    onSessionUpdate({ players: newPlayers });
+    if (selectedPlayer === name) setSelectedPlayer(null);
+  }
+
+  // Toggle roster membership for THIS game. Min 2 / max MAX_GAME_PLAYERS
+  // enforced here (the modal also disables the chip, this is the real gate).
+  // Removing someone with recorded points routes through a confirm modal
+  // instead of acting immediately (see pendingPlayerRemoval).
+  function handleTogglePlayer(name) {
+    if (players.includes(name)) {
+      if (players.length <= 2) return;
+      if (playerHasPoints(name)) { setPendingPlayerRemoval(name); return; }
+      removePlayerFromGame(name);
+    } else {
+      if (players.length >= MAX_GAME_PLAYERS) return;
+      addPlayerToGame(name);
+    }
+  }
+
+  // Applies a meeple change if it wouldn't collide with another active
+  // player's meeple; returns an error string instead (shown inline in the
+  // modal) rather than silently swapping the two.
+  function trySetMeeple(name, key) {
+    const conflict = players.find(p => p !== name && meepleMap[p] === key);
+    if (conflict) return `Already used by ${conflict}.`;
+    onSessionUpdate({ meeples: { ...meepleMap, [name]: key } });
+    return null;
+  }
+
+  function removeExpansion(name, alsoRemovePoints) {
+    const newExpansions = (session?.expansions || []).filter(e => e !== name);
+    if (alsoRemovePoints) {
+      const types = EXPANSION_MOVE_TYPES[name] || [];
+      removeMovesWhere(m => types.includes(m.type));
+      if (selectedType && types.includes(selectedType)) setSelectedType(null);
+    }
+    onSessionUpdate({ expansions: newExpansions });
+  }
+
+  // Turning an expansion off with recorded points routes through a confirm
+  // modal (keep the points in the log vs. delete them) instead of acting
+  // immediately — see pendingExpansionRemoval.
+  function handleToggleExpansion(name) {
+    const active = (session?.expansions || []).includes(name);
+    if (active) {
+      if (expansionHasPoints(name)) { setPendingExpansionRemoval(name); return; }
+      removeExpansion(name, false);
+    } else {
+      onSessionUpdate({ expansions: [...(session?.expansions || []), name] });
+    }
+  }
+
   function confirmExitToHub() {
     setConfirmExit(false);
     onExitToHub?.();
@@ -729,15 +876,11 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, onE
     ch.postMessage({ type: 'BOARD_UPDATE', payload: { board, players, meepleMap } });
   }
 
-  // Lead text
+  // Current leader(s) by total score — badges the leading player's meeple
+  // in the Players panel below (see leaderIcon) instead of a "X leads" pill.
   const totals  = Object.fromEntries(players.map(p => [p, (board.laps[p] || 0) * track + (board.positions[p] || 0)]));
   const maxTotal = Math.max(...Object.values(totals), 0);
   const leaders  = maxTotal > 0 ? players.filter(p => totals[p] === maxTotal) : [];
-  const leadText  = leaders.length === 0
-    ? 'No scores yet'
-    : leaders.length === 1
-    ? `${leaders[0]} leads`
-    : `${leaders.join(' & ')} lead`;
 
   // Group players by position for collision offsets
   const posGroups = {};
@@ -769,7 +912,7 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, onE
       <div className="realm-modal tile-card" onClick={e => e.stopPropagation()}>
         <h3 style={{ color: 'var(--deep-red)', marginBottom: '0.5rem' }}>Reset the board?</h3>
         <p style={{ fontSize: '0.95rem', marginBottom: '1.2rem', lineHeight: 1.5 }}>
-          This will clear all scores and start a new game. This cannot be undone.
+          This will clear all scores and start a new game.
         </p>
         <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'flex-end' }}>
           <button className="btn btn-ghost btn-sm" onClick={() => setConfirmReset(false)}>Cancel</button>
@@ -787,11 +930,44 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, onE
       <div className="realm-modal tile-card" onClick={e => e.stopPropagation()}>
         <h3 style={{ color: 'var(--deep-red)', marginBottom: '0.5rem' }}>Are you sure?</h3>
         <p style={{ fontSize: '0.95rem', marginBottom: '1.2rem', lineHeight: 1.5 }}>
-          Leaving now will lose your current scores — there's no way back into this game once you exit. This cannot be undone.
+          Leaving will reset current game.
         </p>
         <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'flex-end' }}>
           <button className="btn btn-ghost btn-sm" onClick={() => setConfirmExit(false)}>Cancel</button>
           <button className="btn btn-danger btn-sm" onClick={confirmExitToHub}>Back to realms</button>
+        </div>
+      </div>
+    </div>
+  );
+
+  // Confirm removing a player who already has points recorded this game
+  const playerRemovalModal = pendingPlayerRemoval && (
+    <div className="realm-modal-overlay" onClick={() => setPendingPlayerRemoval(null)}>
+      <div className="realm-modal tile-card" onClick={e => e.stopPropagation()}>
+        <h3 style={{ color: 'var(--deep-red)', marginBottom: '0.5rem' }}>Remove {pendingPlayerRemoval}?</h3>
+        <p style={{ fontSize: '0.95rem', marginBottom: '1.2rem', lineHeight: 1.5 }}>
+          {pendingPlayerRemoval} has points recorded this game. Removing them will delete their score history for this game.
+        </p>
+        <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'flex-end' }}>
+          <button className="btn btn-ghost btn-sm" onClick={() => setPendingPlayerRemoval(null)}>Cancel</button>
+          <button className="btn btn-danger btn-sm" onClick={() => { removePlayerFromGame(pendingPlayerRemoval); setPendingPlayerRemoval(null); }}>Remove</button>
+        </div>
+      </div>
+    </div>
+  );
+
+  // Confirm turning off an expansion that already has points recorded this game
+  const expansionRemovalModal = pendingExpansionRemoval && (
+    <div className="realm-modal-overlay" onClick={() => setPendingExpansionRemoval(null)}>
+      <div className="realm-modal tile-card" onClick={e => e.stopPropagation()}>
+        <h3 style={{ marginBottom: '0.5rem' }}>{pendingExpansionRemoval} has recorded points</h3>
+        <p style={{ fontSize: '0.95rem', marginBottom: '1.2rem', lineHeight: 1.5 }}>
+          Points from this expansion have already been scored this game. Keep them in the score log, or remove them along with the expansion?
+        </p>
+        <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+          <button className="btn btn-ghost btn-sm" onClick={() => setPendingExpansionRemoval(null)}>Cancel</button>
+          <button className="btn btn-sm" onClick={() => { removeExpansion(pendingExpansionRemoval, false); setPendingExpansionRemoval(null); }}>Keep Points</button>
+          <button className="btn btn-danger btn-sm" onClick={() => { removeExpansion(pendingExpansionRemoval, true); setPendingExpansionRemoval(null); }}>Remove Points</button>
         </div>
       </div>
     </div>
@@ -849,6 +1025,24 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, onE
 
       {/* Delete score-log entry confirmation modal */}
       {deleteMoveModal}
+
+      {/* In-game settings — players / meeples / expansions / reset */}
+      {showSettings && (
+        <BoardSettingsModal
+          realm={session?.realm}
+          players={players}
+          meepleMap={meepleMap}
+          expansions={session?.expansions || []}
+          ownedExpansions={ownedExpansions}
+          onTogglePlayer={handleTogglePlayer}
+          onSetMeeple={trySetMeeple}
+          onToggleExpansion={handleToggleExpansion}
+          onResetGame={handleReset}
+          onClose={() => setShowSettings(false)}
+        />
+      )}
+      {playerRemovalModal}
+      {expansionRemovalModal}
 
       {/* Traders & Builders — Harvest dialog */}
       {showTraders && (
@@ -937,34 +1131,28 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, onE
               ?
             </button>
         </div>
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '0.7rem' }}>
-          <div style={{ flex: 1, height: '1px', background: 'linear-gradient(90deg, var(--warm-gold), transparent)' }} />
-          <span style={{
-            fontFamily: 'Cinzel, serif',
-            fontSize: 'clamp(0.55rem, 2vw, 0.75rem)',
-            fontWeight: 600,
-            letterSpacing: '0.06em',
-            color: '#FFFFFF',
-            textShadow: '0 1px 2px rgba(43, 27, 10, 0.55)',
-            background: 'var(--warm-gold)',
-            opacity: 0.85,
-            padding: '0.2rem 0.55rem',
-            borderRadius: '999px',
-            whiteSpace: 'nowrap',
-          }}>
-            {leadText}
-          </span>
-          <div style={{ flex: 1, height: '1px', background: 'linear-gradient(90deg, transparent, var(--warm-gold))' }} />
-        </div>
+        <div className="section-title-line" />
         <span className="game-count" style={{ fontSize: 'clamp(0.55rem, 2vw, 0.72rem)' }}>{session?.realm?.name}</span>
       </div>
 
       <div className="board-ui">
         {/* Score log */}
         <div className="tile-card board-log">
-          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', borderBottom: '1px solid var(--warm-gold)', paddingBottom: '0.5rem', marginBottom: '0.6rem' }}>
-            <div className="tile-card-header" style={{ border: 'none', padding: 0, margin: 0 }}>Score Log</div>
-            <span style={{ fontFamily: 'Crimson Text, serif', fontStyle: 'italic', fontSize: 'clamp(0.65rem, 1.8vw, 0.82rem)', color: 'var(--stone-gray)' }}>{elapsed}</span>
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '0.3rem', borderBottom: '1px solid var(--warm-gold)', paddingBottom: '0.5rem', marginBottom: '0.6rem' }}>
+            {/* cqw, not vw — .board-log (see index.css) is the container this
+                sizes off of. Its own narrow grid column is what actually
+                squeezes this row; the viewport barely moves within that
+                column's realistic width range, so a vw-based clamp would
+                stay pinned at its ceiling the whole time. */}
+            <div className="tile-card-header" style={{ border: 'none', padding: 0, margin: 0, whiteSpace: 'nowrap', fontSize: 'clamp(0.44rem, 8cqw, 0.78rem)' }}>Score Log</div>
+            {/* Stadium-style game clock — a black recessed LED housing in a
+                brass bezel (echoing the app's warm-gold tile borders), sized
+                small to sit inline with the Score Log title. */}
+            <div className="game-clock">
+              <div className="game-clock-housing">
+                <span className="game-clock-digits">{elapsed}</span>
+              </div>
+            </div>
           </div>
           {showHowTo && <HowToModal onClose={() => setShowHowTo(false)} />}
           {log.length === 0 ? (
@@ -1021,14 +1209,15 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, onE
             <button
               type="button"
               className="btn btn-ghost btn-sm"
-              style={{ flex: '1 1 0', justifyContent: 'center' }}
-              onClick={handleReset}
+              style={{ flex: '1 1 0', justifyContent: 'center', gap: '0.35rem' }}
+              onClick={() => setShowSettings(true)}
+              title="Players, meeples, expansions, and reset"
             >
-              Reset
+              <GearIcon /> Settings
             </button>
             <button
               type="button"
-              className="btn"
+              className="btn btn-sm"
               style={{ flex: '1 1 100%', justifyContent: 'center' }}
               onClick={() => {
                 if (finishStep === 0) {
@@ -1104,7 +1293,17 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, onE
                       transition: 'all 0.2s ease',
                     }}
                   >
-                    <img src={MEEPLE_IMGS[meepleMap[name]] || FALLBACK_MEEPLE} alt={name} style={{ height: 50, width: 'auto' }} />
+                    <div style={{ position: 'relative', display: 'inline-flex' }}>
+                      <img src={MEEPLE_IMGS[meepleMap[name]] || FALLBACK_MEEPLE} alt={name} style={{ height: 50, width: 'auto', display: 'block' }} />
+                      {leaders.includes(name) && (
+                        <img
+                          src={leaderIcon}
+                          alt="Leading"
+                          title="Leading"
+                          style={{ position: 'absolute', top: '-3px', right: '-7px', height: '16px', width: 'auto' }}
+                        />
+                      )}
+                    </div>
                     <span style={{ fontSize: '0.7rem', fontFamily: 'Cinzel, serif', color, fontWeight: 600 }}>{name}</span>
                     {hasTB && (() => {
                       const pg = board.goodsTokens?.[name] || {};
