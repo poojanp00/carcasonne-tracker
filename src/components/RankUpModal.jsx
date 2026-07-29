@@ -1,18 +1,29 @@
 import { useEffect, useState } from 'react';
-import { rankTitle, tiersRequiredForRank, getMaxRank } from '../utils/metaRank';
+import { rankTitle, tiersRequiredForRank, getCurrentRank } from '../utils/metaRank';
+import { METRIC_UNITS, tierStateForProgress } from '../data/accountMilestones';
+import QuarterTierBar from './QuarterTierBar';
+import RankQuarterBar from './RankQuarterBar';
 
 // Fixed count/positions computed once per module load (not per render) so the
 // embers don't re-randomize and restart on every re-render of the modal.
+// Every 3rd ember is flagged "front" so it renders in its own layer ABOVE
+// the card content instead of only ever drifting behind it — see the two
+// EmberField calls at the bottom of the file (z-index can't be won from
+// inside .rankup-embers itself, since that container's own z-index already
+// boxes in everything inside it, so the front ones need to be a wholly
+// separate sibling layer, not just a higher z-index on the same span).
 const EMBERS = Array.from({ length: 16 }, (_, i) => ({
   left: Math.round((i / 16) * 100 + (Math.sin(i * 7.3) * 6)),
   delay: (i * 0.14) % 2.2,
-  duration: 1.8 + (i % 5) * 0.25,
+  duration: 1.0 + (i % 5) * 0.15,
+  front: i % 3 === 0,
 }));
 
-function EmberField() {
+function EmberField({ front = false }) {
+  const embers = EMBERS.filter(e => e.front === front);
   return (
-    <div className="rankup-embers" aria-hidden="true">
-      {EMBERS.map((e, i) => (
+    <div className={`rankup-embers rankup-embers--${front ? 'front' : 'back'}`} aria-hidden="true">
+      {embers.map((e, i) => (
         <span
           key={i}
           className="rankup-ember"
@@ -54,44 +65,187 @@ function Reel({ items, rowHeight = 46, holdMs = 380, className = '', rowStyle })
   );
 }
 
-// Post-game celebration — shown alongside PostGameForm when the account just
-// crossed one or more milestone tiers (and possibly ranked up). Same
-// .realm-modal/.tile-card visual family as HowToModal (HowToGuide.jsx), not
-// the docked .tour-card variant — nothing here needs to anchor to a target
-// element.
-// Staggered so the celebration reads as one thing happening after another,
-// not everything scrolling at once: category tier names settle first, then
-// the total-milestones count a beat later, then the rank line last (biggest
-// news, saved for last).
+// Staggered so the milestones stage reads as one thing happening after
+// another, not everything moving at once: the tier-name Reel (see call
+// site) scrolls first, then the total-milestones count a beat later.
 const TIER_HOLD_MS  = 380;
-const COUNT_HOLD_MS = TIER_HOLD_MS + 500;
-const RANK_HOLD_MS  = COUNT_HOLD_MS + 750;
+// Gap between each checkpoint in a multi-tier jump — long enough for the
+// quarter bar's own 0.4s width transition to actually finish before the
+// next quarter starts filling, so two quarters are never visibly animating
+// at once.
+const STEP_MS = 420;
 
-export default function RankUpModal({ playerName, beforeRank, afterRank, beforeTierCount, tierCount, categoryDiffs, newChests, newSpines, onClose }) {
+// Checkpoint progress values to step through, one tier at a time: a rare
+// multi-tier jump (a big score crossing two tier thresholds in one game)
+// would otherwise animate every crossed quarter at once if it went straight
+// from beforeBar to afterBar. Each checkpoint sits exactly at a crossed
+// tier's threshold — completing only THAT tier's quarter, leaving the next
+// one still at 0 until its own turn — finishing on the real final progress
+// (which may sit partway into the tier after the last one crossed, not
+// necessarily its own threshold).
+function buildProgressSteps(beforeBar, afterBar, tiers) {
+  const steps = [beforeBar.progress];
+  for (let t = beforeBar.currentTierNumber + 1; t <= afterBar.currentTierNumber; t++) {
+    steps.push(tiers.find(tt => tt.tierNumber === t).threshold);
+  }
+  if (steps[steps.length - 1] !== afterBar.progress) steps.push(afterBar.progress);
+  return steps;
+}
+
+// Same quarter-chunked bar as Profile's "All Milestones" card and
+// MemberProgressModal — one look for "how close to a tier" everywhere. Each
+// quarter fills from its BEFORE fraction to its AFTER one, one quarter at a
+// time (see buildProgressSteps) — QuarterTierBar's own per-quarter width
+// transition (steps(8, end), same as every other bar here) animates each
+// swap, so a crossed tier's quarter visibly fills up rather than just
+// appearing done.
+function RankUpCategoryBar({ diff }) {
+  const steps = buildProgressSteps(diff.beforeBar, diff.afterBar, diff.category.tiers);
+  const [stepIndex, setStepIndex] = useState(0);
+  useEffect(() => {
+    const timers = steps.slice(1).map((_, i) =>
+      setTimeout(() => setStepIndex(i + 1), TIER_HOLD_MS + i * STEP_MS)
+    );
+    return () => timers.forEach(clearTimeout);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const unit = METRIC_UNITS[diff.category.metric] ?? 'pts';
+  const bar = tierStateForProgress(diff.category, steps[stepIndex]);
+  return (
+    <QuarterTierBar
+      tiers={diff.category.tiers}
+      progress={bar.progress}
+      unit={unit}
+      currentTier={bar.currentTier}
+      nextTier={bar.nextTier}
+      remaining={bar.remaining}
+      maxed={bar.maxed}
+    />
+  );
+}
+
+// Checkpoint tierCount values to step through, one rank at a time — same
+// idea as buildProgressSteps above, generalized to the rank ladder (rare,
+// but a huge tierCount jump in one game could cross several ranks at once,
+// same "skip rank" case as a multi-tier category jump).
+function buildRankSteps(beforeRank, afterRank, beforeTierCount, tierCount) {
+  const steps = [beforeTierCount];
+  for (let r = beforeRank + 1; r <= afterRank; r++) {
+    steps.push(tiersRequiredForRank(r));
+  }
+  if (steps[steps.length - 1] !== tierCount) steps.push(tierCount);
+  return steps;
+}
+
+// Rank-ladder counterpart to RankUpCategoryBar — same RankQuarterBar visual
+// Profile's hero card uses, stepping through one rank at a time so a
+// multi-rank jump fills one piece before the next starts, same reasoning as
+// the category bars above.
+function RankUpRankBar({ beforeRank, afterRank, beforeTierCount, tierCount }) {
+  const steps = buildRankSteps(beforeRank, afterRank, beforeTierCount, tierCount);
+  const [stepIndex, setStepIndex] = useState(0);
+  useEffect(() => {
+    const timers = steps.slice(1).map((_, i) =>
+      setTimeout(() => setStepIndex(i + 1), TIER_HOLD_MS + i * STEP_MS)
+    );
+    return () => timers.forEach(clearTimeout);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const stepTierCount = steps[stepIndex];
+  const stepRank = getCurrentRank(stepTierCount);
+  return <RankQuarterBar tierCount={stepTierCount} currentRank={stepRank} />;
+}
+
+// Newly-unlocked chest/logbook art shows as a silhouette first — click to
+// reveal the actual artwork, so unlocking new art keeps a little surprise
+// instead of just appearing outright. onReveal fires once, the moment this
+// particular piece flips — the parent uses that to know when EVERY piece
+// across every rank pair has been tapped (see revealedCount in
+// RankUpModal), since the "Nice!" button stays gated until then.
+function RevealableArt({ src, alt, onReveal }) {
+  const [revealed, setRevealed] = useState(false);
+  const reveal = () => {
+    if (revealed) return;
+    setRevealed(true);
+    onReveal?.();
+  };
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.3rem' }}>
+      <div className="rankup-art-frame">
+        <button
+          type="button"
+          onClick={reveal}
+          disabled={revealed}
+          aria-label={revealed ? alt : `${alt} — click to reveal`}
+          style={{ background: 'none', border: 'none', padding: 0, cursor: revealed ? 'var(--cursor-arrow)' : 'var(--cursor-pointer)' }}
+        >
+          <img
+            src={src}
+            alt={alt}
+            style={{
+              height: 64, width: 'auto', display: 'block',
+              filter: revealed ? 'none' : 'brightness(0)',
+              transition: 'filter 0.5s ease',
+            }}
+            draggable={false}
+          />
+        </button>
+      </div>
+      {!revealed && (
+        <span style={{ fontFamily: "'Crimson Text', serif", fontStyle: 'italic', fontSize: '0.62rem', color: 'var(--stone-gray)' }}>
+          Tap to reveal
+        </span>
+      )}
+    </div>
+  );
+}
+
+// Post-game celebration — shown alongside PostGameForm whenever the account's
+// milestone progress moved at all this game, not just on a tier crossing, so
+// players can watch their bars fill up over time. Two stages sharing one
+// overlay/card: "Milestones Achieved" always shows first (every category
+// with any progress, crossed tiers animated, others shown at their current
+// state); "Rank Up!" only follows if the game also crossed a rank, reached
+// by clicking "Nice!" on the milestones stage. Same .realm-modal/.tile-card
+// visual family as HowToModal (HowToGuide.jsx).
+export default function RankUpModal({ playerName, beforeRank, afterRank, beforeTierCount, tierCount, categoryDiffs, newArtPairs, onClose }) {
+  // Locks the page underneath from scrolling while the celebration is open.
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = ''; };
+  }, []);
+
+  const [stage, setStage] = useState('milestones'); // 'milestones' | 'rankup'
   const rankedUp = afterRank > beforeRank;
-  const hasArt = newChests.length > 0 || newSpines.length > 0;
+  const totalArtCount = newArtPairs.reduce((sum, p) => sum + p.chests.length + p.spines.length, 0);
+  const hasArt = totalArtCount > 0;
   const name = playerName || 'Adventurer';
+  // Every gift stays a silhouette (and "Nice!" stays gone, not just disabled)
+  // until every single one has been tapped — a peek at the ladder shouldn't
+  // let someone skip past gifts they haven't opened yet.
+  const [revealedArtCount, setRevealedArtCount] = useState(0);
+  const allArtRevealed = revealedArtCount >= totalArtCount;
+  const artGateActive = stage === 'rankup' && hasArt && !allArtRevealed;
   // Every rank crossed, not just the endpoints — skipping straight from 2 to
   // 4 in one game still scrolls through "Rank 2 · … · Rank 3 · … · Rank 4".
-  // A milestone-only reach (no rank change) still shows the current rank —
-  // just as a single-item "chain", so there's nothing to scroll to.
   const rankChain = rankedUp
     ? Array.from({ length: afterRank - beforeRank + 1 }, (_, i) => beforeRank + i)
     : [afterRank];
-  // Same idea for the total-milestones count — 15 climbing to 17 scrolls
-  // through 16 on the way, not just the endpoints.
-  const tierCountChain = Array.from({ length: tierCount - beforeTierCount + 1 }, (_, i) => beforeTierCount + i);
 
-  // Fine print: how many more milestone tiers until the NEXT rank past
-  // wherever they landed — omitted at the top of the ladder (MAX_RANK).
-  const nextRank = afterRank + 1;
-  const tiersUntilNext = nextRank <= getMaxRank() ? Math.max(0, tiersRequiredForRank(nextRank) - tierCount) : null;
+  // "Nice!" (and clicking outside the card) advances to the rank-up stage
+  // when there is one still to show; otherwise it's the real close, which
+  // advances the outer celebration queue and acknowledges this progress.
+  const advance = (stage === 'milestones' && rankedUp) ? () => setStage('rankup') : onClose;
+  // While gifts are still sitting unrevealed, neither the button nor a
+  // click-outside should advance/close — same gate, both triggers.
+  const guardedAdvance = artGateActive ? undefined : advance;
 
   return (
-    <div className="realm-modal-overlay rankup-modal-overlay" onClick={onClose}>
-      <div className="realm-modal tile-card rankup-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '480px' }}>
+    <div className="realm-modal-overlay rankup-modal-overlay" onClick={guardedAdvance}>
+      <div className="realm-modal tile-card rankup-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '540px' }}>
         <EmberField />
-        <div className="rankup-burst" aria-hidden="true" />
+        <div className="rankup-burst" key={stage} aria-hidden="true" />
 
         {/* Everything real content-wise lives in one positioned wrapper —
             without it, these static (non-positioned) elements would paint
@@ -99,81 +253,104 @@ export default function RankUpModal({ playerName, beforeRank, afterRank, beforeT
             layers per normal CSS stacking order, even though they appear
             later in the DOM. */}
         <div style={{ position: 'relative', zIndex: 1 }}>
-          <h3 style={{ color: 'var(--earth-brown)', marginBottom: '0.8rem' }}>
-            {rankedUp ? 'Rank Up!' : 'Milestone Reached!'}
-          </h3>
+          {stage === 'milestones' ? (
+            <>
+              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '0.8rem', marginBottom: '1rem' }}>
+                <h3 style={{ color: 'var(--earth-brown)', margin: 0 }}>Milestones</h3>
+                <span className="rankup-player-name">{name}</span>
+              </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.8rem' }}>
-            <span className="rankup-player-name">{name}</span>
-            <Reel
-              className="rankup-reel-rank"
-              rowHeight={46}
-              holdMs={RANK_HOLD_MS}
-              rowStyle={{ justifyContent: 'center' }}
-              items={rankChain.map(r => <span className="rankup-rank-text">Rank {r} · {rankTitle(r)}</span>)}
-            />
-          </div>
+              {categoryDiffs.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
+                  {categoryDiffs.map(diff => {
+                    const pips = '★'.repeat(diff.afterBar.reached.length) + '☆'.repeat(Math.max(0, diff.category.tiers.length - diff.afterBar.reached.length));
+                    return (
+                      <div key={diff.category.id} className="rankup-category-row">
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.6rem' }}>
+                          <span className="rankup-category-label">
+                            {diff.category.label}
+                            <span className="rankup-category-progress">
+                              ({diff.afterBar.progress.toLocaleString()} {METRIC_UNITS[diff.category.metric] ?? 'pts'})
+                            </span>
+                            <span className="rankup-tier-stars" aria-label={`${diff.afterBar.reached.length} of ${diff.category.tiers.length} tiers unlocked`}>
+                              {pips}
+                            </span>
+                          </span>
+                          <Reel
+                            className="rankup-reel-tier"
+                            rowHeight={36}
+                            holdMs={TIER_HOLD_MS}
+                            rowStyle={{ justifyContent: 'center' }}
+                            items={diff.tierNameChain.map(n => <span>{n ?? '-'}</span>)}
+                          />
+                        </div>
+                        <RankUpCategoryBar diff={diff} />
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              <h3 style={{ color: 'var(--earth-brown)', marginBottom: '0.8rem' }}>Rank Up!</h3>
 
-          {tiersUntilNext !== null && (
-            <p style={{ fontSize: '0.78rem', fontStyle: 'italic', color: 'var(--earth-brown)', textAlign: 'right', margin: '0.4rem 0 0' }}>
-              {tiersUntilNext} milestone{tiersUntilNext === 1 ? '' : 's'} until next rank.
-            </p>
-          )}
-
-          {categoryDiffs.length > 0 && (
-            <div style={{ marginTop: '1.1rem', marginBottom: hasArt ? '0.9rem' : 0 }}>
-              <div className="milestones-subtitle" style={{ marginBottom: '0.6rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.95rem' }}>
-                <span>Milestones Achieved</span>
-                <Reel
-                  className="rankup-milestone-count"
-                  rowHeight={32}
-                  holdMs={COUNT_HOLD_MS}
-                  rowStyle={{ justifyContent: 'center' }}
-                  items={tierCountChain.map(n => <span>{n}</span>)}
+              <div className="rankup-category-row">
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.8rem' }}>
+                  <span className="rankup-player-name">
+                    {name}
+                    <span className="rankup-category-progress">({tierCount.toLocaleString()} milestones)</span>
+                  </span>
+                  <Reel
+                    className="rankup-reel-rank"
+                    rowHeight={46}
+                    holdMs={TIER_HOLD_MS}
+                    rowStyle={{ justifyContent: 'center' }}
+                    items={rankChain.map(r => <span className="rankup-rank-text">Rank {r} · {rankTitle(r)}</span>)}
+                  />
+                </div>
+                <RankUpRankBar
+                  beforeRank={beforeRank}
+                  afterRank={afterRank}
+                  beforeTierCount={beforeTierCount}
+                  tierCount={tierCount}
                 />
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-                {categoryDiffs.map(({ category, beforeTierName, afterTierName }) => (
-                  <div key={category.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.6rem' }}>
-                    <span style={{ fontFamily: "'Crimson Text', serif", fontSize: '1.1rem', fontWeight: 600, color: 'var(--charcoal)' }}>{category.label}</span>
-                    <Reel
-                      className="rankup-reel-tier"
-                      rowHeight={36}
-                      holdMs={TIER_HOLD_MS}
-                      rowStyle={{ justifyContent: 'center' }}
-                      items={[
-                        <span>{beforeTierName ?? 'Not yet started'}</span>,
-                        <span>{afterTierName}</span>,
-                      ]}
-                    />
+
+              {hasArt && (
+                <div style={{ marginTop: '0.9rem' }}>
+                  <span className="milestones-subtitle">New art unlocked</span>
+                  {/* Chest+logbook from the same rank sit next to each other
+                      (pair order preserved, oldest rank first) — no box or
+                      per-rank label since almost every celebration is a
+                      single rank crossing one pair. */}
+                  <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginTop: '0.6rem' }}>
+                    {newArtPairs.flatMap(pair => [
+                      ...pair.chests.map((c, i) => ({ key: `chest-${pair.rank}-${i}`, img: c.img, alt: 'New chest unlocked' })),
+                      ...pair.spines.map((s, i) => ({ key: `spine-${pair.rank}-${i}`, img: s.img, alt: 'New logbook unlocked' })),
+                    ]).map(item => (
+                      <RevealableArt
+                        key={item.key}
+                        src={item.img}
+                        alt={item.alt}
+                        onReveal={() => setRevealedArtCount(n => n + 1)}
+                      />
+                    ))}
                   </div>
-                ))}
-              </div>
-            </div>
+                </div>
+              )}
+            </>
           )}
 
-          {hasArt && (
-            <div>
-              <span className="milestones-subtitle">New art unlocked</span>
-              <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginTop: '0.6rem' }}>
-                {newChests.map((c, i) => (
-                  <div key={`chest-${i}`} className="rankup-art-frame">
-                    <img src={c.img} alt="New chest unlocked" style={{ height: 64, width: 'auto', display: 'block' }} draggable={false} />
-                  </div>
-                ))}
-                {newSpines.map((s, i) => (
-                  <div key={`spine-${i}`} className="rankup-art-frame">
-                    <img src={s.img} alt="New logbook unlocked" style={{ height: 64, width: 'auto', display: 'block' }} draggable={false} />
-                  </div>
-                ))}
-              </div>
+          {/* Gated, not just disabled: stays gone entirely until every gift
+              above has been tapped open — see artGateActive. */}
+          {!artGateActive && (
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1.2rem' }}>
+              <button type="button" className="btn btn-sm" onClick={guardedAdvance}>Nice!</button>
             </div>
           )}
-
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1.2rem' }}>
-            <button type="button" className="btn btn-sm" onClick={onClose}>Nice!</button>
-          </div>
         </div>
+        <EmberField front />
       </div>
     </div>
   );

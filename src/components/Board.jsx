@@ -49,6 +49,38 @@ const GOODS_IMGS = Object.fromEntries(
   Object.entries(GOODS_MODULES).map(([path, img]) => [path.split('/').pop().replace('.png', ''), img])
 );
 
+/**
+ * SCORE SOUND EFFECTS
+ *
+ * One clip per score type (road/city/monastery/field/inn/cathedral/...),
+ * dropped into /audio as they're recorded — mp3 or wav, either works. Only
+ * monastery.mp3 exists so far; every other type just stays silent until its
+ * file shows up, no code change needed to add one later. Goods tokens (wine/
+ * grain/cloth) aren't a `type` string match — all three share one 'goods'
+ * key/goods.mp3 rather than one clip each.
+ */
+// Lazy (not eager): each entry is a loader function, only actually resolved
+// the first time that type scores. That matters because this folder is a
+// living drop target — an odd filename Vite can't turn into a static import
+// (spaces are fine; something like a stray '#' isn't) would otherwise fail
+// the whole glob at build time and 500 the entire app. Lazy means a bad file
+// only fails its own dynamic import() call, caught below, the moment (if
+// ever) something actually tries to play it — every other sound, and the
+// app itself, keeps working regardless.
+const SOUND_LOADERS = import.meta.glob('../../audio/*.{mp3,wav}');
+const SCORE_SOUND_LOADERS = Object.fromEntries(
+  Object.entries(SOUND_LOADERS).map(([path, load]) => [path.split('/').pop().replace(/\.(mp3|wav)$/, ''), load])
+);
+// A fresh Audio instance per play (rather than one reused element) so the
+// same sound can overlap itself if two scores land in quick succession.
+function playScoreSound(type) {
+  const load = SCORE_SOUND_LOADERS[type];
+  if (!load) return;
+  load()
+    .then(mod => new Audio(mod.default).play())
+    .catch(() => {}); // bad/unresolvable file, or autoplay blocked — stay silent
+}
+
 // Physical token supply counts for Traders & Builders
 const GOODS_SUPPLY = { wine: 9, grain: 6, cloth: 5 };
 const GOODS_LABELS = { wine: 'Wine', grain: 'Grain', cloth: 'Cloth' };
@@ -580,6 +612,7 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, onE
     }
 
     addPoints(player, delta, type);
+    if (Number(delta) > 0) playScoreSound(type); // no sound on a negative correction
     zeroInput();
     setSelectedType(null);
     setSelectedPlayer(null);
@@ -618,6 +651,7 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, onE
       const player = selectedPlayer;
       setSelectedPlayer(null);
       addMove(player, `goods_${good}`, 0, `${GOODS_LABELS[good]} Token`);
+      playScoreSound('goods');
       return;
     }
     setSelectedType(null);
@@ -634,6 +668,7 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, onE
     if (selectedGoods.size > 0) {
       selectedGoods.forEach(good => {
         addMove(player, `goods_${good}`, 0, `${GOODS_LABELS[good]} Token`);
+        playScoreSound('goods');
       });
       setSelectedGoods(new Set());
       return;

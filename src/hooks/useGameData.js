@@ -24,7 +24,7 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import {
-  getGames, insertGame, removeGame,
+  getGames, insertGameAndCelebrate, removeGame,
   getExpansions, saveOwnedExpansions,
   getRealms, saveRealm, deleteRealm,
   getPendingInvites, respondToInvite, leaveRealm,
@@ -99,19 +99,20 @@ export function useGameData(user, authLoading) {
    * 
    * Process:
    * 1. Generate secure UUID for game
-   * 2. Add to local state immediately
-   * 3. Persist to database
-   * 4. Return ID for further operations
-   * 
+   * 2. Persist to database (single round-trip that also returns every
+   *    linked realm member's updated rank/progress, see
+   *    insertGameAndCelebrate/migrations/insert_game_and_celebrate.sql)
+   * 3. Add to local state
+   *
    * @param {Object} gameData - Game details (players, scores, expansions, etc.)
-   * @returns {string} Generated game ID
+   * @returns {{id: string, celebrations: Array}} Generated game ID + realm celebration rows
    */
   const addGame = useCallback(async (gameData) => {
     const id      = generateId();
     const newGame = { ...gameData, id };
-    await insertGame(newGame);
+    const celebrations = await insertGameAndCelebrate(newGame);
     setGames(prev => [newGame, ...prev]); // Add to beginning (newest first)
-    return id;
+    return { id, celebrations };
   }, []);
 
   /**

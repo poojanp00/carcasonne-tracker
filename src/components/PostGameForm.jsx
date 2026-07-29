@@ -2,12 +2,14 @@ import { useState, useEffect, useRef } from 'react';
 import { ACHIEVEMENT_DISPLAY_ORDER } from './GameHighlights';
 import RecordBadge from './RecordBadge';
 import ValInfo from './ValInfo';
+import MemberProgressModal from './MemberProgressModal';
 import PointBreakdownChart from './PointBreakdownChart';
 import ScoreTimelineChart from './ScoreTimelineChart';
 import { transformMaxFeaturesToUI } from '../utils/achievements';
 import { getMeepleColor, getToday, formatDurationHMS } from '../utils/formatters';
 import { computeWinners } from '../utils/scoring';
 import { chestFor } from '../data/chests';
+import { rankTitle } from '../utils/metaRank';
 import { STATISTICS_CONFIG } from '../constants';
 import pigImg   from '../../images/icons/pig.png';
 import cImg     from '../../images/icons/C.png';
@@ -31,11 +33,12 @@ function nameFontSize(len) {
   return 'clamp(0.48rem, 1.3vw, 0.58rem)';
 }
 
-export default function GameLogForm({ session, ownedExpansions, onSubmit, onCancel, onPlayAgain, onExitToHub, isGuest = false }) {
+export default function GameLogForm({ session, ownedExpansions, onSubmit, onCancel, onPlayAgain, onExitToHub, isGuest = false, progressByName = {}, isRecording = false }) {
   const { players = [], meeples = {}, expansions: prefillExp = [], finalScores = {}, scoreBreakdown = {}, farmWin: autoFarmWin = false, gameDuration = 0, maxFeatures = {}, scoreTimeline = [], realm } = session || {};
 
   const [date, setDate] = useState(getToday);
   const [submitted, setSubmitted] = useState(false);
+  const [showProgressFor, setShowProgressFor] = useState(null); // player name, or null
   const hasAutoSubmitted = useRef(false);
 
   // Auto-submit for logged-in users
@@ -113,8 +116,20 @@ export default function GameLogForm({ session, ownedExpansions, onSubmit, onCanc
     setSubmitted(true);
   };
 
+  // Full-page gate: while the save + celebration fetch are in flight, show
+  // nothing but a loading message rather than letting Final Scores render
+  // immediately and then have rank badges/celebration modals pop in once the
+  // network round-trip resolves a moment later. The <form> itself must stay
+  // mounted regardless (the auto-submit effect above dispatches a synthetic
+  // submit event via document.querySelector('form')).
+  const showLoadingGate = !isGuest && isRecording;
+
   return (
     <form onSubmit={handleSubmit}>
+      {showLoadingGate ? (
+        <div className="loading-state">Recording game…</div>
+      ) : (
+      <>
       <div className="section-title">
         {realm && (
           !submitted && onCancel ? (
@@ -172,6 +187,7 @@ export default function GameLogForm({ session, ownedExpansions, onSubmit, onCanc
         <div className="postgame-scores-grid">
           {sortedPlayers.map((name) => {
             const color    = getMeepleColor(meeples[name]);
+            const progress = progressByName[name.toLowerCase()] ?? null;
             return (
               <div key={name} className="postgame-player-card" style={{ borderLeft: `3px solid ${color}` }}>
                 {/* Name/score/badges stay three columns at every width — badges
@@ -192,6 +208,16 @@ export default function GameLogForm({ session, ownedExpansions, onSubmit, onCanc
                   }}>
                     {name}
                   </span>
+                  {progress != null && (
+                    <button
+                      type="button"
+                      className="player-card-rank-badge"
+                      style={{ flexShrink: 0 }}
+                      onClick={() => setShowProgressFor(name)}
+                    >
+                      {rankTitle(progress.rank)}
+                    </button>
+                  )}
                   {/* Col 2: medal chips — reserved at the widest badge holder's count so
                       every row matches, even players with none; badges left-align, wrap,
                       and shrink with the viewport */}
@@ -230,6 +256,15 @@ export default function GameLogForm({ session, ownedExpansions, onSubmit, onCanc
 
       </div>
 
+      {showProgressFor != null && progressByName[showProgressFor.toLowerCase()] != null && (
+        <MemberProgressModal
+          name={showProgressFor}
+          rank={progressByName[showProgressFor.toLowerCase()].rank}
+          categoryProgress={progressByName[showProgressFor.toLowerCase()].categoryProgress}
+          onClose={() => setShowProgressFor(null)}
+        />
+      )}
+
       {/* Points breakdown chart */}
       <PointBreakdownChart
         players={sortedPlayers.map(name => ({ name, breakdown: scoreBreakdown[name] || {} }))}
@@ -254,6 +289,8 @@ export default function GameLogForm({ session, ownedExpansions, onSubmit, onCanc
           <button type="button" className="btn" onClick={onPlayAgain} style={{ marginLeft: 'auto' }}>Play Again</button>
         )}
       </div>
+      </>
+      )}
     </form>
   );
 }

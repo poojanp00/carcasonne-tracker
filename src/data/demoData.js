@@ -3,19 +3,8 @@
 // their player slot is linked via DEMO_USER_ID, so the demo Profile
 // aggregates stats across the shelf.
 
-import { DEFAULT_EXPANSIONS } from './expansions';
-
 export const DEMO_USER_ID   = 'demo-user';
 export const DEMO_USER_NAME = 'Alex';
-
-// Owned set matches what actually shows up in the generated games below
-// (EXP_SETS' full expansions) so the demo's Expansions milestone card
-// reflects a shelf a player who's played these games would plausibly have.
-const DEMO_OWNED_FULL = new Set(['Inns & Cathedrals', 'Traders & Builders', 'Abbey & Mayor']);
-export const DEMO_EXPANSIONS = DEFAULT_EXPANSIONS.map(exp => ({
-  ...exp,
-  owned: exp.type === 'mini' ? exp.owned : DEMO_OWNED_FULL.has(exp.name),
-}));
 
 const demoPlayers = (names) => names.map((name, i) =>
   i === 0

@@ -240,7 +240,15 @@ export default function RealmsTab({
 
   return (
     <div>
-      {tourActive && (
+      {/* Hidden while a game's Lightbox is open on top (selectedGame) — the
+          card has nothing useful to point at behind a full-screen modal, and
+          leaving it mounted keeps its position-tracking rAF loop (see
+          useTourCardPosition) running the whole time the Lightbox is up for
+          no visible benefit, competing for the same main thread a touch
+          scroll gesture inside the Lightbox needs on a phone. It reappears
+          automatically once the Lightbox closes and `tourStage` is still
+          whatever stage it was (gamelog, most often). */}
+      {tourActive && !selectedGame && (
         tourStage === 'hub' ? (
           <RealmHubTourCards
             showChest={!tourVisitedChest}
@@ -307,6 +315,7 @@ export default function RealmsTab({
             rosterRef={rosterRef}
             gamelogRef={gamelogRef}
             tourHighlight={tourActive ? tourHighlight : null}
+            onExitToRealms={handleBackFromBook}
           />
         </div>
       )}

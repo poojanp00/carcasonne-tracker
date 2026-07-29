@@ -3,7 +3,6 @@ import { MEEPLE_IMGS, WinRateBadge } from './StatWidgets';
 import { ACHIEVEMENT_DISPLAY_ORDER, ACHIEVEMENT_BADGE, ACHIEVEMENT_LABEL_OVERRIDE } from './GameHighlights';
 import { formatAchievementName } from '../utils/achievements';
 import { rankTitle } from '../utils/metaRank';
-import MemberProgressModal from './MemberProgressModal';
 import crownImg from '../../images/icons/crown.png';
 import ValInfo from './ValInfo';
 
@@ -44,7 +43,6 @@ function TrophyBack({ name, tallies }) {
 export default function PlayerCard({ name, stats, tallies, favMeeple, favMeepleCount, colorClass, isLeader, onNavigateToGame, progress = null }) {
   const meepleImg = favMeeple ? (MEEPLE_IMGS[favMeeple] ?? null) : null;
   const [flipped, setFlipped] = useState(false);
-  const [showProgress, setShowProgress] = useState(false);
   // Flip on card click, but let the expand arrow and game-link buttons work normally
   const handleFlip = (e) => {
     if (e.target.closest('button')) return;
@@ -64,20 +62,9 @@ export default function PlayerCard({ name, stats, tallies, favMeeple, favMeepleC
         )}
         <div className="player-card-name" style={{ margin: 0 }}>{name}</div>
         {progress != null && (
-          <ValInfo tip={`${rankTitle(progress.rank)} — view milestones`} placement="above">
-            <button type="button" className="player-card-rank-badge" onClick={() => setShowProgress(true)}>Rank {progress.rank}</button>
-          </ValInfo>
+          <span className="player-card-rank-badge">{rankTitle(progress.rank)}</span>
         )}
       </div>
-
-      {showProgress && progress != null && (
-        <MemberProgressModal
-          name={name}
-          rank={progress.rank}
-          categoryProgress={progress.categoryProgress}
-          onClose={() => setShowProgress(false)}
-        />
-      )}
 
       <div className="milestones-subtitle">Player Stats</div>
 

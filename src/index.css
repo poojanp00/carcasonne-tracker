@@ -835,19 +835,6 @@ input[type="search"], input[type="number"] {
   transform: translateY(-3px);
   box-shadow: var(--shadow-tile-hover);
 }
-/* The Profile hero isn't flippable — no hover lift, and (since it's the
-   permanent .profile-hero class doing this rather than something toggled
-   by the tour) no transition either: .player-card's own transition would
-   otherwise still animate the box-shadow change whenever the profile
-   tour's .tour-highlight is added to or removed from this specific card. */
-.player-card.profile-hero:hover {
-  transform: none;
-  box-shadow: var(--shadow-tile);
-}
-.player-card.profile-hero {
-  transition: none;
-}
-
 .player-card.p1 { border-top: 4px solid var(--deep-red); }
 .player-card.p2 { border-top: 4px solid var(--royal-blue); }
 
@@ -887,7 +874,6 @@ input[type="search"], input[type="number"] {
   color: var(--stone-gray);
   white-space: nowrap;
   flex-shrink: 0;
-  cursor: var(--cursor-pointer);
 }
 
 /* ── Player card subtitle ── */
@@ -914,9 +900,13 @@ input[type="search"], input[type="number"] {
   transform-style: preserve-3d;
   transition: transform 0.6s cubic-bezier(0.4, 0.2, 0.2, 1);
 }
-/* Both faces share the same grid cell (stacked, not absolutely positioned)
-   so the row auto-sizes to whichever face is taller — the card never shrinks
-   below the front's height, only grows if the back needs more room */
+/* Both faces share the same grid cell, but only the face currently facing
+   forward is left in normal flow — the other is pulled out with
+   position: absolute (inset: 0 stretches it to match) so it can't
+   contribute to the row's height. That makes the card size itself to
+   whichever face is showing: the front's height normally, growing (or
+   shrinking) to the back's height only once flipped, rather than always
+   sizing to the taller of the two. */
 .player-card-flip .player-card {
   grid-area: 1 / 1;
   min-width: 0;
@@ -924,6 +914,9 @@ input[type="search"], input[type="number"] {
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
 }
+.player-card-flip .player-card-back { position: absolute; inset: 0; }
+.player-card-flip.flipped .player-card-back { position: static; }
+.player-card-flip.flipped .player-card-front { position: absolute; inset: 0; }
 .player-card-flip.flipped .player-card-flip-inner { transform: rotateY(180deg); }
 /* Faces own their transforms — the card's generic hover lift lives on the wrapper instead */
 .player-card-flip .player-card-front,
@@ -1320,6 +1313,15 @@ input[type="search"], input[type="number"] {
   justify-content: center;
   padding: clamp(3rem, 10vh, 7rem) 1rem;
   overflow-y: auto;
+  /* This is a fixed-position modal sitting over a page whose body scroll is
+     locked (see RealmBook.jsx's overflow toggle) — on iOS Safari specifically,
+     a nested scrollable region like that can otherwise fail to carry a touch
+     swipe through to its own scrollbar, leaving content below the fold
+     (including the Close button at the very end) unreachable on a phone.
+     overscroll-behavior keeps the gesture from trying to chain into the
+     (locked) page behind it once it does scroll. */
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   animation: lbFadeIn 0.28s ease forwards;
 }
 @keyframes lbFadeIn {
@@ -2426,113 +2428,6 @@ input[type="file"] { display: none; }
   text-align: center;
 }
 
-/* Account milestones carousel (Profile tab). The section stretches to match
-   the hero card's height (me-hero-grid's first row is align-items: stretch,
-   set inline in Profile.jsx) — the carousel itself grows to fill that, with
-   only the dot pagination below taking its own natural (small) height, per
-   the "same height as the character card, minus room for the paginator" ask. */
-.milestone-carousel-section {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-}
-.milestone-carousel {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-}
-.milestone-carousel-track {
-  display: flex;
-  flex: 1;
-  min-height: 0; /* let the flex item size from its container instead of its content */
-  overflow-x: auto;
-  scroll-snap-type: x mandatory;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
-  padding: 3px 0 6px; /* keep card shadows from clipping */
-}
-.milestone-carousel-track::-webkit-scrollbar { display: none; }
-.milestone-carousel-slide {
-  flex: 0 0 100%;
-  min-width: 100%;
-  scroll-snap-align: start;
-  scroll-snap-stop: always;
-  display: flex; /* equal-height slides */
-}
-/* Card is narrower than its slide (not 100%) so a visible gutter shows on
-   both sides — reads as "a card in a scrollable deck" rather than a single
-   full-bleed panel. The slide itself stays 100% (JS scroll-position math in
-   MilestoneCarousel.jsx assumes one el.clientWidth per slide) — only the
-   card inside is narrower. */
-.milestone-carousel-slide > * { width: 84%; margin: 0 auto; }
-.milestone-carousel-arrow {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 5;
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  background: var(--aged-paper);
-  border: 1.5px solid var(--warm-gold);
-  color: var(--earth-brown);
-  font-size: 1.1rem;
-  line-height: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: var(--cursor-pointer);
-  box-shadow: var(--shadow-tile);
-}
-.milestone-carousel-arrow.prev { left: -10px; }
-.milestone-carousel-arrow.next { right: -10px; }
-.milestone-carousel-arrow:disabled { opacity: 0.35; cursor: default; }
-@media (hover: none) and (pointer: coarse) {
-  .milestone-carousel-arrow { display: none; }
-}
-.milestone-carousel-dots {
-  display: flex;
-  justify-content: center;
-  gap: 0.45rem;
-  margin-top: 0.6rem;
-}
-.milestone-carousel-dot {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  padding: 0;
-  border: 1.5px solid var(--earth-brown);
-  background: transparent;
-  cursor: var(--cursor-pointer);
-  transition: background 0.2s ease, border-color 0.2s ease;
-}
-.milestone-carousel-dot.active {
-  background: var(--warm-gold);
-  border-color: var(--warm-gold);
-}
-
-.milestone-card {
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-start; /* header pinned top; .milestone-card-image-slot pushes the progress block to the bottom */
-  height: 100%;
-  gap: 0.55rem;
-  padding: 1rem 2.6rem; /* keeps text clear of the overlapping arrows */
-}
-/* Flexible spacer reserving room for a future category illustration —
-   grows to fill whatever height the card has (it matches the hero card's
-   height, see .milestone-carousel-section) beyond the header + progress
-   block's natural size. */
-.milestone-card-image-slot {
-  flex: 1;
-  min-height: 3rem;
-}
-@media (hover: none) and (pointer: coarse) {
-  .milestone-card { padding: 1rem 1.2rem; } /* arrows hidden on touch — reclaim the space */
-}
-.milestone-card:hover { transform: none; } /* no lift inside the scroll track */
 .milestone-card-header {
   display: flex;
   align-items: center;
@@ -2541,74 +2436,6 @@ input[type="file"] { display: none; }
   font-weight: 700;
   font-size: clamp(1.05rem, 3vw, 1.4rem);
   color: var(--charcoal);
-}
-.milestone-card-tier {
-  font-family: 'Cinzel', serif;
-  font-weight: 700;
-  font-size: clamp(0.75rem, 2vw, 0.95rem);
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--warm-gold);
-}
-.milestone-card-progress-label {
-  font-family: 'Cinzel', serif;
-  font-size: clamp(0.85rem, 2.2vw, 1.05rem);
-  color: var(--earth-brown);
-}
-/* Wraps the track plus room below it for the always-on notch labels —
-   the notch lines and labels are positioned relative to this, not the track,
-   so a line can run from the bar's top down through the label row. */
-.milestone-progress-wrap {
-  position: relative;
-  padding-bottom: 1.15rem;
-}
-
-/* Retro segmented bar: hard corners, chunky inset frame, blocky gold cells */
-.milestone-progress-track {
-  height: 18px;
-  border-radius: 2px;
-  background: rgba(139, 94, 60, 0.18);
-  border: 2px solid var(--earth-brown);
-  box-shadow: inset 2px 2px 0 rgba(43, 27, 10, 0.25);
-  padding: 2px;
-  overflow: hidden;
-}
-.milestone-progress-fill {
-  height: 100%;
-  border-radius: 0;
-  background: repeating-linear-gradient(
-    90deg,
-    var(--warm-gold) 0 8px,
-    rgba(43, 27, 10, 0.30) 8px 10px
-  );
-  transition: width 0.4s steps(8, end); /* stepped, old-school fill */
-}
-
-/* Engraved milestone notches — a thin carved line at each unlocked tier's
-   threshold, running from the bar down to its always-visible label
-   (no hover needed). Absolutely positioned within .milestone-progress-wrap,
-   so the line paints above the fill regardless of DOM order. */
-.milestone-notch-line {
-  position: absolute;
-  top: 0;
-  bottom: 1.15rem;
-  width: 2px;
-  transform: translateX(-50%);
-  background: rgba(43, 27, 10, 0.55);
-  box-shadow: 1px 0 0 rgba(255, 233, 189, 0.25); /* carved bevel highlight */
-  pointer-events: none;
-  z-index: 2;
-}
-.milestone-notch-label {
-  position: absolute;
-  bottom: 0;
-  transform: translateX(-50%); /* always centered under its notch line */
-  font-family: 'Crimson Text', serif;
-  font-style: italic;
-  font-size: 0.62rem;
-  line-height: 1.1;
-  color: var(--stone-gray);
-  white-space: nowrap;
 }
 /* Rank hover tooltip: a vertical version of the milestone notch-and-line —
    next (unearned) rank on top, current rank highlighted, earned ranks below,
@@ -2682,14 +2509,6 @@ input[type="file"] { display: none; }
   opacity: 0.6;
   font-size: 0.85em;
 }
-
-.milestone-card-remaining {
-  font-size: clamp(0.72rem, 2vw, 0.88rem);
-  color: var(--stone-gray);
-  font-style: italic;
-  text-align: right; /* sits under the bar's right edge */
-}
-
 
 /* Open realm book */
 .realm-book {
@@ -2804,22 +2623,22 @@ input[type="file"] { display: none; }
 
 /* Floating golden embers drifting up from the bottom of the card, looping for
    as long as the modal stays open — a subtle ambient "juice" layer, not tied
-   to any one moment. */
-.rankup-embers {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-  pointer-events: none;
-  z-index: 0;
-}
+   to any one moment. Two separate layers (see the two EmberField calls in
+   RankUpModal.jsx), one behind the card content and one in front of it, so
+   some embers drift over the text/buttons rather than always staying tucked
+   behind everything — z-index only works between actual siblings, so this
+   has to be two whole separate containers, not just two z-indexes on spans
+   sharing one container. */
+.rankup-embers--back { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; }
+.rankup-embers--front { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 2; }
 .rankup-ember {
   position: absolute;
   bottom: -10px;
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: radial-gradient(circle, #fff2c9 0%, #c9a34a 55%, transparent 75%);
-  box-shadow: 0 0 6px 2px rgba(201, 163, 74, 0.55);
+  background: radial-gradient(circle, #ffffff 0%, #fff2c9 55%, transparent 75%);
+  box-shadow: 0 0 6px 2px rgba(255, 242, 201, 0.55);
   opacity: 0;
   animation: rankup-ember-rise linear infinite;
 }
@@ -2880,7 +2699,7 @@ input[type="file"] { display: none; }
   font-family: 'Cinzel', serif;
   font-weight: 700;
   font-size: clamp(0.85rem, 2.4vw, 1.05rem);
-  color: var(--earth-brown);
+  color: var(--charcoal);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2889,7 +2708,7 @@ input[type="file"] { display: none; }
   font-family: 'Cinzel', serif;
   font-weight: 700;
   font-size: clamp(0.95rem, 2.6vw, 1.15rem);
-  color: var(--earth-brown);
+  color: var(--charcoal);
 }
 
 /* Per-category tier-name reel — only the tier name itself sits in a light
@@ -2904,7 +2723,7 @@ input[type="file"] { display: none; }
 .rankup-reel-tier {
   flex-shrink: 0;
   padding: 0 1.1rem;
-  border-radius: 8px;
+  border-radius: 0;
   /* Same box color as the rank reel above (.rankup-reel-rank) for a
      consistent look across every boxed reel in the modal. */
   background: rgba(255, 250, 235, 0.5);
@@ -2963,6 +2782,42 @@ input[type="file"] { display: none; }
 @keyframes rankup-frame-pulse {
   0%, 100% { box-shadow: 0 0 8px 2px rgba(201, 163, 74, 0.4); }
   50%      { box-shadow: 0 0 16px 5px rgba(201, 163, 74, 0.75); }
+}
+
+/* One column per category row in the milestones stage — each row now holds
+   a label/tier line plus a nested progress bar underneath, not just a
+   single line, so every row needs its own flex column instead of one shared
+   wrapper around the whole list. */
+.rankup-category-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.rankup-category-label {
+  font-family: 'Crimson Text', serif;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--charcoal);
+}
+/* Current raw progress, e.g. "(1,250 pts)", fine print beside the label —
+   muted gray everywhere (Profile, MemberProgressModal, and the rank-up
+   celebration alike); red is reserved for "X to next" targets, not current
+   totals. */
+.rankup-category-progress {
+  margin-left: 0.3rem;
+  font-family: 'Crimson Text', serif;
+  font-style: italic;
+  font-size: 0.72rem;
+  font-weight: 400;
+  color: var(--stone-gray);
+}
+
+/* One star per tier already unlocked in this category, beside its label. */
+.rankup-tier-stars {
+  margin-left: 0.35rem;
+  color: var(--warm-gold);
+  font-size: 0.85rem;
+  letter-spacing: 0.05em;
 }
 
 @media (prefers-reduced-motion: reduce) {

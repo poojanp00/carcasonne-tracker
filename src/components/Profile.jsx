@@ -1,16 +1,16 @@
 import { useMemo, useState, useEffect, useRef } from 'react';
 import { SCORE_TYPE_ORDER, SCORE_TYPE_COLORS } from '../constants';
 import { calcAccountStats } from '../utils/stats';
-import { visibleAccountMilestones } from '../data/accountMilestones';
+import { ACCOUNT_MILESTONES, METRIC_UNITS, accountMilestoneProgress, categoryTierState } from '../data/accountMilestones';
 import { getCurrentRank, countUnlockedTiers, rankTitle, tiersRequiredForRank, getMaxRank, getTotalTiers } from '../utils/metaRank';
-import CategoryMilestoneCard from './CategoryMilestoneCard';
-import MilestoneCarousel from './MilestoneCarousel';
+import QuarterTierBar from './QuarterTierBar';
+import RankQuarterBar from './RankQuarterBar';
 import { MEEPLE_IMGS, TYPE_LABELS } from './StatWidgets';
 import { ACHIEVEMENT_DISPLAY_ORDER, ACHIEVEMENT_BADGE, ACHIEVEMENT_LABEL_OVERRIDE } from './GameHighlights';
 
 import { formatAchievementName } from '../utils/achievements';
 import { getExpansions } from '../data/storage';
-import { DEMO_GAMES, DEMO_REALMS, DEMO_EXPANSIONS, DEMO_USER_ID, DEMO_USER_NAME } from '../data/demoData';
+import { DEMO_GAMES, DEMO_REALMS, DEMO_USER_ID, DEMO_USER_NAME } from '../data/demoData';
 import ValInfo from './ValInfo';
 import Lightbox from './Lightbox';
 import { GearIcon, TrashIcon } from './icons';
@@ -60,9 +60,13 @@ function GameLinkValue({ game, onNavigateToGame, children }) {
 }
 
 // Proportional stacked bar of lifetime points by type — hover a segment for
-// the type and amount, same tooltip as the realm point-breakdown chart.
+// the type and amount, same tooltip as the realm point-breakdown chart. The
+// ▼ below it reveals a one-row table (same column styling as the
+// PostGameForm/Logbook breakdown tables) — just this account's own totals,
+// so there's no per-player sort/combine toggle to speak of, only the table.
 function PointsBar({ breakdown }) {
   const [tooltip, setTooltip] = useState(null);
+  const [showTable, setShowTable] = useState(false);
   const barsRef = useRef(null);
   const types = SCORE_TYPE_ORDER.filter(t => (breakdown[t] || 0) > 0);
   const total = types.reduce((s, t) => s + breakdown[t], 0);
@@ -81,38 +85,77 @@ function PointsBar({ breakdown }) {
   }
 
   return (
-    <div ref={barsRef} style={{ position: 'relative', margin: '0.35rem 0 0.7rem' }} onMouseLeave={() => setTooltip(null)}>
-      <div className="points-bar" style={{ display: 'flex', height: '18px', borderRadius: '6px', overflow: 'hidden' }}>
-        {types.map(t => (
-          <div
-            key={t}
-            style={{ flex: breakdown[t] / total, backgroundColor: SCORE_TYPE_COLORS[t], cursor: 'var(--cursor-arrow)' }}
-            onMouseEnter={(e) => handleMouseEnter(e, t, breakdown[t])}
-          />
-        ))}
+    <div style={{ margin: '0.35rem 0 0.7rem' }}>
+      <div ref={barsRef} style={{ position: 'relative' }} onMouseLeave={() => setTooltip(null)}>
+        <div className="points-bar" style={{ display: 'flex', height: '18px', borderRadius: '6px', overflow: 'hidden' }}>
+          {types.map(t => (
+            <div
+              key={t}
+              style={{ flex: breakdown[t] / total, backgroundColor: SCORE_TYPE_COLORS[t], cursor: 'var(--cursor-arrow)' }}
+              onMouseEnter={(e) => handleMouseEnter(e, t, breakdown[t])}
+            />
+          ))}
+        </div>
+        {tooltip && (
+          <div style={{
+            position: 'absolute',
+            left: tooltip.x,
+            top: tooltip.y,
+            transform: 'translate(-50%, calc(-100% - 6px))',
+            background: 'var(--earth-brown)',
+            color: 'var(--parchment)',
+            padding: '0.3rem 0.55rem',
+            borderRadius: '6px',
+            zIndex: 100,
+            whiteSpace: 'nowrap',
+            pointerEvents: 'none',
+            boxShadow: '0 3px 12px rgba(0,0,0,0.35)',
+            textAlign: 'center',
+          }}>
+            <div style={{ fontFamily: "'Cinzel', serif", fontSize: '0.65rem', color: 'rgba(240,230,210,0.7)', marginBottom: '0.1rem' }}>
+              {TYPE_LABELS[tooltip.type] ?? tooltip.type}
+            </div>
+            <div style={{ fontFamily: "'Cinzel', serif", fontWeight: 700, fontSize: '0.85rem' }}>
+              {tooltip.value.toLocaleString()}
+            </div>
+          </div>
+        )}
       </div>
-      {tooltip && (
-        <div style={{
-          position: 'absolute',
-          left: tooltip.x,
-          top: tooltip.y,
-          transform: 'translate(-50%, calc(-100% - 6px))',
-          background: 'var(--earth-brown)',
-          color: 'var(--parchment)',
-          padding: '0.3rem 0.55rem',
-          borderRadius: '6px',
-          zIndex: 100,
-          whiteSpace: 'nowrap',
-          pointerEvents: 'none',
-          boxShadow: '0 3px 12px rgba(0,0,0,0.35)',
-          textAlign: 'center',
-        }}>
-          <div style={{ fontFamily: "'Cinzel', serif", fontSize: '0.65rem', color: 'rgba(240,230,210,0.7)', marginBottom: '0.1rem' }}>
-            {TYPE_LABELS[tooltip.type] ?? tooltip.type}
-          </div>
-          <div style={{ fontFamily: "'Cinzel', serif", fontWeight: 700, fontSize: '0.85rem' }}>
-            {tooltip.value.toLocaleString()}
-          </div>
+
+      <button
+        type="button"
+        onClick={() => setShowTable(v => !v)}
+        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', background: 'none', border: 'none', cursor: 'var(--cursor-pointer)', padding: '0.3rem 0 0', color: 'var(--stone-gray)', fontSize: '0.65rem', fontFamily: 'Cinzel, serif', opacity: 0.6 }}
+        aria-label={showTable ? 'Hide points breakdown table' : 'Show points breakdown table'}
+      >
+        {showTable ? '▲' : '▼'}
+      </button>
+
+      {showTable && (
+        <div style={{ overflowX: 'auto', marginTop: '0.4rem' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr>
+                {types.map(t => (
+                  <th key={t} style={{ padding: '0.25rem 0.4rem', fontFamily: 'Cinzel, serif', fontWeight: 600, fontSize: 'clamp(0.52rem, 1.4vw, 0.65rem)', textAlign: 'center', color: 'var(--stone-gray)', whiteSpace: 'nowrap' }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', justifyContent: 'center' }}>
+                      <span style={{ width: '7px', height: '7px', borderRadius: '2px', backgroundColor: SCORE_TYPE_COLORS[t], display: 'inline-block', flexShrink: 0 }} />
+                      {TYPE_LABELS[t] ?? t}
+                    </span>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              <tr style={{ borderTop: '1px solid rgba(201,163,74,0.2)' }}>
+                {types.map(t => (
+                  <td key={t} style={{ padding: '0.35rem 0.4rem', textAlign: 'center', fontFamily: 'Crimson Text, serif', fontSize: 'clamp(0.7rem, 1.8vw, 0.9rem)', color: 'var(--charcoal)' }}>
+                    {breakdown[t].toLocaleString()}
+                  </td>
+                ))}
+              </tr>
+            </tbody>
+          </table>
         </div>
       )}
     </div>
@@ -120,6 +163,52 @@ function PointsBar({ breakdown }) {
 }
 
 const sectionHeaderStyle = { borderBottom: '1px solid var(--warm-gold)', paddingBottom: '0.5rem', marginBottom: '1rem' };
+
+// "All Milestones" carousel slide — every category has exactly 4 tiers, so
+// instead of a bar scaled to real point thresholds (where an early tier's
+// tiny gap next to a huge later one leaves no room for its own label), the
+// bar is chopped into 4 EQUAL quarters, one per tier, each independently
+// filled by how far progress has gotten through THAT tier's own point range
+// (0%, a partial fraction, or fully chunked off once earned). Every quarter
+// is a fixed 25% of the width no matter the category, so there's always
+// guaranteed room to print that tier's full name underneath it — labels can
+// wrap onto a second line rather than needing to fit on one, unlike every
+// other page here.
+// Renders bare (no outer card wrapper) — the caller (ProfileHero's flip-card
+// back face) already supplies its own card chrome.
+function AllMilestonesQuarterCard({ account }) {
+  const started = ACCOUNT_MILESTONES.filter(cat => accountMilestoneProgress(cat, account) > 0);
+  return (
+    <>
+      <div className="milestone-card-header">
+        <span className="milestone-card-name">Milestones</span>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem', marginTop: '0.3rem' }}>
+        {started.map(cat => {
+          const { progress, currentTier, nextTier, remaining, reached, maxed } = categoryTierState(cat, account);
+          const unit = METRIC_UNITS[cat.metric] ?? 'pts';
+          const pips = '★'.repeat(reached.length) + '☆'.repeat(Math.max(0, cat.tiers.length - reached.length));
+          return (
+            <div key={cat.id}>
+              <div style={{ marginBottom: '0.1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.6rem' }}>
+                <span className="rankup-category-label">
+                  {cat.label}
+                  <span className="rankup-category-progress">
+                    ({progress.toLocaleString()} {unit})
+                  </span>
+                </span>
+                <span className="rankup-tier-stars" aria-label={`${reached.length} of ${cat.tiers.length} tiers unlocked`}>
+                  {pips}
+                </span>
+              </div>
+              <QuarterTierBar tiers={cat.tiers} progress={progress} unit={unit} currentTier={currentTier} nextTier={nextTier} remaining={remaining} maxed={maxed} />
+            </div>
+          );
+        })}
+      </div>
+    </>
+  );
+}
 
 // Trophy cabinet: one medal per time each best-in-game record was held —
 // 7 Longest Roads shows 7 medals in the row. Renders in its own card beside
@@ -152,13 +241,19 @@ function TrophyCabinet({ account }) {
 }
 
 // The strategy-game hero card: large meeple, name, rank title, and the
-// primary career numbers at a glance.
-function ProfileHero({ account, userId, displayName, title, titleTip, tierCount, totalTiers, onOpenSettings, heroRef, highlighted = false }) {
+// primary career numbers at a glance. Flips (click anywhere but a button)
+// to reveal the account's full milestones breakdown on the back — same
+// flip mechanic/hover-lift affordance as a Fellowship PlayerCard. Flip state
+// is owned by the parent (see Profile's heroFlipped/handleHeroFlip) rather
+// than locally, so the guided tour can drive it in lockstep with its own
+// step — this component just renders whatever `flipped` it's given.
+function ProfileHero({ account, userId, displayName, title, titleTip, tierCount, totalTiers, onOpenSettings, heroRef, highlighted = false, flipped, onFlip }) {
   const { stats, favMeeple, favMeepleCount, playingSince, totalPlaytime } = account;
   // No games played yet means no real favorite meeple — assigned one
   // (see pickDefaultMeeple) instead of showing an empty hero card.
   const isDefaultMeeple = !favMeeple;
   const meepleImg = MEEPLE_IMGS[favMeeple || pickDefaultMeeple(userId)] ?? null;
+  const currentRank = getCurrentRank(tierCount);
 
   const primaryStats = [
     ['Victories', <ValInfo tip={`${stats.winRate}% win rate`}><span className="profile-stat-value" style={{ color: 'var(--forest-green)' }}>{stats.wins}</span></ValInfo>],
@@ -170,35 +265,43 @@ function ProfileHero({ account, userId, displayName, title, titleTip, tierCount,
   ];
 
   return (
-    <div ref={heroRef} className={`player-card p2 profile-hero${highlighted ? ' tour-highlight' : ''}`} style={{ marginBottom: '1.2rem' }}>
-      {onOpenSettings && (
-        <button type="button" className="profile-settings-btn" onClick={onOpenSettings} title="Account settings" aria-label="Account settings">
-          <GearIcon />
-        </button>
-      )}
-      <div className="profile-hero-top">
-        {meepleImg && (
-          <ValInfo tip={isDefaultMeeple ? null : (favMeepleCount ? `Used in ${favMeepleCount} ${favMeepleCount === 1 ? 'game' : 'games'}` : null)}>
-            <img src={meepleImg} alt={isDefaultMeeple ? 'Meeple' : 'Favorite meeple'} className="profile-hero-meeple" draggable={false} />
-          </ValInfo>
-        )}
-        <div>
-          <div className="profile-hero-name">{displayName || 'Adventurer'}</div>
-          <ValInfo tip={titleTip}>
-            <span className="profile-hero-title" style={{ display: 'block' }}>{title}</span>
-          </ValInfo>
-        </div>
-      </div>
-
-      <PointsBar breakdown={account.breakdown} />
-
-      <div className="profile-hero-stats">
-        {primaryStats.map(([label, value]) => (
-          <div key={label} className="profile-stat">
-            {value}
-            <span className="profile-stat-label">{label}</span>
+    <div ref={heroRef} className={`player-card-flip${flipped ? ' flipped' : ''}${highlighted ? ' tour-highlight' : ''}`} style={{ marginBottom: '1.2rem' }}>
+      <div className="player-card-flip-inner">
+        <div className="player-card p2 profile-hero player-card-front" onClick={onFlip}>
+          {onOpenSettings && (
+            <button type="button" className="profile-settings-btn" onClick={onOpenSettings} title="Account settings" aria-label="Account settings">
+              <GearIcon />
+            </button>
+          )}
+          <div className="profile-hero-top">
+            {meepleImg && (
+              <ValInfo tip={isDefaultMeeple ? null : (favMeepleCount ? `Used in ${favMeepleCount} ${favMeepleCount === 1 ? 'game' : 'games'}` : null)}>
+                <img src={meepleImg} alt={isDefaultMeeple ? 'Meeple' : 'Favorite meeple'} className="profile-hero-meeple" draggable={false} />
+              </ValInfo>
+            )}
+            <div>
+              <div className="profile-hero-name">{displayName || 'Adventurer'}</div>
+              <ValInfo tip={titleTip}>
+                <span className="profile-hero-title" style={{ display: 'block' }}>{title}</span>
+              </ValInfo>
+            </div>
           </div>
-        ))}
+
+          <RankQuarterBar tierCount={tierCount} currentRank={currentRank} />
+
+          <div className="profile-hero-stats">
+            {primaryStats.map(([label, value]) => (
+              <div key={label} className="profile-stat">
+                {value}
+                <span className="profile-stat-label">{label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="player-card p2 profile-hero player-card-back" onClick={onFlip}>
+          <AllMilestonesQuarterCard account={account} />
+        </div>
       </div>
     </div>
   );
@@ -211,6 +314,7 @@ function CareerHighlights({ account, onNavigateToGame }) {
   return (
       <div className="stat-rows-narrow" style={{ margin: 0 }}>
           <div className="tile-card-header" style={sectionHeaderStyle}>Career Highlights</div>
+          <PointsBar breakdown={account.breakdown} />
           <div className="stat-row">
             <span className="stat-label">Personal Best</span>
             <GameLinkValue game={stats.highScoreGame} onNavigateToGame={onNavigateToGame}>
@@ -270,7 +374,7 @@ function CareerHighlights({ account, onNavigateToGame }) {
   );
 }
 
-export default function Profile({ games: realGames, realms: realRealms, expansions: realExpansions = [], userId: realUserId, displayName: realDisplayName, isGuest = false, tourShown = false, onTourShown = null, storedMetaRank = 0, onGuestMetaRankAchieved = null, onChangeDisplayName, onDeleteAccount, onSignOut }) {
+export default function Profile({ games: realGames, realms: realRealms, userId: realUserId, displayName: realDisplayName, isGuest = false, tourShown = false, onTourShown = null, storedMetaRank = 0, onGuestMetaRankAchieved = null, onChangeDisplayName, onDeleteAccount, onSignOut }) {
   const [selectedGame, setSelectedGame] = useState(null);
 
   // Guided tour opened from the "?" button: null = closed, 0-3 = which
@@ -278,10 +382,18 @@ export default function Profile({ games: realGames, realms: realRealms, expansio
   // section; closing (or finishing) returns to the top of the page.
   const [tourStep, setTourStep] = useState(null);
   const heroRef = useRef(null);
-  const milestonesRef = useRef(null);
   const careerHighlightsRef = useRef(null);
-  const trophyCabinetRef = useRef(null);
-  const tourRefs = [heroRef, milestonesRef, careerHighlightsRef, trophyCabinetRef];
+  // Hero/Career Highlights flip-cards — same click-to-flip as a Fellowship
+  // PlayerCard when browsed freely, but *driven* by the tour (below) rather
+  // than independently toggled while the tour is open, so each step can show
+  // exactly the face it's describing.
+  const [heroFlipped, setHeroFlipped] = useState(false);
+  const [careerFlipped, setCareerFlipped] = useState(false);
+  // Milestones/Trophy Cabinet now live on the BACK of the hero/career-
+  // highlights flip-cards (see ProfileHero/the CareerHighlights flip below),
+  // so those tour steps just re-spotlight the same physical card as the
+  // step before them rather than a separate element.
+  const tourRefs = [heroRef, heroRef, careerHighlightsRef, careerHighlightsRef];
   // The popup docks beside whichever section the current step spotlights.
   const tourTargetRef = tourStep !== null ? tourRefs[tourStep] : null;
   // Demo data only stands in for a guest's own account while their tour is
@@ -294,10 +406,9 @@ export default function Profile({ games: realGames, realms: realRealms, expansio
   const demoActive = isGuest && tourStep !== null;
   const games = demoActive ? DEMO_GAMES : realGames;
   const realms = demoActive ? DEMO_REALMS : realRealms;
-  const expansions = demoActive ? DEMO_EXPANSIONS : realExpansions;
   const userId = demoActive ? DEMO_USER_ID : realUserId;
   const displayName = demoActive ? DEMO_USER_NAME : realDisplayName;
-  const account = useMemo(() => calcAccountStats(games, realms, userId, expansions), [games, realms, userId, expansions]);
+  const account = useMemo(() => calcAccountStats(games, realms, userId), [games, realms, userId]);
   const startTour = () => setTourStep(0);
   // Auto-opens the tour the *first* time a guest reaches this tab this
   // session (see App.jsx's guestProfileTourShown/onTourShown — lifted, not
@@ -325,7 +436,7 @@ export default function Profile({ games: realGames, realms: realRealms, expansio
     setSelectedGame(null);
     setTourStep(prev => {
       if (prev === 0) {
-        milestonesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        heroRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
         return 1;
       }
       if (prev === 1) {
@@ -333,7 +444,7 @@ export default function Profile({ games: realGames, realms: realRealms, expansio
         return 2;
       }
       if (prev === 2) {
-        trophyCabinetRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        careerHighlightsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
         return 3;
       }
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -344,7 +455,7 @@ export default function Profile({ games: realGames, realms: realRealms, expansio
     setSelectedGame(null);
     setTourStep(prev => {
       if (prev === 1) { heroRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }); return 0; }
-      if (prev === 2) { milestonesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }); return 1; }
+      if (prev === 2) { heroRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }); return 1; }
       if (prev === 3) { careerHighlightsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }); return 2; }
       return prev;
     });
@@ -355,10 +466,36 @@ export default function Profile({ games: realGames, realms: realRealms, expansio
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  // Tour-driven flip: step 1 shows the hero card's back (Milestones), step 3
+  // shows Career Highlights' back (Trophy Cabinet) — every other step, and
+  // the tour being closed entirely (tourStep back to null, via closeTour or
+  // advanceTour finishing), resets both cards to their fronts rather than
+  // leaving one stuck flipped once the tour's no longer pointing at it.
+  useEffect(() => {
+    setHeroFlipped(tourStep === 1);
+    setCareerFlipped(tourStep === 3);
+  }, [tourStep]);
+
+  // Clicking the spotlighted card itself acts exactly like clicking the
+  // tour's own "Next" (advancing/finishing the tour) while a tour is open —
+  // the flip itself is driven by the effect above, not toggled here — and
+  // falls back to a normal independent flip once there's no tour to advance.
+  // Both still ignore clicks on a real button inside the card (the hero's
+  // settings gear, CareerHighlights' game-link buttons).
+  const handleHeroFlip = (e) => {
+    if (e.target.closest('button')) return;
+    if (tourStep !== null) { advanceTour(); return; }
+    setHeroFlipped(v => !v);
+  };
+  const handleCareerFlip = (e) => {
+    if (e.target.closest('button')) return;
+    if (tourStep !== null) { advanceTour(); return; }
+    setCareerFlipped(v => !v);
+  };
+
   const tierCount     = useMemo(() => countUnlockedTiers(account), [account]);
   const computedRank  = getCurrentRank(tierCount);
   const displayedRank = computedRank; // always the live rank — no never-regress floor
-  const visibleCats   = useMemo(() => visibleAccountMilestones(account), [account]);
 
   // Why-am-I-this-rank tooltip: a vertical dot-and-line ladder — the next
   // (unearned) rank on top, the current rank highlighted, and every earned
@@ -656,22 +793,17 @@ export default function Profile({ games: realGames, realms: realRealms, expansio
           or empty-state stand-in, and it's what gives the guided tour
           something real to point at for a brand new account too. */}
       <div className={tourStep !== null ? 'tour-inert' : ''}>
-        <div className="me-hero-grid" style={{ marginBottom: '1.2rem', alignItems: 'stretch' }}>
-          <ProfileHero heroRef={heroRef} highlighted={tourStep === 0} account={account} userId={userId} displayName={displayName} title={`Rank ${displayedRank} ${rankTitle(displayedRank)}`} titleTip={rankTip} tierCount={tierCount} totalTiers={getTotalTiers()} onOpenSettings={isGuest ? null : openSettings} />
-          <div ref={milestonesRef} className={`milestone-carousel-section${tourStep === 1 ? ' tour-highlight' : ''}`}>
-            <MilestoneCarousel pauseKeyboard={!!selectedGame || !!settingsView || deleteStep > 0 || (tourStep !== null && tourStep !== 1)}>
-              {visibleCats.map((cat) => (
-                <CategoryMilestoneCard key={cat.id} category={cat} account={account} />
-              ))}
-            </MilestoneCarousel>
-          </div>
-        </div>
         <div className="me-hero-grid" style={{ marginBottom: '1.2rem' }}>
-          <div ref={careerHighlightsRef} className={`tile-card${tourStep === 2 ? ' tour-highlight' : ''}`}>
-            <CareerHighlights account={account} onNavigateToGame={openGameLightbox} />
-          </div>
-          <div ref={trophyCabinetRef} className={`tile-card${tourStep === 3 ? ' tour-highlight' : ''}`}>
-            <TrophyCabinet account={account} />
+          <ProfileHero heroRef={heroRef} highlighted={tourStep === 0 || tourStep === 1} account={account} userId={userId} displayName={displayName} title={`Rank ${displayedRank} ${rankTitle(displayedRank)}`} titleTip={rankTip} tierCount={tierCount} totalTiers={getTotalTiers()} onOpenSettings={isGuest ? null : openSettings} flipped={heroFlipped} onFlip={handleHeroFlip} />
+          <div ref={careerHighlightsRef} className={`player-card-flip${careerFlipped ? ' flipped' : ''}${(tourStep === 2 || tourStep === 3) ? ' tour-highlight' : ''}`}>
+            <div className="player-card-flip-inner">
+              <div className="player-card player-card-front" style={{ padding: '1.5rem' }} onClick={handleCareerFlip}>
+                <CareerHighlights account={account} onNavigateToGame={openGameLightbox} />
+              </div>
+              <div className="player-card player-card-back" style={{ padding: '1.5rem' }} onClick={handleCareerFlip}>
+                <TrophyCabinet account={account} />
+              </div>
+            </div>
           </div>
         </div>
       </div>

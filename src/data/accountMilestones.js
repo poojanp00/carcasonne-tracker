@@ -15,10 +15,15 @@ function progressForTypes(types, breakdown) {
   return types.reduce((sum, t) => sum + (breakdown?.[t] || 0), 0);
 }
 
+// Display unit per metric-based category (point-based categories just say
+// "pts") — shared by every place that shows a category's raw progress
+// number (Profile carousel, rank-up celebration, on-demand member progress).
+export const METRIC_UNITS = { games: 'games', wins: 'wins' };
+
 export const ACCOUNT_MILESTONES = [
   {
     id: 'games',
-    label: 'Furniture',
+    label: 'Games',
     metric: 'games', // counts games, not breakdown points
     unit: 'Games',
     alwaysVisible: true,
@@ -27,6 +32,19 @@ export const ACCOUNT_MILESTONES = [
       { tierNumber: 2, threshold: 100,  name: 'Dining Table', img: null },
       { tierNumber: 3, threshold: 500, name: 'Oak Table',  img: null },
       { tierNumber: 4, threshold: 1000, name: 'Banquet Table', img: null },
+    ],
+  },
+  {
+    id: 'wins',
+    label: 'Wins',
+    metric: 'wins', // counts victories, not breakdown points
+    unit: 'Victories',
+    alwaysVisible: true,
+    tiers: [
+      { tierNumber: 1, threshold: 5,  name: 'Winner', img: null },
+      { tierNumber: 2, threshold: 50,  name: 'Champion', img: null },
+      { tierNumber: 3, threshold: 250, name: 'Master', img: null },
+      { tierNumber: 4, threshold: 500, name: 'Legend', img: null },
     ],
   },
   {
@@ -152,32 +170,6 @@ export const ACCOUNT_MILESTONES = [
       { tierNumber: 4, threshold: 5000, name: 'Royal Marketplace', img: null },
     ],
   },
-  {
-    id: 'wins',
-    label: 'Wins',
-    metric: 'wins', // counts victories, not breakdown points
-    unit: 'Victories',
-    alwaysVisible: true,
-    tiers: [
-      { tierNumber: 1, threshold: 5,  name: 'Winner', img: null },
-      { tierNumber: 2, threshold: 50,  name: 'Champion', img: null },
-      { tierNumber: 3, threshold: 250, name: 'Master', img: null },
-      { tierNumber: 4, threshold: 500, name: 'Legend', img: null },
-    ],
-  },
-  {
-    id: 'expansions',
-    label: 'Expansions',
-    metric: 'expansions', // counts full expansions owned, not breakdown points
-    unit: 'Full Expansions Owned',
-    alwaysVisible: true,
-    tiers: [
-      { tierNumber: 1, threshold: 1,  name: 'Fan', img: null },
-      { tierNumber: 2, threshold: 4,  name: 'Hobbyist', img: null },
-      { tierNumber: 3, threshold: 7, name: 'Collector', img: null },
-      { tierNumber: 4, threshold: 11, name: 'Aficionado', img: null },
-    ],
-  },
 ];
 
 // Replaces ACCOUNT_MILESTONES's contents IN PLACE (never reassigns the
@@ -231,7 +223,6 @@ export function applyMilestoneConfig(categories, tiers) {
 export function accountMilestoneProgress(category, account) {
   if (category.metric === 'games') return account.gamesCount;
   if (category.metric === 'wins') return account.stats.wins;
-  if (category.metric === 'expansions') return account.expansionsFullCount;
   return progressForTypes(category.types, account.breakdown);
 }
 
@@ -244,12 +235,15 @@ export function visibleAccountMilestones(account) {
   );
 }
 
-// Full tier state for one category — the single source of tier math.
-export function categoryTierState(category, account) {
-  const progress = accountMilestoneProgress(category, account);
+// Full tier state for a raw progress number against a category's tiers —
+// the single source of tier math. Takes a number rather than an account so
+// it can also be driven by before/after progress snapshots (e.g. the
+// rank-up celebration diff), not just a live account aggregate.
+export function tierStateForProgress(category, progress) {
   const reached = category.tiers.filter((t) => progress >= t.threshold);
   const currentTier = reached[reached.length - 1] ?? null; // null = not started
   const nextTier = category.tiers.find((t) => progress < t.threshold) ?? null; // null = maxed
+  const axisMax = nextTier ? nextTier.threshold : category.tiers[category.tiers.length - 1].threshold;
   return {
     progress,
     currentTier,
@@ -259,5 +253,11 @@ export function categoryTierState(category, account) {
     maxed: nextTier === null,
     pct: nextTier === null ? 100 : Math.min(100, (progress / nextTier.threshold) * 100),
     remaining: nextTier === null ? 0 : nextTier.threshold - progress,
+    axisMax, // notch positions scale against this (next tier's threshold, or the last tier's if maxed)
   };
+}
+
+// Full tier state for one category from a live account aggregate.
+export function categoryTierState(category, account) {
+  return tierStateForProgress(category, accountMilestoneProgress(category, account));
 }
