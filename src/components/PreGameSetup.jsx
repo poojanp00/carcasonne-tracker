@@ -443,13 +443,19 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
    * All meeples (including resolved mystery selections) count toward uniqueness.
    */
   const handleNextStep = () => {
-    // Extract all meeple selections (no exclusions needed)
-    const chosen = activePlayers.map(p => meeples[p]);
-    
-    // Check for duplicates using Set size comparison
-    if (new Set(chosen).size < chosen.length) {
-      setMeepleError('Meeples must be unique.');
-      return;
+    // Meeple uniqueness doesn't matter during the guided tour — it's not a
+    // real game, so a duplicate pick there (the tour's own default
+    // assignment, or just clicking through) shouldn't strand the tour on an
+    // error a real player would actually have to go fix.
+    if (!tourActive) {
+      // Extract all meeple selections (no exclusions needed)
+      const chosen = activePlayers.map(p => meeples[p]);
+
+      // Check for duplicates using Set size comparison
+      if (new Set(chosen).size < chosen.length) {
+        setMeepleError('Meeples must be unique.');
+        return;
+      }
     }
     setMeepleError(null);
     setStep(5); // Proceed to expansion selection
@@ -645,8 +651,14 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
+    // meeples/selectedExp must be deps, not just activePlayers.length — Enter
+    // on step 5 calls handleStart(), which closes over both; without them
+    // here the listener kept whatever stale closure was bound when the
+    // effect last ran (e.g. right as step became 5), so pressing Enter
+    // silently started the game with default/empty meeples and expansions
+    // no matter what was actually picked afterward.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, realms.length, activePlayers.length, tourActive, createTourOn]);
+  }, [step, realms.length, activePlayers.length, tourActive, createTourOn, meeples, selectedExp]);
 
   // ── Step 1: Players (roster/invite status + meeples, merged) ──
   if (step === 1) {

@@ -1,9 +1,9 @@
 import { Children, useEffect, useRef, useState } from 'react';
 
 // Horizontal one-card-at-a-time carousel: CSS scroll-snap for native swipe
-// on touch, arrow buttons for desktop, dot pagination below. Slide count is
-// derived from children on every render, so newly unlocked categories add
-// their dot automatically.
+// on touch, arrow keys, or the dot pagination below — no on-screen arrow
+// buttons. Slide count is derived from children on every render, so newly
+// unlocked categories add their dot automatically.
 //
 // Looping is clone-based: a copy of the last slide is prepended and a copy of
 // the first is appended, so paging past either end keeps scrolling in the
@@ -83,14 +83,6 @@ export default function MilestoneCarousel({ children, pauseKeyboard = false }) {
 
   return (
     <div className="milestone-carousel">
-      <button
-        type="button"
-        className="milestone-carousel-arrow prev"
-        onClick={() => goTo(active - 1)}
-        aria-label="Previous card"
-      >
-        ‹
-      </button>
       <div className="milestone-carousel-track" ref={trackRef} onScroll={onScroll}>
         {looped.map((slide, i) => (
           <div className="milestone-carousel-slide" key={i}>
@@ -98,26 +90,20 @@ export default function MilestoneCarousel({ children, pauseKeyboard = false }) {
           </div>
         ))}
       </div>
-      <button
-        type="button"
-        className="milestone-carousel-arrow next"
-        onClick={() => goTo(active + 1)}
-        aria-label="Next card"
-      >
-        ›
-      </button>
-      <div className="milestone-carousel-dots">
-        {slides.map((slide, i) => (
-          <button
-            type="button"
-            key={slide.key ?? i}
-            className={`milestone-carousel-dot${i === active ? ' active' : ''}`}
-            onClick={() => goTo(i)}
-            aria-label={`Go to card ${i + 1} of ${count}`}
-            aria-current={i === active ? 'true' : undefined}
-          />
-        ))}
-      </div>
+      {count > 1 && (
+        <div className="milestone-carousel-dots">
+          {slides.map((slide, i) => (
+            <button
+              type="button"
+              key={slide.key ?? i}
+              className={`milestone-carousel-dot${i === active ? ' active' : ''}`}
+              onClick={() => goTo(i)}
+              aria-label={`Go to card ${i + 1} of ${count}`}
+              aria-current={i === active ? 'true' : undefined}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -243,43 +243,50 @@ export async function getGames() {
 }
 
 /**
- * CREATE NEW GAME RECORD
+ * CREATE NEW GAME RECORD + FETCH REALM CELEBRATIONS, in one round-trip.
  *
- * Persists completed game data to database.
- * Games are associated with realms for organization and access control.
+ * Persists completed game data to database, then returns every linked realm
+ * member's updated rank/progress (see migrations/insert_game_and_celebrate.sql)
+ * — a single RPC instead of a plain insert followed by a separate
+ * getRealmCelebrations() call, cutting one full network round-trip off every
+ * game save. Requires a realm (the RPC's can_access_realm check rejects a
+ * null realm_id) — the only caller (useGameData.js's addGame) always has one.
  * Stores live-tracked game achievements (longest road, largest city, etc.).
  *
  * @param {Object} game - Game object with players, scores, expansions, maxFeatures, etc.
+ * @returns {Array} Celebration rows, same shape as getRealmCelebrations().
  */
-// Requires: ALTER TABLE games ADD COLUMN IF NOT EXISTS score_timeline jsonb DEFAULT '[]'::jsonb;
-export async function insertGame(game) {
+export async function insertGameAndCelebrate(game) {
   // maxFeatures is live-tracked during gameplay: {road: {amount, player}, city: {amount, player}, ...}
   // Map to database column names
   const maxFeatures = game.maxFeatures || {};
 
-  const { error } = await supabase.from('games').insert({
-    id:               game.id,
-    realm_id:         game.realmId  || null, // Optional realm association
-    date:             game.date,              // YYYY-MM-DD format
-    players:          game.players,           // Array of player objects
-    expansions:       game.expansions || [],  // Active expansion names
-    winners:          game.winners    || [],  // Precomputed winners from frontend
-    max_score:        game.maxScore  || 0,    // Maximum score in the game
-    clutch_win:       game.clutchWin  || false, // Victory in close game
-    farm_win:         game.farmWin    || false, // Victory via farm dominance
-    duration:         game.gameDuration || 0, // Game duration in milliseconds
-    score_timeline:   game.scoreTimeline || [], // Scoring events with elapsed-time offsets
-    longest_road:      maxFeatures.road        || null,
-    largest_city:      maxFeatures.city        || null,
-    largest_field:     maxFeatures.field       || null,
-    longest_inn:       maxFeatures.inn         || null,
-    largest_cathedral: maxFeatures.cathedral   || null,
-    biggest_pig:       maxFeatures.pig         || null,
-    largest_barn:      maxFeatures.barn        || null,
-    most_monastery:    maxFeatures.monastery   || null,
-    best_trader:       maxFeatures.bestTrader  || null,
+  const { data, error } = await supabase.rpc('insert_game_and_celebrate', {
+    p_game: {
+      id:               game.id,
+      realm_id:         game.realmId,
+      date:             game.date,              // YYYY-MM-DD format
+      players:          game.players,           // Array of player objects
+      expansions:       game.expansions || [],  // Active expansion names
+      winners:          game.winners    || [],  // Precomputed winners from frontend
+      max_score:        game.maxScore  || 0,    // Maximum score in the game
+      clutch_win:       game.clutchWin  || false, // Victory in close game
+      farm_win:         game.farmWin    || false, // Victory via farm dominance
+      duration:         game.gameDuration || 0, // Game duration in milliseconds
+      score_timeline:   game.scoreTimeline || [], // Scoring events with elapsed-time offsets
+      longest_road:      maxFeatures.road        || null,
+      largest_city:      maxFeatures.city        || null,
+      largest_field:     maxFeatures.field       || null,
+      longest_inn:       maxFeatures.inn         || null,
+      largest_cathedral: maxFeatures.cathedral   || null,
+      biggest_pig:       maxFeatures.pig         || null,
+      largest_barn:      maxFeatures.barn        || null,
+      most_monastery:    maxFeatures.monastery   || null,
+      best_trader:       maxFeatures.bestTrader  || null,
+    },
   });
   if (error) throw new Error(error.message || 'Failed to record game');
+  return mapCelebrationRows(data);
 }
 
 /**
@@ -414,14 +421,7 @@ export async function acknowledgeRankUp(rank, tierCount, categoryProgress) {
  * access-gating shape (can_access_realm), just more data since everyone
  * playing is right there anyway. Returns [] on error.
  */
-export async function getRealmCelebrations(realmId) {
-  const { data, error } = await supabase.rpc('get_realm_celebrations', {
-    p_realm_id: realmId,
-  });
-  if (error) {
-    console.warn('getRealmCelebrations failed:', error.message);
-    return [];
-  }
+function mapCelebrationRows(data) {
   return (data || []).map(r => ({
     userId:                         r.user_id,
     name:                           r.name,
@@ -433,6 +433,17 @@ export async function getRealmCelebrations(realmId) {
     lastCelebratedTierCount:        r.last_celebrated_tier_count,
     lastCelebratedCategoryProgress: r.last_celebrated_category_progress || {},
   }));
+}
+
+export async function getRealmCelebrations(realmId) {
+  const { data, error } = await supabase.rpc('get_realm_celebrations', {
+    p_realm_id: realmId,
+  });
+  if (error) {
+    console.warn('getRealmCelebrations failed:', error.message);
+    return [];
+  }
+  return mapCelebrationRows(data);
 }
 
 /**
@@ -456,12 +467,11 @@ export async function acknowledgeRankUpFor(realmId, targetUserId, rank, tierCoun
 }
 
 // ── Milestone/rank numeric config (migrations/milestone_config.sql) ──────────
-// Single source of truth for category/tier thresholds, which expansions
-// count as "full", and max rank — shared with the server-side computation in
-// compute_account_progress, so the client's own math can never silently
-// disagree with it. Display-only fields (names, images, labels) stay
-// static JS; see data/accountMilestones.js applyMilestoneConfig / data/
-// expansions.js applyFullExpansionNames / utils/metaRank.js applyMaxRank.
+// Single source of truth for category/tier thresholds and max rank — shared
+// with the server-side computation in compute_account_progress, so the
+// client's own math can never silently disagree with it. Display-only fields
+// (names, images, labels) stay static JS; see data/accountMilestones.js
+// applyMilestoneConfig / utils/metaRank.js applyMaxRank.
 
 export async function getMilestoneConfig() {
   const [{ data: categories, error: catErr }, { data: tiers, error: tierErr }] = await Promise.all([
@@ -473,15 +483,6 @@ export async function getMilestoneConfig() {
     return null;
   }
   return { categories, tiers };
-}
-
-export async function getFullExpansionNames() {
-  const { data, error } = await supabase.from('full_expansions').select('name');
-  if (error || !data) {
-    console.warn('getFullExpansionNames failed (using built-in fallback values):', error?.message);
-    return null;
-  }
-  return data.map(r => r.name);
 }
 
 export async function getMaxRankConfig() {

@@ -3,6 +3,7 @@ import { DEFAULT_EXPANSIONS } from '../data/expansions';
 import { calcGroupStats, calcPlayerRecords, calcRealmStandings, calcPlayerTrophyTallies } from '../utils/stats';
 import { getRealmMemberProgress } from '../data/storage';
 import PlayerCard, { PLAYER_COLOR_CLASSES } from './PlayerCard';
+import MemberProgressModal from './MemberProgressModal';
 import PointBreakdownChart from './PointBreakdownChart';
 import Lightbox from './Lightbox';
 import StatInfo from './StatInfo';
@@ -190,7 +191,9 @@ function FellowshipPage({ standings, realmGames, onOpenGame, rosterRef, progress
   );
 }
 
-function GameLogPage({ pageGames, onSelectGame, gamelogRef }) {
+function GameLogPage({ pageGames, onSelectGame, gamelogRef, progressByName = {} }) {
+  const [showProgressFor, setShowProgressFor] = useState(null); // player name, or null
+
   if (pageGames.length === 0) {
     return <div className="empty-state">No games recorded for this realm yet.</div>;
   }
@@ -216,6 +219,7 @@ function GameLogPage({ pageGames, onSelectGame, gamelogRef }) {
             const topPlayers = game.winners || [];  // Use precomputed winners from database
             const winner     = topPlayers.length === 1 ? game.players.find(p => topPlayers.includes(p.name)) : null;
             const margin     = topPlayers.length === 1 ? maxScore - (scores[1] ?? 0) : 0;
+            const winnerNames = topPlayers.length > 1 ? topPlayers : (winner ? [winner.name] : []);
             return (
               <tr key={game.id} onClick={() => onSelectGame(game)} style={{ cursor: 'var(--cursor-pointer)' }}>
                 <td className="cell-date">{formatDate(game.date)}</td>
@@ -226,7 +230,23 @@ function GameLogPage({ pageGames, onSelectGame, gamelogRef }) {
                   fontStyle:  'normal',
                   whiteSpace: 'nowrap',
                 }}>
-                  {topPlayers.length > 1 ? topPlayers.join(' & ') : winner?.name}
+                  {winnerNames.map((n, i) => {
+                    const progress = progressByName[n.toLowerCase()] ?? null;
+                    return (
+                      <span key={n}>
+                        {i > 0 && ' & '}
+                        {progress != null ? (
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); setShowProgressFor(n); }}
+                            style={{ background: 'none', border: 'none', padding: 0, cursor: 'var(--cursor-pointer)', font: 'inherit', color: 'inherit', textDecoration: 'underline dotted' }}
+                          >
+                            {n}
+                          </button>
+                        ) : n}
+                      </span>
+                    );
+                  })}
                 </td>
 
                 <td style={{ fontFamily: 'Cinzel, serif', fontWeight: 600, color: 'var(--charcoal)', whiteSpace: 'nowrap' }}>
@@ -241,6 +261,15 @@ function GameLogPage({ pageGames, onSelectGame, gamelogRef }) {
         </tbody>
       </table>
       </div>
+
+      {showProgressFor != null && progressByName[showProgressFor.toLowerCase()] != null && (
+        <MemberProgressModal
+          name={showProgressFor}
+          rank={progressByName[showProgressFor.toLowerCase()].rank}
+          categoryProgress={progressByName[showProgressFor.toLowerCase()].categoryProgress}
+          onClose={() => setShowProgressFor(null)}
+        />
+      )}
     </div>
   );
 }
@@ -251,7 +280,7 @@ function GameLogPage({ pageGames, onSelectGame, gamelogRef }) {
 // (rename/chest/logbook/delete/leave) live in RealmSettingsModal, opened
 // from the realm's hub card — this component has no edit affordance of its
 // own, so every page's Back button behaves identically.
-export default function RealmBook({ realm, games, page, onPageChange, selectedGame, onSelectGame, onDeleteGame, tourActive = false, chartRef, rosterRef, gamelogRef, tourHighlight = null }) {
+export default function RealmBook({ realm, games, page, onPageChange, selectedGame, onSelectGame, onDeleteGame, tourActive = false, chartRef, rosterRef, gamelogRef, tourHighlight = null, onExitToRealms = null }) {
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
 
   const realmGames = useMemo(
@@ -308,16 +337,22 @@ export default function RealmBook({ realm, games, page, onPageChange, selectedGa
   // modal (the Lightbox has its own Up/Down key handling for game-to-game
   // nav) and, like every other keyboard shortcut, while a tour is open (the
   // tour drives its own stage transitions; letting arrow keys page-turn
-  // underneath it would desync the two).
+  // underneath it would desync the two). Left from Overview (page 0 — the
+  // book's first page, nothing before it to turn back to) exits the book
+  // entirely back to the realms hub instead of being a no-op, same as the
+  // ‹ Realms chrome above it.
   useEffect(() => {
     const onKey = (e) => {
       if (confirmDeleteId || selectedGame || tourActive) return;
-      if (e.key === 'ArrowLeft' && page > 0) onPageChange(Math.max(0, page - 1));
+      if (e.key === 'ArrowLeft') {
+        if (page > 0) onPageChange(page - 1);
+        else onExitToRealms?.();
+      }
       if (e.key === 'ArrowRight' && page < totalPages - 1) onPageChange(Math.min(totalPages - 1, page + 1));
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [page, totalPages, confirmDeleteId, selectedGame, onPageChange, tourActive]);
+  }, [page, totalPages, confirmDeleteId, selectedGame, onPageChange, tourActive, onExitToRealms]);
 
   const handleConfirmDelete = async () => {
     await onDeleteGame(confirmDeleteId);
@@ -328,6 +363,14 @@ export default function RealmBook({ realm, games, page, onPageChange, selectedGa
   const pageLabel = page === 0 ? 'Overview'
     : page === 1 ? 'Roster'
     : 'Game Log';
+
+  // Shared by both Back buttons (header + bottom nav) and the ArrowLeft
+  // handler above: from Overview (page 0) there's no earlier page to turn
+  // back to, so Back exits the book instead of doing nothing.
+  const handleBack = () => {
+    if (page > 0) onPageChange(page - 1);
+    else onExitToRealms?.();
+  };
 
   return (
     <>
@@ -375,7 +418,7 @@ export default function RealmBook({ realm, games, page, onPageChange, selectedGa
               .tour-inert. Explicitly disabled during a tour so they can't be
               used to page away from whatever stage it's demonstrating —
               matching what the ancestor-inert bottom nav already prevents. */}
-          <button type="button" className="btn btn-ghost btn-sm" disabled={page === 0 || tourActive} onClick={() => onPageChange(Math.max(0, page - 1))}>‹ Back</button>
+          <button type="button" className="btn btn-ghost btn-sm" disabled={tourActive} onClick={handleBack}>‹ Back</button>
           <span className="book-nav-label" style={{ flex: 1 }}>{pageLabel}</span>
           <button type="button" className="btn btn-ghost btn-sm" disabled={page >= totalPages - 1 || tourActive} onClick={() => onPageChange(Math.min(totalPages - 1, page + 1))}>Next ›</button>
         </div>
@@ -397,6 +440,7 @@ export default function RealmBook({ realm, games, page, onPageChange, selectedGa
               pageGames={realmGames.slice((page - FIRST_LOG_PAGE) * GAMES_PER_PAGE, (page - FIRST_LOG_PAGE + 1) * GAMES_PER_PAGE)}
               onSelectGame={onSelectGame}
               gamelogRef={gamelogRef}
+              progressByName={progressByName}
             />
           )}
         </div>
@@ -406,7 +450,7 @@ export default function RealmBook({ realm, games, page, onPageChange, selectedGa
             wrapper in RealmsTab.jsx — nothing here is ever itself the
             spotlighted element, so no override is needed. */}
         <div className="book-nav">
-          <button type="button" className="btn btn-ghost btn-sm" disabled={page === 0} onClick={() => onPageChange(Math.max(0, page - 1))}>‹ Back</button>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={handleBack}>‹ Back</button>
           <button type="button" className="btn btn-ghost btn-sm" disabled={page >= totalPages - 1} onClick={() => onPageChange(Math.min(totalPages - 1, page + 1))}>Next ›</button>
         </div>
       </div>

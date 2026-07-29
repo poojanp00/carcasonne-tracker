@@ -14,13 +14,13 @@ import { resetBoard }  from './data/boardStorage';
 import {
   deleteAccount, sendRealmInvite, updateDisplayName,
   getUserProgress, acknowledgeRankUp,
-  getRealmCelebrations, acknowledgeRankUpFor,
-  getMilestoneConfig, getFullExpansionNames, getMaxRankConfig,
+  acknowledgeRankUpFor,
+  getMilestoneConfig, getMaxRankConfig,
 } from './data/storage';
 import { getGuestMetaRank, setGuestMetaRank, buildRankUpDiff, applyMaxRank } from './utils/metaRank';
 import { applyMilestoneConfig } from './data/accountMilestones';
 import RankUpModal from './components/RankUpModal';
-import { DEFAULT_EXPANSIONS, applyFullExpansionNames } from './data/expansions';
+import { DEFAULT_EXPANSIONS } from './data/expansions';
 import { TABS, APP_CONFIG, EXPANSION_TYPES, PINNED_EXPANSIONS } from './constants';
 import { normalizeMeeples } from './utils/formatters';
 
@@ -129,23 +129,21 @@ export default function App() {
     loading: isGuest ? false : loading
   };
 
-  // App-wide config (category/tier thresholds, full-expansion names, max
-  // rank) — fetched once from Supabase (migrations/milestone_config.sql) and
-  // applied in place to the existing JS config modules, so every component
-  // that already imports ACCOUNT_MILESTONES/etc keeps working unchanged.
-  // Not user-specific — runs once regardless of auth state. Falls back to
-  // the hardcoded values already in those modules if the fetch fails.
+  // App-wide config (category/tier thresholds, max rank) — fetched once from
+  // Supabase (migrations/milestone_config.sql) and applied in place to the
+  // existing JS config modules, so every component that already imports
+  // ACCOUNT_MILESTONES/etc keeps working unchanged. Not user-specific — runs
+  // once regardless of auth state. Falls back to the hardcoded values
+  // already in those modules if the fetch fails.
   useEffect(() => {
     let stale = false;
     (async () => {
-      const [milestoneConfig, fullExpansionNames, maxRank] = await Promise.all([
+      const [milestoneConfig, maxRank] = await Promise.all([
         getMilestoneConfig(),
-        getFullExpansionNames(),
         getMaxRankConfig(),
       ]);
       if (stale) return;
       if (milestoneConfig) applyMilestoneConfig(milestoneConfig.categories, milestoneConfig.tiers);
-      applyFullExpansionNames(fullExpansionNames);
       if (maxRank) applyMaxRank(maxRank);
     })();
     return () => { stale = true; };
@@ -169,6 +167,19 @@ export default function App() {
   // exitPreGameToHub) so a stale queue can't resurface.
   const [rankUpQueue, setRankUpQueue] = useState([]);
   const rankUpInfo = rankUpQueue[0] ?? null;
+  // Every linked realm member's { rank, categoryProgress }, keyed by
+  // lowercased player name — populated after a game is recorded (same fetch
+  // that feeds rankUpQueue, see handleRecordGame) so the Final Scores screen
+  // can show each player's rank + a "Show Milestones" button without a
+  // separate round trip. Cleared alongside rankUpQueue so stale data from a
+  // previous game can't resurface.
+  const [postGameProgress, setPostGameProgress] = useState({});
+  // True from the moment a non-guest game save kicks off until the save +
+  // celebration fetch have both fully resolved — PostGameForm shows a
+  // full-page loading gate instead of Final Scores while this is true, so
+  // rank badges/celebration modals never "pop in" after the page already
+  // rendered (see handleRecordGame).
+  const [recordingGame, setRecordingGame] = useState(false);
 
   const queueCelebration = useCallback((entry) => {
     setRankUpQueue(q => [...q, entry]);
@@ -313,6 +324,8 @@ export default function App() {
     if (realmId && !tourActive) setHubSpotlightRealmId(realmId);
     setSession(null);
     setRankUpQueue([]);
+    setPostGameProgress({});
+    setRecordingGame(false);
   }, [session, tourActive]);
 
   const handleRealmCreate = useCallback(async (data) => {
@@ -377,28 +390,36 @@ export default function App() {
     // second auto-submit from re-inserting the same game.
     if (session?.recorded) return;
     setSession(prev => ({ ...prev, recorded: true }));
+    setRecordingGame(true);
     const fullGameData = { ...gameData, realmId: session.realm.id };
+    let celebrationRows;
     try {
-      await appOperations.addGame(fullGameData);
+      // insertGameAndCelebrate does the insert AND returns every linked
+      // realm member's updated rank/progress in the SAME round-trip (see
+      // migrations/insert_game_and_celebrate.sql) — the games-insert
+      // trigger (server_side_progress.sql) already recomputed user_progress
+      // for every linked account (owner and every member) synchronously
+      // within that same insert, so there's no need for a second, separate
+      // fetch afterward. One shared device at the table, so show every
+      // linked player's pending celebration on THIS screen, not just
+      // whoever's holding it.
+      ({ celebrations: celebrationRows } = await appOperations.addGame(fullGameData));
     } catch (err) {
       showToast(`Failed to record game: ${err?.message || 'Unknown error'}`);
+      setRecordingGame(false);
       return;
     }
     showToast('Game recorded in the logbook.');
     // Keep the session as-is so PostGameForm can still show breakdown/winner
     // User will click "Play Again" to reset and go back to scoreboard
 
-    // The games-insert trigger (migrations/server_side_progress.sql) already
-    // recomputed user_progress for every LINKED account in this realm
-    // (owner and every member), synchronously within that same insert — not
-    // just this one. One shared device at the table, so show every linked
-    // player's pending celebration on THIS screen, not just whoever's
-    // holding it — this one fetch covers both the controller's own
-    // celebration and everyone else's.
     try {
-      const rows = await getRealmCelebrations(session.realm.id);
+      const rows = celebrationRows || [];
       const ownRow = rows.find(r => r.userId === userId);
       if (ownRow) setSelfProgress(ownRow);
+      setPostGameProgress(Object.fromEntries(
+        rows.map(r => [r.name.toLowerCase(), { rank: r.rank, categoryProgress: r.categoryProgress }])
+      ));
 
       // Controller's own entry first (if any), then everyone else.
       const sorted = [...rows].sort((a, b) => (a.userId === userId ? -1 : b.userId === userId ? 1 : 0));
@@ -427,6 +448,7 @@ export default function App() {
     } catch (err) {
       console.warn('post-save progress refresh failed:', err.message);
     }
+    setRecordingGame(false);
   }, [appOperations.addGame, session, showToast, isGuest, signOutGuest, userId]);
 
   const handlePlayAgain = useCallback(async () => {
@@ -444,6 +466,8 @@ export default function App() {
       lastExpansions: expansions,
     });
     setRankUpQueue([]);
+    setPostGameProgress({});
+    setRecordingGame(false);
     setTab('realms');
   }, [session, resetBoard, userId, isGuest]);
 
@@ -643,6 +667,8 @@ export default function App() {
                       onPlayAgain={handlePlayAgain}
                       onExitToHub={exitPreGameToHub}
                       isGuest={isGuest}
+                      progressByName={postGameProgress}
+                      isRecording={recordingGame}
                     />
                   : session.players
                     ? <Board
@@ -750,7 +776,6 @@ export default function App() {
               <Profile
                 games={appData.games}
                 realms={appData.realms}
-                expansions={appData.expansions}
                 userId={userId}
                 displayName={displayName}
                 isGuest={isGuest}
@@ -791,8 +816,7 @@ export default function App() {
           beforeTierCount={rankUpInfo.beforeTierCount}
           tierCount={rankUpInfo.tierCount}
           categoryDiffs={rankUpInfo.categoryDiffs}
-          newChests={rankUpInfo.newChests}
-          newSpines={rankUpInfo.newSpines}
+          newArtPairs={rankUpInfo.newArtPairs}
           onClose={handleCloseRankUp}
         />
       )}

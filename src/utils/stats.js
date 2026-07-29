@@ -2,7 +2,7 @@
 // and the account-wide Me page. All name matching is case-insensitive.
 
 import { STATISTICS_CONFIG } from '../constants';
-import { DEFAULT_EXPANSIONS, FULL_EXPANSION_NAMES } from '../data/expansions';
+import { DEFAULT_EXPANSIONS } from '../data/expansions';
 
 export function calcFavMeeple(games, name) {
   const low = name.toLowerCase();
@@ -428,7 +428,7 @@ export function buildAccountGames(games, realms, userId) {
   return out;
 }
 
-export function calcAccountStats(games, realms, userId, expansions = []) {
+export function calcAccountStats(games, realms, userId) {
   const accountGames = buildAccountGames(games, realms, userId);
   const stats = calcStats(accountGames, ACCOUNT_ME);
   const breakdown = calcBreakdown(accountGames, ACCOUNT_ME);
@@ -525,9 +525,6 @@ export function calcAccountStats(games, realms, userId, expansions = []) {
     rival,
     longestGame,
     favExpansions: { full: topOf(full), mini: topOf(mini) },
-    // FULL_EXPANSION_NAMES (not exp.type) so this always agrees with the
-    // same full_expansions table the server-side rank computation uses.
-    expansionsFullCount: expansions.filter(e => e.owned && FULL_EXPANSION_NAMES.has(e.name)).length,
     playingSince,
     totalPlaytime,
     biggestPlay,

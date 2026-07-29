@@ -14,7 +14,7 @@ const STEPS = [
 // create-realm sub-steps in PreGameSetup.jsx.
 const CREATE_REALM_TOUR_STAGES = [
   { title: 'Create New Realm', text: 'Name your realm and add the players.' },
-  { title: 'Chest & Logbook', text: 'Chests store game pieces while logbooks record game history.' },
+  { title: 'Chest & Logbook', text: 'Use unlocked art to customize your realm.' },
 ];
 
 // The hub itself isn't part of this linear stage list at all — it's a fork
@@ -30,15 +30,15 @@ const PLAY_PATH_STAGES = [
 const BOOK_PATH_STAGES = [
   { key: 'overview', title: 'Overview', text: 'The overview contains general realm statistics.' },
   { key: 'roster',   title: 'Roster',   text: 'Individual player stats are stored here. Tap a player\'s card to view their trophies.' },
-  { key: 'gamelog',  title: 'Game log', text: 'Explore match history. Click an entry to inspect its data.' },
+  { key: 'gamelog',  title: 'Game log', text: 'Explore match history. Click an entry to view game data.' },
 ];
 const REALM_TOUR_STAGES = [...PLAY_PATH_STAGES, ...BOOK_PATH_STAGES];
 
 const PROFILE_STEPS = [
-  { title: 'Character Card', text: 'View your profile, rank, and overall progress. Ranking up unlocks new in-game content.' },
-  { title: 'Milestones', text: 'Complete milestone tiers to increase your rank and unlock rewards.' },
-  { title: 'Career Highlights', text: 'Browse your achievements, records, and memorable victories.' },
-  { title: 'Trophy Cabinet', text: 'View the hardware you\'ve earned throughout your journey.' },
+  { title: 'Character Card', text: 'View your profile, rank, and overall progress. Click to view the back. ' },
+  { title: 'Milestones', text: 'Complete milestones to increase your rank and unlock rewards.' },
+  { title: 'Career Highlights', text: 'Achievements, records, and memorable victories. Click to flip.' },
+  { title: 'Trophy Cabinet', text: 'View the hardware you\'ve earned along the way.' },
 ];
 
 /** Renders **markers** in a step as bold text. */
@@ -284,10 +284,10 @@ export function RealmHubTourCards({ showChest, showBook, onChestAction, onBookAc
       >
         <button type="button" className="tour-close-btn" onClick={onClose} title="Close tour" aria-label="Close tour" />
         {showChest && (
-          <HubSection title="Chest" text="Click the chest to set up a game." actionLabel="Chest" onAction={onChestAction} />
+          <HubSection title="Chest" text="Open the chest to set up a game." actionLabel="Chest" onAction={onChestAction} />
         )}
         {showBook && (
-          <HubSection title="Logbook" text="Click the logbook to view its history." actionLabel="Logbook" onAction={onBookAction} divider={showChest} />
+          <HubSection title="Logbook" text="Open the logbook to view game history." actionLabel="Logbook" onAction={onBookAction} divider={showChest} />
         )}
       </div>
     </div>
