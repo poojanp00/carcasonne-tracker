@@ -17,7 +17,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import BOARD_PATH from '../data/boardCoords';
 import { getBoard, saveBoard, resetBoard } from '../data/boardStorage';
 import { computeWinners } from '../utils/scoring';
-import { MONASTERY_LIKE_TYPES, MONASTERY_LIKE_MAX, LIVE_PLAY_ONLY_RECORD_TYPES, MONASTERY_RECORD_TYPES, MAX_GAME_PLAYERS } from '../constants';
+import { MONASTERY_LIKE_TYPES, MONASTERY_LIKE_MAX, LIVE_PLAY_ONLY_RECORD_TYPES, MONASTERY_RECORD_TYPES, MAX_GAME_PLAYERS, EXPANSION_TYPES } from '../constants';
 import HowToModal from './HowToGuide';
 import BoardSettingsModal from './BoardSettingsModal';
 import { TrashIcon, GearIcon } from './icons';
@@ -167,7 +167,12 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, onE
   const [confirmExit,          setConfirmExit]          = useState(false); // Back-to-hub confirmation
   const [showSettings,          setShowSettings]          = useState(false); // In-game settings modal (players/meeples/expansions)
   const [pendingPlayerRemoval,  setPendingPlayerRemoval]  = useState(null); // player name awaiting removal confirm (has recorded points)
-  const [pendingExpansionRemoval, setPendingExpansionRemoval] = useState(null); // expansion name awaiting keep/remove-points choice
+  // Expansion names awaiting a keep/remove-points choice, queued one at a
+  // time — the settings modal's Save button can turn off several
+  // point-having expansions in one go (see handleSaveExpansions), so this
+  // holds all of them and the confirm modal below works through it in order
+  // rather than only ever handling a single name.
+  const [expansionRemovalQueue, setExpansionRemovalQueue] = useState([]);
   const [warning,             setWarning]             = useState(null); // Warning toast (e.g. monastery/abbot/abbey point cap)
   const [editMode, setEditMode] = useState(false); // Score log edit mode — reveals a delete icon on each entry
   const [pendingDeleteMoveIdx, setPendingDeleteMoveIdx] = useState(null); // moves[] index, or 'final-scoring', awaiting delete confirmation
@@ -693,9 +698,15 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, onE
     setConfirmReset(true); // Show confirmation modal
   }
 
-  function confirmResetBoard() {
+  async function confirmResetBoard() {
     setConfirmReset(false);
-    resetBoard(userId, players, [], isGuest);
+    // Keeps the same expansions' scoring categories (goods tokens, extra
+    // track types, etc.) — same players/meeples/expansions as the game
+    // being reset, only scores/moves go back to zero. Awaited so onReset's
+    // remount (see App.jsx's handleBoardReset) always re-fetches the
+    // freshly-reset board_state, not whatever was there a moment before.
+    const extraTypes = (session?.expansions || []).flatMap(e => EXPANSION_TYPES[e] || []);
+    await resetBoard(userId, players, extraTypes, isGuest);
     onReset();
   }
 
@@ -791,14 +802,12 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, onE
     }
   }
 
-  // Applies a meeple change if it wouldn't collide with another active
-  // player's meeple; returns an error string instead (shown inline in the
-  // modal) rather than silently swapping the two.
-  function trySetMeeple(name, key) {
-    const conflict = players.find(p => p !== name && meepleMap[p] === key);
-    if (conflict) return `Already used by ${conflict}.`;
-    onSessionUpdate({ meeples: { ...meepleMap, [name]: key } });
-    return null;
+  // Commits the settings modal's Meeples Save in one go — conflict
+  // validation happens locally in the modal as each tile is picked (see
+  // BoardSettingsModal's handlePickMeeple), so by the time this runs
+  // `newMap` is already a validated, complete replacement.
+  function handleSaveMeeples(newMap) {
+    onSessionUpdate({ meeples: newMap });
   }
 
   function removeExpansion(name, alsoRemovePoints) {
@@ -811,17 +820,32 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, onE
     onSessionUpdate({ expansions: newExpansions });
   }
 
-  // Turning an expansion off with recorded points routes through a confirm
-  // modal (keep the points in the log vs. delete them) instead of acting
-  // immediately — see pendingExpansionRemoval.
-  function handleToggleExpansion(name) {
-    const active = (session?.expansions || []).includes(name);
-    if (active) {
-      if (expansionHasPoints(name)) { setPendingExpansionRemoval(name); return; }
-      removeExpansion(name, false);
-    } else {
-      onSessionUpdate({ expansions: [...(session?.expansions || []), name] });
-    }
+  // Applies the settings modal's Expansions Save in one go: additions and
+  // removals with no recorded points land immediately in a single session
+  // update; any removal that DOES have recorded points instead routes
+  // through the keep/remove-points confirm modal (queued — see
+  // expansionRemovalQueue) rather than acting immediately, same as before,
+  // just batched across everything toggled in that view instead of one
+  // click at a time.
+  function handleSaveExpansions(newSet) {
+    const current = session?.expansions || [];
+    const added = newSet.filter(n => !current.includes(n));
+    const removed = current.filter(n => !newSet.includes(n));
+    const removedWithPoints = removed.filter(expansionHasPoints);
+    const removedClean = removed.filter(n => !expansionHasPoints(n));
+    onSessionUpdate({ expansions: current.filter(n => !removedClean.includes(n)).concat(added) });
+    if (removedWithPoints.length > 0) setExpansionRemovalQueue(removedWithPoints);
+  }
+  // Keep Points / Remove Points — resolves the front of the queue and moves
+  // to the next pending expansion, if any.
+  function resolveExpansionRemoval(alsoRemovePoints) {
+    removeExpansion(expansionRemovalQueue[0], alsoRemovePoints);
+    setExpansionRemovalQueue(q => q.slice(1));
+  }
+  // Cancel (or dismiss) — leaves this one expansion active/untouched and
+  // moves on to the next queued one, rather than aborting the whole batch.
+  function cancelExpansionRemoval() {
+    setExpansionRemovalQueue(q => q.slice(1));
   }
 
   function confirmExitToHub() {
@@ -856,10 +880,22 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, onE
     const gameDuration = endTime - board.startTime;
 
     // Score timeline: every scoring move with its elapsed-time offset from game start,
-    // truncated at moveIndex so undone moves are excluded.
+    // truncated at moveIndex so undone moves are excluded. inFinalScoring rides along so
+    // ScoreTimelineChart can anchor a record badge to the actual completed-feature event
+    // that earned it, not a later, bigger-but-incomplete one scored after Final Scoring
+    // (see LIVE_PLAY_ONLY_RECORD_TYPES/skipRecord above — same rule, same reason).
     const scoreTimeline = board.moves.slice(0, board.moveIndex + 1)
       .filter(m => m.amount !== 0 && m.timestamp)
-      .map(m => ({ player: m.player, type: m.type, amount: m.amount, t: Math.max(0, m.timestamp - board.startTime) }));
+      .map(m => ({ player: m.player, type: m.type, amount: m.amount, t: Math.max(0, m.timestamp - board.startTime), inFinalScoring: !!m.inFinalScoring }));
+    // A player-less marker (no `player`/`amount`) for when Final Scoring was
+    // pressed — ScoreTimelineChart draws a vertical reference line at it and
+    // otherwise ignores it (it can't match any player's cumulative total).
+    // Stored right alongside the real events since score_timeline is a plain
+    // JSON column (see data/storage.js) — no schema change needed, and
+    // older saved games simply have no marker, so no line renders for them.
+    if (board.finalScoringTime) {
+      scoreTimeline.push({ type: 'final-scoring', t: Math.max(0, board.finalScoringTime - board.startTime) });
+    }
 
     // Update board with endTime and save it BEFORE resetting
     const updatedBoard = { ...board, endTime };
@@ -991,18 +1027,20 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, onE
     </div>
   );
 
-  // Confirm turning off an expansion that already has points recorded this game
-  const expansionRemovalModal = pendingExpansionRemoval && (
-    <div className="realm-modal-overlay" onClick={() => setPendingExpansionRemoval(null)}>
+  // Confirm turning off an expansion that already has points recorded this
+  // game — shown after the settings modal's Save (see handleSaveExpansions),
+  // working through expansionRemovalQueue one name at a time.
+  const expansionRemovalModal = expansionRemovalQueue.length > 0 && (
+    <div className="realm-modal-overlay" onClick={cancelExpansionRemoval}>
       <div className="realm-modal tile-card" onClick={e => e.stopPropagation()}>
-        <h3 style={{ marginBottom: '0.5rem' }}>{pendingExpansionRemoval} has recorded points</h3>
+        <h3 style={{ marginBottom: '0.5rem' }}>{expansionRemovalQueue[0]} has recorded points</h3>
         <p style={{ fontSize: '0.95rem', marginBottom: '1.2rem', lineHeight: 1.5 }}>
           Points from this expansion have already been scored this game. Keep them in the score log, or remove them along with the expansion?
         </p>
         <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-          <button className="btn btn-ghost btn-sm" onClick={() => setPendingExpansionRemoval(null)}>Cancel</button>
-          <button className="btn btn-sm" onClick={() => { removeExpansion(pendingExpansionRemoval, false); setPendingExpansionRemoval(null); }}>Keep Points</button>
-          <button className="btn btn-danger btn-sm" onClick={() => { removeExpansion(pendingExpansionRemoval, true); setPendingExpansionRemoval(null); }}>Remove Points</button>
+          <button className="btn btn-ghost btn-sm" onClick={cancelExpansionRemoval}>Cancel</button>
+          <button className="btn btn-sm" onClick={() => resolveExpansionRemoval(false)}>Keep Points</button>
+          <button className="btn btn-danger btn-sm" onClick={() => resolveExpansionRemoval(true)}>Remove Points</button>
         </div>
       </div>
     </div>
@@ -1070,8 +1108,8 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, onE
           expansions={session?.expansions || []}
           ownedExpansions={ownedExpansions}
           onTogglePlayer={handleTogglePlayer}
-          onSetMeeple={trySetMeeple}
-          onToggleExpansion={handleToggleExpansion}
+          onSaveMeeples={handleSaveMeeples}
+          onSaveExpansions={handleSaveExpansions}
           onResetGame={handleReset}
           onClose={() => setShowSettings(false)}
         />
@@ -1232,10 +1270,15 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, onE
             </div>
           )}
           <div style={{ display: 'flex', gap: '0.5rem', marginTop: 'auto', paddingTop: '0.9rem', flexWrap: 'wrap' }}>
+            {/* minWidth: 0 overrides the flex-item default of `auto`, which
+                otherwise floors each button at its own content width (esp.
+                "Settings" + the gear icon) — wider than half this sidebar,
+                so despite flex: 1 1 0 they'd wrap onto separate rows instead
+                of actually splitting the row evenly. */}
             <button
               type="button"
               className="btn btn-ghost btn-sm"
-              style={{ flex: '1 1 0', justifyContent: 'center' }}
+              style={{ flex: '1 1 0', minWidth: 0, justifyContent: 'center' }}
               onClick={() => setEditMode(e => !e)}
               disabled={board.moveIndex < 0}
             >
@@ -1244,11 +1287,12 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, onE
             <button
               type="button"
               className="btn btn-ghost btn-sm"
-              style={{ flex: '1 1 0', justifyContent: 'center', gap: '0.35rem' }}
+              style={{ flex: '1 1 0', minWidth: 0, justifyContent: 'center' }}
               onClick={() => setShowSettings(true)}
               title="Players, meeples, expansions, and reset"
+              aria-label="Settings"
             >
-              <GearIcon /> Settings
+              <GearIcon />
             </button>
             <button
               type="button"

@@ -1,14 +1,20 @@
 import { useState, useEffect } from 'react';
-import ValInfo from './ValInfo';
 import { TrashIcon, GearIcon } from './icons';
-import { CHESTS, chestFor, unlockedChestCount, chestUnlockRank } from '../data/chests';
-import { SPINES, spineFor, unlockedSpineCount, spineUnlockRank } from '../data/spines';
+import { CHESTS, chestFor } from '../data/chests';
+import { SPINES, spineFor } from '../data/spines';
+import ArtPickerGrid from './ArtPickerGrid';
 
 // Realm Settings — rename/chest/logbook (owner only) plus the Danger Zone
 // (Delete for the owner, Leave for a member), mirroring Profile's Account
 // Settings. Opened directly from a realm card's gear icon — the sole
 // settings entry point for a realm.
-export default function RealmSettingsModal({ realm, realms = [], selfRank = 1, onUpdateRealm, onDeleteRealm, onLeaveRealm, onClose }) {
+export default function RealmSettingsModal({ realm, realms = [], unlockedChestIndices = null, unlockedLogbookIndices = null, onUpdateRealm, onDeleteRealm, onLeaveRealm, onClose }) {
+  // Which CHESTS/SPINES index is actually claimed via each independent
+  // art-unlock track (see utils/artUnlocks.js) — defaults to just index 0
+  // (item 1's guaranteed rank-1 grant) if the caller hasn't loaded real
+  // state yet.
+  const unlockedChestIdx = unlockedChestIndices || new Set([0]);
+  const unlockedLogbookIdx = unlockedLogbookIndices || new Set([0]);
   const [view,           setView]           = useState('menu'); // 'menu' | 'rename' | 'chest' | 'logbook'
   const [nameInput,      setNameInput]      = useState(realm.name);
   const [nameError,      setNameError]      = useState('');
@@ -150,19 +156,15 @@ export default function RealmSettingsModal({ realm, realms = [], selfRank = 1, o
         <div className="realm-modal-overlay" onClick={onClose}>
           <div className="realm-modal tile-card" onClick={e => e.stopPropagation()} style={{ maxWidth: '520px' }}>
             <h3 style={{ marginBottom: '0.8rem' }}>Change Chest</h3>
-            <div className="chest-picker-row">
-              {CHESTS.slice(0, unlockedChestCount(selfRank)).map((img, i) => (
-                <ValInfo key={i} tip={`Unlocked at Rank ${chestUnlockRank(i)}`}>
-                  <button
-                    type="button"
-                    className={`chest-pick${chestPick === i ? ' selected' : ''}`}
-                    onClick={() => setChestPick(i)}
-                  >
-                    <img src={img} alt={`Chest ${i + 1}`} />
-                  </button>
-                </ValInfo>
-              ))}
-            </div>
+            <ArtPickerGrid
+              items={CHESTS}
+              rowClassName="chest-picker-row"
+              pickClassName="chest-pick"
+              altPrefix="Chest"
+              selectedIndex={chestPick}
+              onSelect={setChestPick}
+              isLocked={i => !unlockedChestIdx.has(i)}
+            />
             <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'flex-end', marginTop: '1.2rem' }}>
               <button type="button" className="btn btn-ghost btn-sm" onClick={() => setView('menu')}>Cancel</button>
               <button type="button" className="btn btn-sm" onClick={handleSaveChest}>Save</button>
@@ -176,19 +178,15 @@ export default function RealmSettingsModal({ realm, realms = [], selfRank = 1, o
         <div className="realm-modal-overlay" onClick={onClose}>
           <div className="realm-modal tile-card" onClick={e => e.stopPropagation()} style={{ maxWidth: '520px' }}>
             <h3 style={{ marginBottom: '0.8rem' }}>Change Logbook</h3>
-            <div className="logbook-picker-row">
-              {SPINES.slice(0, unlockedSpineCount(selfRank)).map((img, i) => (
-                <ValInfo key={i} tip={`Unlocked at Rank ${spineUnlockRank(i)}`}>
-                  <button
-                    type="button"
-                    className={`logbook-pick${spinePick === i ? ' selected' : ''}`}
-                    onClick={() => setSpinePick(i)}
-                  >
-                    <img src={img} alt={`Logbook ${i + 1}`} draggable={false} />
-                  </button>
-                </ValInfo>
-              ))}
-            </div>
+            <ArtPickerGrid
+              items={SPINES}
+              rowClassName="logbook-picker-row"
+              pickClassName="logbook-pick"
+              altPrefix="Logbook"
+              selectedIndex={spinePick}
+              onSelect={setSpinePick}
+              isLocked={i => !unlockedLogbookIdx.has(i)}
+            />
             <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'flex-end', marginTop: '1.2rem' }}>
               <button type="button" className="btn btn-ghost btn-sm" onClick={() => setView('menu')}>Cancel</button>
               <button type="button" className="btn btn-sm" onClick={handleSaveLogbook}>Save</button>

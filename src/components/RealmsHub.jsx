@@ -9,14 +9,14 @@ function RealmCard({
   realm, isGuest, tourActive, highlighted = false,
   isNew = false, cardRef = null, onPlayRealm, onOpenBook, onOpenSettings,
 }) {
-  // The demo card's chest/book are always clickable — no lock, no tooltip
-  // nudge. Clicking either one just engages the guided tour on that
-  // specific path (see handlePlayRealm/handleOpenBook in RealmsTab.jsx),
-  // starting it first if it isn't already running, instead of requiring
-  // the tour to already be active or a separate "?" click first. A guest's
-  // *own* realm has a separate, unrelated book lock (sign-in required for
-  // the library) that's untouched by any of this.
-  const bookLocked = isGuest && !realm.isDemo;
+  // A guest's own realm has its logbook locked (sign-in required for the
+  // library) — except while it's the tour's own spotlighted card
+  // (`highlighted`, only ever true for one card, only during the hub stage,
+  // see RealmsTab.jsx), so the logbook leg has a real, clickable icon to
+  // walk through instead of a separate demo card. RealmsTab.jsx fills that
+  // walkthrough with a personalized stand-in game set (see
+  // makeTourLogbookGames) when this realm has no real games of its own yet.
+  const bookLocked = isGuest && !realm.isDemo && !(tourActive && highlighted);
   // No settings/delete for the demo card (nothing real to configure) or a
   // guest's own realm (no dedicated delete flow), and not mid-tour, when
   // only the tour's own actions should be live.
@@ -69,7 +69,7 @@ function RealmCard({
 // affordance) is the sole settings entry point.
 export default function RealmsHub({
   realms = [], onPlayRealm, onOpenBook, onCreateRealm,
-  onDeleteRealm, onLeaveRealm, onUpdateRealm, selfRank = 1, isGuest = false,
+  onDeleteRealm, onLeaveRealm, onUpdateRealm, unlockedChestIndices = null, unlockedLogbookIndices = null, isGuest = false,
   tourActive = false, highlightRealmId = null,
   onStartTour = null, hubRef = null,
   scrollToRealmId = null, onScrollToRealmConsumed = null,
@@ -119,7 +119,8 @@ export default function RealmsHub({
           // updates `realms` but settingsRealm itself never gets refreshed.
           realm={realms.find(r => r.id === settingsRealm.id) || settingsRealm}
           realms={realms}
-          selfRank={selfRank}
+          unlockedChestIndices={unlockedChestIndices}
+          unlockedLogbookIndices={unlockedLogbookIndices}
           onUpdateRealm={onUpdateRealm}
           onDeleteRealm={onDeleteRealm}
           onLeaveRealm={onLeaveRealm}
@@ -134,9 +135,7 @@ export default function RealmsHub({
         <div className="section-title">
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <h2>Realms</h2>
-            {/* The sole manual tour entry point — the demo realm the tour's
-                logbook leg leans on (see RealmsTab.jsx's DEMO_REALM) never
-                actually shows up on the shelf, no separate "See how it
+            {/* The sole manual tour entry point — no separate "See how it
                 works!" chip or toggle needed. Green while the tour's
                 actually running is the only state that matters here — the
                 button itself goes inert (see tour-inert above) the moment

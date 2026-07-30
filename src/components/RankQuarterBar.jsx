@@ -58,14 +58,30 @@ function ScrollArrow({ dir, onClick, active }) {
 // prints in red as "X milestones to Name" instead of just its name, same
 // idea as QuarterTierBar's active tier. The current (just-reached) rank's
 // own name is bolded, same as QuarterTierBar's current tier.
-export default function RankQuarterBar({ tierCount, currentRank }) {
+// `remaining` is optional — omit it to have this compute "next rank
+// threshold minus tierCount" itself (the plain, non-celebration usage).
+// `showRemaining` (default true) lets a caller suppress the red countdown
+// on the next-rank box until it's showing the TRUE final value — mid
+// multi-rank-jump animation, tierCount/remaining pass through intermediate
+// checkpoints that aren't the real "how far to next rank" figure yet, and
+// briefly showing those looked like a jump from one big countdown straight
+// to a much smaller one. While suppressed, that box just shows the rank
+// name in the same plain/faint style as any other, same as before the
+// countdown was added at all.
+// `fillOverride` (0..1, optional) drives the next-rank box's fill directly
+// instead of computing it from tierCount — used by RankUpModal's
+// star-driven rank-up celebration, where the fill advances one flying star
+// at a time rather than as one continuous tierCount-based animation. That
+// box also carries data-next-box so a caller can look up exactly where to
+// aim each star.
+export default function RankQuarterBar({ tierCount, currentRank, remaining: remainingOverride, showRemaining = true, fillOverride }) {
   const maxRank = getMaxRank();
   const maxed = currentRank >= maxRank;
   const nextRank = currentRank + 1;
   const totalPieces = maxed ? maxRank : nextRank;
   const nextLower = currentRank <= 1 ? 0 : tiersRequiredForRank(currentRank);
   const nextUpper = maxed ? nextLower : tiersRequiredForRank(nextRank);
-  const remaining = maxed ? 0 : nextUpper - tierCount;
+  const remaining = remainingOverride !== undefined ? remainingOverride : (maxed ? 0 : nextUpper - tierCount);
 
   const defaultStart = Math.max(1, totalPieces - WINDOW_SIZE + 1);
   const [windowStart, setWindowStart] = useState(defaultStart);
@@ -89,11 +105,12 @@ export default function RankQuarterBar({ tierCount, currentRank }) {
             const rank = windowStart + i;
             const isNext = !maxed && rank === nextRank;
             const frac = isNext
-              ? Math.max(0, Math.min(1, (tierCount - nextLower) / (nextUpper - nextLower)))
+              ? (fillOverride !== undefined ? fillOverride : Math.max(0, Math.min(1, (tierCount - nextLower) / (nextUpper - nextLower))))
               : 1;
             return (
               <div
                 key={rank}
+                data-next-box={isNext ? true : undefined}
                 style={{ flex: '1 1 0%', height: '100%', border: '2px solid var(--earth-brown)', borderRadius: '2px', background: 'rgba(139,94,60,0.18)', boxShadow: 'inset 2px 2px 0 rgba(43,27,10,0.25)', overflow: 'hidden' }}
               >
                 <div style={{
@@ -108,6 +125,39 @@ export default function RankQuarterBar({ tierCount, currentRank }) {
         </div>
         {isScrollable && <ScrollArrow dir="right" active={canGoRight} onClick={() => setWindowStart(s => Math.min(defaultStart, s + 1))} />}
       </div>
+      {/* Timeline tick marks — one star-count number per box, sitting at
+          that box's own RIGHT edge (the seam between it and the next box)
+          rather than centered under it, so the whole row reads as a ruler:
+          0★ between Wanderer and Pioneer (Wanderer needed 0 to unlock),
+          then the threshold for each following rank at the seam right
+          after its own box. Replaces the old per-box "N★" fine print (same
+          information, but centered under a box instead of marking the
+          actual boundary it belongs to). */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', marginTop: '0.15rem' }}>
+        {isScrollable && <div style={{ flexShrink: 0, width: ARROW_WIDTH }} />}
+        <div style={{ flex: 1, minWidth: 0, position: 'relative', height: '0.65rem' }}>
+          {Array.from({ length: visibleCount }, (_, i) => {
+            const rank = windowStart + i;
+            const threshold = rank <= 1 ? 0 : tiersRequiredForRank(rank);
+            return (
+              <span
+                key={rank}
+                style={{
+                  position: 'absolute',
+                  left: `${((i + 1) / visibleCount) * 100}%`,
+                  transform: 'translateX(-50%)',
+                  fontFamily: "'Crimson Text', serif", fontStyle: 'italic',
+                  fontSize: '0.48rem', color: 'var(--stone-gray)', opacity: 0.65,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {threshold} <span style={{ color: 'var(--warm-gold)' }}>★</span>
+              </span>
+            );
+          })}
+        </div>
+        {isScrollable && <div style={{ flexShrink: 0, width: ARROW_WIDTH }} />}
+      </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', marginTop: '0.1rem' }}>
         {isScrollable && <div style={{ flexShrink: 0, width: ARROW_WIDTH }} />}
         <div style={{ flex: 1, minWidth: 0, display: 'flex' }}>
@@ -115,26 +165,23 @@ export default function RankQuarterBar({ tierCount, currentRank }) {
             const rank = windowStart + i;
             const isNext = !maxed && rank === nextRank;
             const isCurrent = rank === currentRank;
+            const isCountingDown = isNext && showRemaining;
             return (
               <div
                 key={rank}
                 style={{
                   flex: '1 1 0%', textAlign: 'center', padding: '0 0.15rem',
-                  fontFamily: "'Crimson Text', serif", fontStyle: 'italic', fontSize: '0.62rem', lineHeight: 1.15,
-                  color: isNext ? 'var(--deep-red)' : isCurrent ? 'var(--earth-brown)' : 'var(--stone-gray)',
+                  fontFamily: "'Crimson Text', serif", fontStyle: 'italic', fontSize: '0.58rem', lineHeight: 1.15,
+                  color: isCountingDown ? 'var(--deep-red)' : isCurrent ? 'var(--earth-brown)' : 'var(--stone-gray)',
                   fontWeight: isCurrent ? 700 : 400,
                 }}
               >
-                {isNext ? (
+                {isCountingDown ? (
                   <>
-                    {remaining.toLocaleString()} milestone{remaining === 1 ? '' : 's'} to {rankTitle(nextRank)}
-                    <span style={{ opacity: 0.65, fontSize: '0.52rem' }}> · {nextUpper}</span>
+                    {remaining.toLocaleString()} <span style={{ color: 'var(--warm-gold)' }}>★</span> to {rankTitle(nextRank)}
                   </>
                 ) : (
-                  <>
-                    {rankTitle(rank)}
-                    <span style={{ opacity: 0.65, fontSize: '0.52rem' }}> · {tiersRequiredForRank(rank)}</span>
-                  </>
+                  rankTitle(isNext ? nextRank : rank)
                 )}
               </div>
             );

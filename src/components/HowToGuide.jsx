@@ -1,5 +1,6 @@
 import { useRef } from 'react';
 import { useTourCardPosition } from '../hooks/useTourCardPosition';
+import { useTourCardKeys } from '../hooks/useTourCardKeys';
 
 const STEPS = [
   '**Set up the game** at your table.',
@@ -14,7 +15,7 @@ const STEPS = [
 // create-realm sub-steps in PreGameSetup.jsx.
 const CREATE_REALM_TOUR_STAGES = [
   { title: 'Create New Realm', text: 'Name your realm and add the players.' },
-  { title: 'Chest & Logbook', text: 'Use unlocked art to customize your realm.' },
+  { title: 'Chest & Logbook', text: ' Choose a chest for game pieces and a book for history.' },
 ];
 
 // The hub itself isn't part of this linear stage list at all — it's a fork
@@ -25,7 +26,7 @@ const CREATE_REALM_TOUR_STAGES = [
 const PLAY_PATH_STAGES = [
   { key: 'players',    title: 'Players',    text: 'Each player picks their game piece. ' },
   { key: 'expansions', title: 'Expansions', text: 'Choose expansions that are in play.' },
-  { key: 'begin',      title: 'Begin',      text: 'Click Begin when you\'re ready to start the game.' },
+  { key: 'begin',      title: 'Gather Your Pieces', text: 'Grab the tiles and meeples listed here, then click Begin when you\'re ready to start the game.' },
 ];
 const BOOK_PATH_STAGES = [
   { key: 'overview', title: 'Overview', text: 'The overview contains general realm statistics.' },
@@ -36,7 +37,7 @@ const REALM_TOUR_STAGES = [...PLAY_PATH_STAGES, ...BOOK_PATH_STAGES];
 
 const PROFILE_STEPS = [
   { title: 'Character Card', text: 'View your profile, rank, and overall progress. Click to view the back. ' },
-  { title: 'Milestones', text: 'Complete milestones to increase your rank and unlock rewards.' },
+  { title: 'Milestones', text: 'Complete milestones by scoring points to increase your rank and unlock rewards.' },
   { title: 'Career Highlights', text: 'Achievements, records, and memorable victories. Click to flip.' },
   { title: 'Trophy Cabinet', text: 'View the hardware you\'ve earned along the way.' },
 ];
@@ -64,37 +65,40 @@ function StepList({ steps, ordered = true }) {
  * tour tied to `createSubStep`, not a fork like the Realms hub's — "Next"
  * on stage 0 validates the name/roster (same check the real "Next →" runs)
  * before advancing the real form to the chest/logbook sub-step, so a bad
- * name/roster blocks the tour there instead of waving it through. "Got it!"
- * on the last stage just closes the tour and leaves the user right there on
- * chest/logbook to pick for real. `targetRef` docks the card beside the
- * matching form section, same as the Realms tour (see useTourCardPosition). */
+ * name/roster blocks the tour there instead of waving it through. "Create"
+ * on the last stage IS the real create action (see advanceCreateTour in
+ * PreGameSetup.jsx) — closes the tour and submits the realm in one click,
+ * rather than leaving the user to close the tour and hunt for the (until
+ * now disabled) real Create button underneath it. `targetRef` docks the
+ * card beside the matching form section, same as the Realms tour (see
+ * useTourCardPosition). */
 export function CreateRealmTourModal({ stage, onNext, onBack, onClose, targetRef = null }) {
   const isLast = stage === CREATE_REALM_TOUR_STAGES.length - 1;
   const current = CREATE_REALM_TOUR_STAGES[stage];
   const cardRef = useRef(null);
   const { style: posStyle, arrowLeft } = useTourCardPosition(targetRef, cardRef, true);
+  useTourCardKeys(onNext, onBack);
   return (
     <div className="tour-overlay">
       <div
         ref={cardRef}
         className="realm-modal tile-card tour-card"
-        onClick={onNext}
         style={{
           maxWidth: '340px',
           ...(posStyle || {}),
           ...(arrowLeft != null ? { '--tour-arrow-left': `${arrowLeft}px` } : {}),
         }}
       >
-        <button type="button" className="tour-close-btn" onClick={e => { e.stopPropagation(); onClose(); }} title="Close tour" aria-label="Close tour" />
+        <button type="button" className="tour-close-btn" onClick={onClose} title="Close tour" aria-label="Close tour" />
         <h3 style={{ color: 'var(--earth-brown)', marginBottom: '0.8rem' }}>{current.title}</h3>
         <p style={{ fontFamily: 'Crimson Text, serif', fontSize: 'clamp(0.92rem, 2.2vw, 1.05rem)', lineHeight: 1.5, color: 'var(--charcoal)', margin: 0 }}>
           {renderStep(current.text)}
         </p>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: stage === 0 ? 'flex-end' : 'space-between', gap: '0.8rem', marginTop: '1.2rem' }}>
-          {stage > 0 && <button type="button" className="btn btn-ghost btn-sm" onClick={e => { e.stopPropagation(); onBack(); }}>‹ Back</button>}
+          {stage > 0 && <button type="button" className="btn btn-ghost btn-sm" onClick={onBack}>‹ Back</button>}
           {isLast
-            ? <button type="button" className="btn btn-sm">Got it!</button>
-            : <button type="button" className="btn btn-sm">Next ›</button>}
+            ? <button type="button" className="btn btn-sm" onClick={onNext}>Create</button>
+            : <button type="button" className="btn btn-sm" onClick={onNext}>Next ›</button>}
         </div>
         <div className="tour-dots" style={{ justifyContent: 'center', marginTop: '0.7rem' }}>
           {CREATE_REALM_TOUR_STAGES.map((s, i) => (
@@ -139,28 +143,28 @@ export function ProfileHowToModal({ step, onNext, onBack, onClose, targetRef = n
   const isLastStep = step === PROFILE_STEPS.length - 1;
   const cardRef = useRef(null);
   const { style: posStyle, arrowLeft } = useTourCardPosition(targetRef, cardRef, true);
+  useTourCardKeys(onNext, onBack);
   return (
     <div className="tour-overlay">
       <div
         ref={cardRef}
         className="realm-modal tile-card tour-card"
-        onClick={onNext}
         style={{
           maxWidth: '340px',
           ...(posStyle || {}),
           ...(arrowLeft != null ? { '--tour-arrow-left': `${arrowLeft}px` } : {}),
         }}
       >
-        <button type="button" className="tour-close-btn" onClick={e => { e.stopPropagation(); onClose(); }} title="Close tour" aria-label="Close tour" />
+        <button type="button" className="tour-close-btn" onClick={onClose} title="Close tour" aria-label="Close tour" />
         <h3 style={{ color: 'var(--earth-brown)', marginBottom: '0.8rem' }}>{PROFILE_STEPS[step].title}</h3>
         <p style={{ fontFamily: 'Crimson Text, serif', fontSize: 'clamp(0.92rem, 2.2vw, 1.05rem)', lineHeight: 1.5, color: 'var(--charcoal)', margin: 0 }}>
           {renderStep(PROFILE_STEPS[step].text)}
         </p>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: step === 0 ? 'flex-end' : 'space-between', gap: '0.8rem', marginTop: '1.2rem' }}>
-          {step > 0 && <button type="button" className="btn btn-ghost btn-sm" onClick={e => { e.stopPropagation(); onBack(); }}>‹ Back</button>}
+          {step > 0 && <button type="button" className="btn btn-ghost btn-sm" onClick={onBack}>‹ Back</button>}
           {isLastStep
-            ? <button type="button" className="btn btn-sm">Got it!</button>
-            : <button type="button" className="btn btn-sm">Next ›</button>}
+            ? <button type="button" className="btn btn-sm" onClick={onNext}>Got it!</button>
+            : <button type="button" className="btn btn-sm" onClick={onNext}>Next ›</button>}
         </div>
         <div className="tour-dots" style={{ justifyContent: 'center', marginTop: '0.7rem' }}>
           {PROFILE_STEPS.map((s, i) => (
@@ -176,7 +180,8 @@ export function ProfileHowToModal({ step, onNext, onBack, onClose, targetRef = n
  * itself (see RealmHubTourCards below for that one) — Players/Expansions/
  * Begin on the play path, Overview/Roster/Game log on the book path. Each
  * path loops back to the hub afterward, but within a path it's a straight
- * line: "Next" (or clicking the card) drives it one step at a time, "Back"
+ * line: "Next" drives it one step at a time (a click anywhere else on the
+ * card no longer does — an accidental click shouldn't skip a step), "Back"
  * reverses it (down to the hub, at each path's first stage). The top-left
  * "×" ends the tour from wherever the user currently is, without navigating
  * them anywhere. Everything on the real page outside the spotlighted
@@ -202,26 +207,26 @@ export function RealmTourModal({ stage, onNext, onBack, onClose, targetRef = nul
   const pathIndex = path ? path.findIndex(s => s.key === stage) : -1;
   const cardRef = useRef(null);
   const { style: posStyle, arrowLeft } = useTourCardPosition(targetRef, cardRef, true);
+  useTourCardKeys(onNext, onBack);
   return (
     <div className="tour-overlay">
       <div
         ref={cardRef}
         className="realm-modal tile-card tour-card"
-        onClick={onNext}
         style={{
           maxWidth: '340px',
           ...(posStyle || {}),
           ...(arrowLeft != null ? { '--tour-arrow-left': `${arrowLeft}px` } : {}),
         }}
       >
-        <button type="button" className="tour-close-btn" onClick={e => { e.stopPropagation(); onClose(); }} title="Close tour" aria-label="Close tour" />
+        <button type="button" className="tour-close-btn" onClick={onClose} title="Close tour" aria-label="Close tour" />
         <h3 style={{ color: 'var(--earth-brown)', marginBottom: '0.8rem' }}>{current.title}</h3>
         <p style={{ fontFamily: 'Crimson Text, serif', fontSize: 'clamp(0.92rem, 2.2vw, 1.05rem)', lineHeight: 1.5, color: 'var(--charcoal)', margin: 0 }}>
           {renderStep(current.text)}
         </p>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.8rem', marginTop: '1.2rem' }}>
-          <button type="button" className="btn btn-ghost btn-sm" onClick={e => { e.stopPropagation(); onBack(); }}>‹ Back</button>
-          <button type="button" className="btn btn-sm">Next ›</button>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={onBack}>‹ Back</button>
+          <button type="button" className="btn btn-sm" onClick={onNext}>Next ›</button>
         </div>
         {path && (
           <div className="tour-dots" style={{ justifyContent: 'center', marginTop: '0.7rem' }}>
@@ -235,21 +240,18 @@ export function RealmTourModal({ stage, onNext, onBack, onClose, targetRef = nul
   );
 }
 
-/** One row within RealmHubTourCards below: a heading, then its
- * description and action button side by side on one line (rather than
- * text-above-button like every other tour card in this file — with two of
- * these stacked in one popup, a full extra line per section for the button
- * made the whole thing needlessly tall). */
-function HubSection({ title, text, actionLabel, onAction, divider = false }) {
+/** One row within RealmHubTourCards below: a heading, then its description —
+ * no action button (see RealmHubTourCards) — the real chest/logbook icon on
+ * the spotlighted card is what the user clicks; this section just tells
+ * them to, the same way the rest of the app expects a click on the real
+ * thing rather than a stand-in button. */
+function HubSection({ title, text, divider = false }) {
   return (
     <div className={divider ? 'tour-hub-section tour-hub-section-divider' : 'tour-hub-section'}>
       <h3 style={{ color: 'var(--earth-brown)', marginBottom: '0.5rem' }}>{title}</h3>
-      <div className="tour-hub-row">
-        <p style={{ fontFamily: 'Crimson Text, serif', fontSize: 'clamp(0.88rem, 2.1vw, 1rem)', lineHeight: 1.4, color: 'var(--charcoal)', margin: 0 }}>
-          {text}
-        </p>
-        <button type="button" className="btn btn-sm" onClick={onAction}>{actionLabel}</button>
-      </div>
+      <p style={{ fontFamily: 'Crimson Text, serif', fontSize: 'clamp(0.88rem, 2.1vw, 1rem)', lineHeight: 1.4, color: 'var(--charcoal)', margin: 0 }}>
+        {text}
+      </p>
     </div>
   );
 }
@@ -257,18 +259,20 @@ function HubSection({ title, text, actionLabel, onAction, divider = false }) {
 /** Opened from the Realms hub's "?" button, for the hub itself — a fork, not
  * a step, so both paths are shown at once, but as two sections
  * (HubSection) inside one ordinary tour card rather than as separate
- * popups — chest section first, logbook section under it, each with its
- * own action button that picks that path the same way a real click on the
- * chest/logbook icon does (both stay live throughout via
- * `.tour-highlight`'s `pointer-events: auto` on the whole spotlighted
- * card, see RealmsHub.jsx). Docked directly under the spotlighted realm
+ * popups — chest section first, logbook section under it. Neither has an
+ * action button (past versions did): the real chest/logbook icon on the
+ * spotlighted card is what the user is meant to click, staying live
+ * throughout via `.tour-highlight`'s `pointer-events: auto` (and, for a
+ * guest, the logbook icon is unlocked just for this tour — see
+ * RealmsHub.jsx/RealmsTab.jsx). Docked directly under the spotlighted realm
  * card via `targetRef`, same useTourCardPosition docking every other tour
- * card in this file uses — no custom positioning of its own, so it can't
- * spill off-screen any differently than any other tour card already
- * doesn't. A section disappears the moment that path's been visited
- * (`showChest`/`showBook`, driven by tourVisited* in RealmsTab.jsx); once
- * both are gone the tour closes itself entirely. */
-export function RealmHubTourCards({ showChest, showBook, onChestAction, onBookAction, onClose, targetRef }) {
+ * card in this file uses. A section disappears the moment that path's been
+ * visited (`showChest`/`showBook`, driven by tourVisited* in
+ * RealmsTab.jsx); once both are gone the tour closes itself entirely. A
+ * third way into the same chained Profile tour exists too — a card docked
+ * by the Profile tab itself (see ProfileTabTourCard below), not a section
+ * in this one. */
+export function RealmHubTourCards({ showChest, showBook, onClose, targetRef }) {
   const cardRef = useRef(null);
   const { style: posStyle, arrowLeft } = useTourCardPosition(targetRef, cardRef, true);
   return (
@@ -277,18 +281,53 @@ export function RealmHubTourCards({ showChest, showBook, onChestAction, onBookAc
         ref={cardRef}
         className="realm-modal tile-card tour-card"
         style={{
-          maxWidth: '360px',
+          // Narrower than the other tour cards' 340px — this one lost its
+          // action buttons (see HubSection), so 360px left a visible strip
+          // of empty space to the right of the now text-only sections.
+          maxWidth: '280px',
           ...(posStyle || {}),
           ...(arrowLeft != null ? { '--tour-arrow-left': `${arrowLeft}px` } : {}),
         }}
       >
         <button type="button" className="tour-close-btn" onClick={onClose} title="Close tour" aria-label="Close tour" />
         {showChest && (
-          <HubSection title="Chest" text="Open the chest to set up a game." actionLabel="Chest" onAction={onChestAction} />
+          <HubSection title="Chest" text="Click the chest to set up a game." />
         )}
         {showBook && (
-          <HubSection title="Logbook" text="Open the logbook to view game history." actionLabel="Logbook" onAction={onBookAction} divider={showChest} />
+          <HubSection title="Logbook" text="Click the logbook to view game history." divider={showChest} />
         )}
+      </div>
+    </div>
+  );
+}
+
+/** Opened during the Realms tour (any stage — hub, or forked into the chest
+ * or book path) — points at the Profile tab itself, docked beside it with
+ * the same arrow-and-card look every other tour card in this file uses
+ * (`useTourCardPosition`), since the tab lives outside RealmsTab entirely
+ * (see App.jsx). Purely informational, no action button: clicking the real
+ * Profile tab is what ends the Realms tour and hands off into Profile's own
+ * tour (see App.jsx's handleTabChange) — matching how the chest/logbook
+ * icons themselves, not a button, drive those legs. */
+export function ProfileTabTourCard({ onClose, targetRef }) {
+  const cardRef = useRef(null);
+  const { style: posStyle, arrowLeft } = useTourCardPosition(targetRef, cardRef, true);
+  return (
+    <div className="tour-overlay">
+      <div
+        ref={cardRef}
+        className="realm-modal tile-card tour-card"
+        style={{
+          maxWidth: '280px',
+          ...(posStyle || {}),
+          ...(arrowLeft != null ? { '--tour-arrow-left': `${arrowLeft}px` } : {}),
+        }}
+      >
+        <button type="button" className="tour-close-btn" onClick={onClose} title="Close tour" aria-label="Close tour" />
+        <h3 style={{ color: 'var(--earth-brown)', marginBottom: '0.8rem' }}>Profile</h3>
+        <p style={{ fontFamily: 'Crimson Text, serif', fontSize: 'clamp(0.92rem, 2.2vw, 1.05rem)', lineHeight: 1.5, color: 'var(--charcoal)', margin: 0 }}>
+          Click this tab to view your profile.
+        </p>
       </div>
     </div>
   );

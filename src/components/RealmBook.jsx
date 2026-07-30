@@ -3,7 +3,6 @@ import { DEFAULT_EXPANSIONS } from '../data/expansions';
 import { calcGroupStats, calcPlayerRecords, calcRealmStandings, calcPlayerTrophyTallies } from '../utils/stats';
 import { getRealmMemberProgress } from '../data/storage';
 import PlayerCard, { PLAYER_COLOR_CLASSES } from './PlayerCard';
-import MemberProgressModal from './MemberProgressModal';
 import PointBreakdownChart from './PointBreakdownChart';
 import Lightbox from './Lightbox';
 import StatInfo from './StatInfo';
@@ -191,9 +190,7 @@ function FellowshipPage({ standings, realmGames, onOpenGame, rosterRef, progress
   );
 }
 
-function GameLogPage({ pageGames, onSelectGame, gamelogRef, progressByName = {} }) {
-  const [showProgressFor, setShowProgressFor] = useState(null); // player name, or null
-
+function GameLogPage({ pageGames, onSelectGame, gamelogRef }) {
   if (pageGames.length === 0) {
     return <div className="empty-state">No games recorded for this realm yet.</div>;
   }
@@ -230,23 +227,12 @@ function GameLogPage({ pageGames, onSelectGame, gamelogRef, progressByName = {} 
                   fontStyle:  'normal',
                   whiteSpace: 'nowrap',
                 }}>
-                  {winnerNames.map((n, i) => {
-                    const progress = progressByName[n.toLowerCase()] ?? null;
-                    return (
-                      <span key={n}>
-                        {i > 0 && ' & '}
-                        {progress != null ? (
-                          <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); setShowProgressFor(n); }}
-                            style={{ background: 'none', border: 'none', padding: 0, cursor: 'var(--cursor-pointer)', font: 'inherit', color: 'inherit', textDecoration: 'underline dotted' }}
-                          >
-                            {n}
-                          </button>
-                        ) : n}
-                      </span>
-                    );
-                  })}
+                  {winnerNames.map((n, i) => (
+                    <span key={n}>
+                      {i > 0 && ' & '}
+                      {n}
+                    </span>
+                  ))}
                 </td>
 
                 <td style={{ fontFamily: 'Cinzel, serif', fontWeight: 600, color: 'var(--charcoal)', whiteSpace: 'nowrap' }}>
@@ -261,15 +247,6 @@ function GameLogPage({ pageGames, onSelectGame, gamelogRef, progressByName = {} 
         </tbody>
       </table>
       </div>
-
-      {showProgressFor != null && progressByName[showProgressFor.toLowerCase()] != null && (
-        <MemberProgressModal
-          name={showProgressFor}
-          rank={progressByName[showProgressFor.toLowerCase()].rank}
-          categoryProgress={progressByName[showProgressFor.toLowerCase()].categoryProgress}
-          onClose={() => setShowProgressFor(null)}
-        />
-      )}
     </div>
   );
 }
@@ -360,10 +337,6 @@ export default function RealmBook({ realm, games, page, onPageChange, selectedGa
     onSelectGame(null);
   };
 
-  const pageLabel = page === 0 ? 'Overview'
-    : page === 1 ? 'Roster'
-    : 'Game Log';
-
   // Shared by both Back buttons (header + bottom nav) and the ArrowLeft
   // handler above: from Overview (page 0) there's no earlier page to turn
   // back to, so Back exits the book instead of doing nothing.
@@ -401,25 +374,24 @@ export default function RealmBook({ realm, games, page, onPageChange, selectedGa
         />
       )}
 
-      <div className="realm-book">
-        {/* Wraps the page label together with the page content below it, for
-            all three book stages — the tour spotlight is meant to cover the
-            label/title through the dropdown arrow, not just start below it,
-            on Overview, Roster, and Game Log alike. rosterRef/gamelogRef
-            (on the page content itself) stay in play purely as docking
-            targets for the tour card's position — see FellowshipPage /
-            GameLogPage. */}
-        <div ref={chartRef} className={tourHighlight ? 'tour-highlight' : ''}>
+      {/* The tour spotlight (chartRef/tourHighlight) is applied to the whole
+          book — header through the bottom Back/Next — so the cutout fills
+          the entire yellow box on all three stages (Overview/Roster/Game
+          Log), rather than a smaller box floating inside it. rosterRef/
+          gamelogRef (on the page content itself) stay in play purely as
+          docking targets for the tour card's position — see FellowshipPage /
+          GameLogPage. Since .book-nav's Back/Next are now inside the
+          highlighted element (which stays clickable via `.tour-highlight`'s
+          own pointer-events: auto, unlike everything else under the
+          ancestor .tour-inert in RealmsTab.jsx), they're explicitly
+          disabled during a tour too, matching .book-header's pair, so
+          neither route can page away from whatever stage is being
+          demonstrated. */}
+      <div ref={chartRef} className={`realm-book${tourHighlight ? ' tour-highlight' : ''}`}>
         <div className="book-header">
           {/* Same Back/Next as .book-nav below, so paging doesn't require
-              scrolling to the bottom — but unlike that one, these sit INSIDE
-              the tour-highlighted chartRef div, which stays clickable
-              (pointer-events: auto) even while the rest of the page goes
-              .tour-inert. Explicitly disabled during a tour so they can't be
-              used to page away from whatever stage it's demonstrating —
-              matching what the ancestor-inert bottom nav already prevents. */}
+              scrolling to the bottom. */}
           <button type="button" className="btn btn-ghost btn-sm" disabled={tourActive} onClick={handleBack}>‹ Back</button>
-          <span className="book-nav-label" style={{ flex: 1 }}>{pageLabel}</span>
           <button type="button" className="btn btn-ghost btn-sm" disabled={page >= totalPages - 1 || tourActive} onClick={() => onPageChange(Math.min(totalPages - 1, page + 1))}>Next ›</button>
         </div>
 
@@ -440,18 +412,13 @@ export default function RealmBook({ realm, games, page, onPageChange, selectedGa
               pageGames={realmGames.slice((page - FIRST_LOG_PAGE) * GAMES_PER_PAGE, (page - FIRST_LOG_PAGE + 1) * GAMES_PER_PAGE)}
               onSelectGame={onSelectGame}
               gamelogRef={gamelogRef}
-              progressByName={progressByName}
             />
           )}
         </div>
-        </div>
 
-        {/* Blocked while a tour is open via the ancestor .tour-inert
-            wrapper in RealmsTab.jsx — nothing here is ever itself the
-            spotlighted element, so no override is needed. */}
         <div className="book-nav">
-          <button type="button" className="btn btn-ghost btn-sm" onClick={handleBack}>‹ Back</button>
-          <button type="button" className="btn btn-ghost btn-sm" disabled={page >= totalPages - 1} onClick={() => onPageChange(Math.min(totalPages - 1, page + 1))}>Next ›</button>
+          <button type="button" className="btn btn-ghost btn-sm" disabled={tourActive} onClick={handleBack}>‹ Back</button>
+          <button type="button" className="btn btn-ghost btn-sm" disabled={page >= totalPages - 1 || tourActive} onClick={() => onPageChange(Math.min(totalPages - 1, page + 1))}>Next ›</button>
         </div>
       </div>
     </>

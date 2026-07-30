@@ -62,7 +62,7 @@ export function useGameData(user, authLoading) {
       
       // Load all data in parallel for performance
       const [g, e, r, inv] = await Promise.all([
-        getGames(),                    // Games in realms the user can access (RLS-scoped)
+        user ? getGames() : Promise.resolve([]), // Games in realms the user can access (RLS-scoped) — skip the request entirely with no session (e.g. guest mode), rather than hitting Supabase unauthenticated
         getExpansions(user?.id),       // User's expansion preferences
         getRealms(user?.id),           // Owned + shared realms
         user ? getPendingInvites() : Promise.resolve([]), // Group invites awaiting a response

@@ -466,6 +466,48 @@ export async function acknowledgeRankUpFor(realmId, targetUserId, rank, tierCoun
   if (error) throw new Error(error.message || 'Failed to acknowledge rank-up');
 }
 
+// ── Chest/logbook art unlocks (migrations/add_art_unlocks.sql) ───────────────
+// Persists utils/artUnlocks.js's combined {chest, logbook} state as one
+// jsonb blob. Client-computed AND client-written directly — cosmetic only,
+// same rationale as the earlier pair system this replaces (see that
+// migration's header). Writes go through the save_art_unlock_state RPC (not
+// a raw table update) since user_progress has never had a direct client
+// write path; reads are a plain select, same as getUserProgress, since RLS
+// already permits self-select on the whole row.
+//
+// Supersedes getPairUnlockState/savePairUnlockState (unlocked_pairs/
+// grab_bag_pool/processed_pair_rank/pending_pair_choice) — those columns
+// and their RPC are left in place unused rather than dropped, to avoid an
+// unnecessary migration.
+
+/**
+ * @param {string} userId
+ * @returns {Promise<{chest:{unlocked:number[],pool:number[],nextItem:number,processedRank:number}, logbook:<same>}|null>}
+ *   Null if no row exists yet, or the column hasn't been populated for this
+ *   account — callers should treat that as createInitialArtUnlockState()
+ *   (utils/artUnlocks.js).
+ */
+export async function getArtUnlockState(userId) {
+  if (!userId) return null;
+  const { data, error } = await supabase
+    .from('user_progress')
+    .select('art_unlock_state')
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (error || !data?.art_unlock_state) return null;
+  return data.art_unlock_state;
+}
+
+/**
+ * @param {string} userId
+ * @param {{chest:object, logbook:object}} state
+ */
+export async function saveArtUnlockState(userId, state) {
+  if (!userId) return;
+  const { error } = await supabase.rpc('save_art_unlock_state', { p_state: state });
+  if (error) throw new Error(error.message || 'Failed to save art unlock state');
+}
+
 // ── Milestone/rank numeric config (migrations/milestone_config.sql) ──────────
 // Single source of truth for category/tier thresholds and max rank — shared
 // with the server-side computation in compute_account_progress, so the

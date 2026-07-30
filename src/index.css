@@ -42,7 +42,22 @@
 /* ── Reset ── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-html { font-size: 16px; scroll-behavior: smooth; }
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
+  /* Seamless page scrollbar — same treatment as .board-log-entries below:
+     a transparent track instead of the browser's default opaque one, so
+     it doesn't read as a separate boxed-in strip against the parchment
+     background. */
+  scrollbar-width: thin;
+  scrollbar-color: var(--earth-brown) transparent;
+}
+html::-webkit-scrollbar { width: 10px; }
+html::-webkit-scrollbar-track { background: transparent; }
+html::-webkit-scrollbar-thumb {
+  background: var(--earth-brown);
+  border-radius: 5px;
+}
 
 /* Baseline pointer cursor for semantically-clickable elements that don't already set one
    via a more specific class rule (those were updated to var(--cursor-pointer) above). */
@@ -657,13 +672,14 @@ input[type="search"], input[type="number"] {
 }
 
 /* Record-view variant of the stadium clock, used wherever a FINISHED game's
-   duration is read back (post-game form, logbook lightbox) rather than
-   ticking live — same brass-bezel/LED-housing look as .game-clock-digits
-   above, but sized in vw instead of cqw (these info bars aren't nested in
-   .board-log's inline-size container) and widened to fit the full HH:MM:SS
-   these views always show, all six digits, since it's a record, not a timer. */
+   duration OR date is read back (post-game form, logbook lightbox) rather
+   than ticking live — same brass-bezel/LED-housing look as
+   .game-clock-digits above, but sized in vw instead of cqw (these info bars
+   aren't nested in .board-log's inline-size container) and widened to fit
+   either the full HH:MM:SS or DD/MM/YY these views show, both eight
+   characters, since it's a record, not a timer. */
 .game-clock-digits--record {
-  width: 6.4em; /* fits "00:00:00" without clipping the last digit */
+  width: 6.4em; /* fits "00:00:00"/"00/00/00" without clipping the last digit */
   font-size: clamp(0.68rem, 2vw, 0.8rem);
 }
 
@@ -772,6 +788,20 @@ input[type="search"], input[type="number"] {
   flex: 1;
   overflow-y: auto;
   min-height: 0;      /* allow flex child to shrink + scroll */
+  /* Themed, track-less scrollbar — the browser default track paints its own
+     opaque (often white) background behind the thumb, which reads as a
+     separate boxed-in UI strip against .board-log's aged-paper background
+     instead of just a thumb floating over the log. Transparent track +
+     earth-tone thumb keeps it functional (still visibly draggable/there)
+     without that seam. */
+  scrollbar-width: thin;
+  scrollbar-color: var(--earth-brown) transparent;
+}
+.board-log-entries::-webkit-scrollbar { width: 8px; }
+.board-log-entries::-webkit-scrollbar-track { background: transparent; }
+.board-log-entries::-webkit-scrollbar-thumb {
+  background: var(--earth-brown);
+  border-radius: 4px;
 }
 
 .board-log-entry {
@@ -900,13 +930,6 @@ input[type="search"], input[type="number"] {
   transform-style: preserve-3d;
   transition: transform 0.6s cubic-bezier(0.4, 0.2, 0.2, 1);
 }
-/* Both faces share the same grid cell, but only the face currently facing
-   forward is left in normal flow — the other is pulled out with
-   position: absolute (inset: 0 stretches it to match) so it can't
-   contribute to the row's height. That makes the card size itself to
-   whichever face is showing: the front's height normally, growing (or
-   shrinking) to the back's height only once flipped, rather than always
-   sizing to the taller of the two. */
 .player-card-flip .player-card {
   grid-area: 1 / 1;
   min-width: 0;
@@ -914,6 +937,13 @@ input[type="search"], input[type="number"] {
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
 }
+/* Only the currently-visible face is ever left in normal flow — the other
+   is pulled out with position: absolute (inset: 0 stretches it to match)
+   so it can't contribute to the row's height. That makes the card always
+   size to whichever face is actually showing, growing for a taller back
+   and shrinking back down again the moment you flip back to a shorter
+   front (or vice versa), rather than permanently locking in to the taller
+   of the two after the first flip. */
 .player-card-flip .player-card-back { position: absolute; inset: 0; }
 .player-card-flip.flipped .player-card-back { position: static; }
 .player-card-flip.flipped .player-card-front { position: absolute; inset: 0; }
@@ -1684,22 +1714,7 @@ input[type="file"] { display: none; }
 
 /* Realms hub's chest/logbook fork (see RealmHubTourCards/HubSection in
    HowToGuide.jsx) — one ordinary .tour-card holding two sections (chest,
-   then logbook) instead of two separate popups. Text and its action button
-   share a row rather than the button sitting on its own line below (every
-   other tour card's layout) — two of those stacked in one popup would make
-   it needlessly tall. */
-.tour-hub-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-}
-.tour-hub-row p {
-  flex: 1;
-}
-.tour-hub-row .btn {
-  flex-shrink: 0;
-}
+   then logbook) instead of two separate popups. */
 .tour-hub-section-divider {
   margin-top: 1rem;
   padding-top: 1rem;
@@ -1735,6 +1750,17 @@ input[type="file"] { display: none; }
      that fades out on its way off reads far less wrong than one that
      visibly grows in, so that direction is left alone. */
   transition: none !important;
+}
+
+/* Brighter variant for the floating tab-highlight overlay (see
+   useTourHighlightRect/App.jsx) — no background of its own (this overlay
+   sits directly on top of the real tab, see App.jsx; a fill here would
+   paint over and hide its label), just an added soft gold glow ring
+   alongside the same big dimming shadow every other tour-highlight uses —
+   two classes (higher specificity than .tour-highlight alone) so it wins
+   over that rule's own !important regardless of source order. */
+.tour-highlight.tour-highlight-tab {
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.4), 0 0 18px 5px rgba(201, 163, 74, 0.9) !important;
 }
 
 /* A brief, gentler echo of .tour-highlight's spotlight for the realm card
@@ -1998,15 +2024,52 @@ input[type="file"] { display: none; }
   transform: translateY(-4px);
 }
 
-/* Locked chest/logbook tiles — a preview window of upcoming unlocks (see
-   visibleChestCount/visibleSpineCount) renders as a true black silhouette.
-   The filter targets the <img> itself, not the button — the art has an
-   alpha channel, so brightness(0) blacks out just the chest/spine shape;
-   applying it to the button would also black out its parchment background,
-   turning the tile into a solid box instead of a silhouette. Still wrapped
-   in ValInfo for the "Unlocks at Rank N" / sign-in tooltip, so pointer
-   events stay on — only the click handler itself is disabled in the
-   component. */
+/* RankUpModal's artGrants stage (ArtFlipReveal) — same parchment/border
+   family as .chest-pick, holding a single chest OR logbook flip (chest and
+   logbook draw independently now — see ArtGrantRow, which renders two of
+   these side by side). Non-interactive (a plain div, not a button —
+   nothing to click, the system already decided the result) so no
+   cursor/hover-lift, just a settle-in glow once .revealed lands, echoing
+   the old RevealableArt reveal moment. */
+.pairflip-card {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.7rem 0.9rem;
+  background: var(--aged-paper);
+  border: 1px solid rgba(107, 79, 16, 0.25);
+  border-radius: var(--radius-sm);
+  box-shadow: 1px 2px 4px rgba(0, 0, 0, 0.1);
+  transition: border-color 0.3s ease, background 0.3s ease, box-shadow 0.3s ease;
+}
+.pairflip-card img {
+  display: block;
+  filter: drop-shadow(2px 3px 4px rgba(43, 27, 10, 0.4));
+}
+/* Fixed box, image scaled to fit within it (not the other way around) —
+   without this, the box's own size followed whichever chest/logbook image
+   happened to be showing mid-flicker (each has a different aspect ratio),
+   so the card visibly resized on every frame instead of just its contents
+   changing. Sized a bit larger than the old ad-hoc height:64/width:auto
+   fit, so nothing gets cropped. */
+.art-flip-single {
+  justify-content: center;
+  width: 96px;
+  height: 96px;
+}
+.pairflip-card.revealed {
+  border-color: var(--warm-gold);
+  background: rgba(255, 236, 180, 0.25);
+  box-shadow: 0 0 10px 3px rgba(201, 163, 74, 0.4);
+}
+
+/* Locked chest/logbook tiles — every item not yet unlocked (see
+   utils/artUnlocks.js) renders as a true black silhouette rather than
+   being hidden. The filter targets the <img> itself, not the button — the
+   art has an alpha channel, so brightness(0) blacks out just the
+   chest/spine shape; applying it to the button would also black out its
+   parchment background, turning the tile into a solid box instead of a
+   silhouette. */
 .chest-pick.locked-tile img,
 .logbook-pick.locked-tile img {
   filter: brightness(0);
@@ -2123,6 +2186,13 @@ input[type="file"] { display: none; }
 .postgame-scores-grid {
   display: flex;
   flex-direction: column;
+  /* Centers each row instead of stretching it to the tile-card's full
+     width — with the medal-chip badges gone (see ScoreTimelineChart.jsx),
+     a row only needs to fit a meeple, the longest name, a rank badge, and
+     a score, all of which are already fixed/min-width (see .postgame-
+     player-card usage in Lightbox.jsx/PostGameForm.jsx), so every row
+     naturally lands at the same, much narrower width. */
+  align-items: center;
   gap: 0.5rem;
 }
 
@@ -2521,6 +2591,7 @@ input[type="file"] { display: none; }
 .book-header {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 0.8rem;
   margin-bottom: 1.2rem;
   padding-bottom: 0.8rem;
@@ -2545,15 +2616,6 @@ input[type="file"] { display: none; }
   opacity: 0.35;
   pointer-events: none;
 }
-.book-nav-label {
-  font-family: 'Cinzel', serif;
-  font-size: clamp(0.85rem, 2.4vw, 1.1rem);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--earth-brown);
-  text-align: center;
-}
-
 /* One-line realm title above the overview standings: ❦ Name ❦ */
 .book-overview-title {
   display: flex;
@@ -2606,16 +2668,35 @@ input[type="file"] { display: none; }
 .rankup-modal {
   position: relative;
   overflow: hidden;
+  /* Shared class — RankUpModal itself never scrolls (overflow: hidden
+     above), but MemberProgressModal.jsx reuses this same class for its
+     milestones popup and overrides overflow-y to auto inline, so this only
+     actually paints there. Same seamless (transparent-track) treatment as
+     the page scrollbar and .board-log-entries. */
+  scrollbar-width: thin;
+  scrollbar-color: var(--earth-brown) transparent;
 }
-/* Many categories crossing a tier at once (or several new chests/logbooks)
-   can outgrow the viewport. Rather than an inner scrollbox inside the card
-   (a max-height + overflow-y on .rankup-modal), the OVERLAY itself scrolls,
-   top-anchored — the whole thing scrolls along like a normal page (the
-   Library/game-log pages), not a boxed-in scroll pane. Scoped to this
-   modal's own overlay instance, not the shared .realm-modal-overlay default
-   every other (short, always-fits) modal uses. */
+.rankup-modal::-webkit-scrollbar { width: 8px; }
+.rankup-modal::-webkit-scrollbar-track { background: transparent; }
+.rankup-modal::-webkit-scrollbar-thumb {
+  background: var(--earth-brown);
+  border-radius: 4px;
+}
+/* Pops up centered on screen like every other modal (.realm-modal-overlay's
+   own align-items: center) — but many categories crossing a tier at once
+   (or several new chests/logbooks) can outgrow the viewport, and a plain
+   `center` on an overflowing flex container clips its top edge out of
+   reach (no way to scroll up to it). `safe center` is exactly the fix:
+   centers normally, but falls back to top-anchored (scrollable, like a
+   normal page — not a boxed-in inner scrollbox) the moment content is
+   taller than the viewport, so nothing ever becomes unreachable. Browsers
+   that don't understand `safe` simply ignore this whole declaration and
+   fall back to .realm-modal-overlay's plain `center` underneath (a
+   reasonable degradation, not broken — it only loses the overflow
+   safeguard). Scoped to this modal's own overlay instance since it's the
+   one modal in the app whose content height is genuinely unpredictable. */
 .rankup-modal-overlay {
-  align-items: flex-start;
+  align-items: safe center;
   overflow-y: auto;
   padding-top: 3rem;
   padding-bottom: 3rem;
@@ -2687,27 +2768,32 @@ input[type="file"] { display: none; }
   align-items: center;
 }
 
-/* Rank reel's own box — the player name sits beside it (plain text, not
-   part of the box); passed as the Reel's className like the other variants. */
+/* Rank reel's own box — the milestones-count figure sits beside it (plain
+   text, not part of the box); passed as the Reel's className like the
+   other variants. */
+/* Fixed width, sized to comfortably fit the longest possible "Rank ## ·
+   Name" (rank 15, Realmkeeper, is the longest title) — without this the box
+   shrinks/grows to whatever's currently showing as the reel scrolls between
+   ranks, visibly resizing mid-animation instead of staying put. `ch` scales
+   with THIS element's own font-size, which is why font-size is repeated
+   here matching .rankup-rank-text's clamp() exactly — without it, `ch` was
+   computed against the inherited (smaller, non-responsive) ancestor
+   font-size instead of the text's actual rendered size, so the box fit
+   fine on a narrow viewport (where the clamp lands small) but clipped on a
+   wide one (where the clamp grows the text but the box's own ch reference
+   size never did). */
 .rankup-reel-rank {
-  padding: 0 1.1rem;
-  border-top: 1px solid rgba(201, 163, 74, 0.35);
-  border-bottom: 1px solid rgba(201, 163, 74, 0.35);
-  background: rgba(255, 250, 235, 0.5);
-}
-.rankup-player-name {
-  font-family: 'Cinzel', serif;
-  font-weight: 700;
-  font-size: clamp(0.85rem, 2.4vw, 1.05rem);
-  color: var(--charcoal);
+  font-size: clamp(0.95rem, 2.6vw, 1.15rem);
+  width: 26ch;
+  text-align: center;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  padding: 0 1.1rem;
 }
 .rankup-rank-text {
   font-family: 'Cinzel', serif;
   font-weight: 700;
   font-size: clamp(0.95rem, 2.6vw, 1.15rem);
+  white-space: nowrap;
   color: var(--charcoal);
 }
 
@@ -2768,22 +2854,6 @@ input[type="file"] { display: none; }
     0 0 6px rgba(255, 235, 59, 0.5);
 }
 
-/* Glowing frame around newly-unlocked chest/logbook art. */
-.rankup-art-frame {
-  position: relative;
-  z-index: 1;
-  padding: 8px;
-  border-radius: 10px;
-  border: 2px solid var(--warm-gold);
-  background: radial-gradient(circle, rgba(255, 236, 180, 0.3), transparent 70%);
-  box-shadow: 0 0 10px 3px rgba(201, 163, 74, 0.5);
-  animation: rankup-frame-pulse 2s ease-in-out infinite;
-}
-@keyframes rankup-frame-pulse {
-  0%, 100% { box-shadow: 0 0 8px 2px rgba(201, 163, 74, 0.4); }
-  50%      { box-shadow: 0 0 16px 5px rgba(201, 163, 74, 0.75); }
-}
-
 /* One column per category row in the milestones stage — each row now holds
    a label/tier line plus a nested progress bar underneath, not just a
    single line, so every row needs its own flex column instead of one shared
@@ -2793,6 +2863,7 @@ input[type="file"] { display: none; }
   flex-direction: column;
   gap: 0.35rem;
 }
+
 .rankup-category-label {
   font-family: 'Crimson Text', serif;
   font-size: 1.1rem;
@@ -2812,15 +2883,65 @@ input[type="file"] { display: none; }
   color: var(--stone-gray);
 }
 
-/* One star per tier already unlocked in this category, beside its label. */
+/* One star per tier already unlocked in this category — grouped with the
+   reel via its own flex gap (see RankUpModal.jsx), not this margin, since
+   it's no longer inline text flowing after the label. */
 .rankup-tier-stars {
-  margin-left: 0.35rem;
   color: var(--warm-gold);
-  font-size: 0.85rem;
+  font-size: 1.15rem;
   letter-spacing: 0.05em;
 }
 
+/* Shared look for every "real" star glyph in the rank-up flow — FlyingStar
+   (RankUpModal.jsx) and the rank-fill line's MaterializingStar both use
+   this, so a star reads as the same object throughout its whole journey
+   (pip -> flight -> line -> flight -> bar) rather than several
+   different-looking things. Position/transform/opacity/transition stay
+   inline on each instance, since those are genuinely per-instance/animated. */
+.rankup-star-glyph {
+  color: var(--warm-gold);
+  text-shadow: 0 0 10px rgba(201, 163, 74, 0.9), 0 0 4px rgba(255, 236, 180, 0.9);
+  font-size: 1.8rem;
+}
+
+/* Shared "materialize" pop — grows in past full size before settling, so a
+   star appearing (a milestone pip flipping ☆->★, or a rank-fill line star
+   growing in — see MilestoneRow/MaterializingStar in RankUpModal.jsx) reads
+   as a deliberate, obvious beat rather than an instant swap. Duration is set
+   per-instance via inline `animationDuration` (tied to STAR_LAUNCH_MS), so
+   this keyframe only defines the SHAPE of the motion. `forwards` holds the
+   settled scale/opacity once the animation ends, since the class stays on
+   the element afterward (no separate resting style to fall back to). */
+@keyframes rankup-star-pop {
+  0%   { transform: scale(0.2); opacity: 0; }
+  60%  { transform: scale(1.7); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.rankup-star-pop {
+  animation-name: rankup-star-pop;
+  animation-timing-function: cubic-bezier(0.3, 0, 0.2, 1);
+  animation-fill-mode: forwards;
+}
+
+/* Expanding, fading glow used at both ends of a flying star's trip (see
+   FlyingStar/StarBurst in RankUpModal.jsx) — only its position varies per
+   instance, so the motion itself is one shared keyframe. */
+@keyframes rankup-star-burst {
+  0%   { transform: translate(-50%, -50%) scale(0.2); opacity: 0.9; }
+  100% { transform: translate(-50%, -50%) scale(2.4); opacity: 0; }
+}
+.rankup-star-burst {
+  position: absolute;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 224, 130, 0.95) 0%, rgba(201, 163, 74, 0.55) 45%, rgba(201, 163, 74, 0) 75%);
+  pointer-events: none;
+  z-index: 4;
+  animation: rankup-star-burst 420ms ease-out forwards;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .rankup-ember, .rankup-burst, .rankup-art-frame { animation: none; }
+  .rankup-ember, .rankup-burst { animation: none; }
   .rankup-reel-track { transition: none; }
 }

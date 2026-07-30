@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
-import { ACHIEVEMENT_DISPLAY_ORDER } from './GameHighlights';
-import RecordBadge from './RecordBadge';
 import ValInfo from './ValInfo';
 import ScoreTimelineChart from './ScoreTimelineChart';
 import { SCORE_TYPE_ORDER, SCORE_TYPE_COLORS, STATISTICS_CONFIG } from '../constants';
-import { getMeepleColor, formatDurationHMS } from '../utils/formatters';
-import pigImg from '../../images/icons/pig.png';
-import cImg   from '../../images/icons/C.png';
+import { getMeepleColor, formatDurationHMS, formatDateDigital } from '../utils/formatters';
+import pigImg    from '../../images/icons/pig.png';
+import cImg      from '../../images/icons/C.png';
+import goldImg   from '../../images/icons/gold.png';
+import silverImg from '../../images/icons/silver.png';
+import bronzeImg from '../../images/icons/bronze.png';
 
 const MEEPLE_MODULES = import.meta.glob('../../images/meeples/*.png',     { eager: true, import: 'default' });
 const FUN_MODULES    = import.meta.glob('../../images/meeples/fun/*.png', { eager: true, import: 'default' });
@@ -26,11 +27,12 @@ const SCORE_GROUPS = [
 const TYPE_TO_GROUP = {};
 SCORE_GROUPS.forEach(g => g.types.forEach(t => { TYPE_TO_GROUP[t] = g; }));
 
-function formatDate(dateStr) {
-  return new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', {
-    weekday: 'short', year: 'numeric', month: 'short', day: 'numeric',
-  });
-}
+// 1st/2nd/3rd place medals — indexed by row position (sorted already puts the
+// standings in score order), shown to the left of the standings box. Fixed
+// MEDAL_SIZE reserved for every row (even 4th place and below, via an empty
+// placeholder) so every box's left edge still lines up in one column.
+const PLACE_MEDALS = [goldImg, silverImg, bronzeImg];
+const MEDAL_SIZE = 40;
 
 // Longer player names get a smaller font instead of being truncated with an ellipsis.
 // Takes a character count (the longest name in the list) so every row can share one size.
@@ -74,16 +76,6 @@ export default function Lightbox({ game, games = [], onNavigate, onClose, onDele
   // the score column lines up in the same spot across every player row
   const maxNameLen = Math.max(...sorted.map(p => p.name.length));
 
-  // Group headline records by their holder so they render as medal chips beside each name
-  const badgesByPlayer = {};
-  ACHIEVEMENT_DISPLAY_ORDER.forEach(key => {
-    const a = game.achievements?.[key];
-    if (!a?.player) return;
-    (badgesByPlayer[a.player] = badgesByPlayer[a.player] || []).push({ key, amount: a.amount });
-  });
-  // Every player's badge column reserves the same width — the widest badge
-  // holder's count — so rows stay aligned even when some players have none
-  const maxBadgeCount = Math.max(0, ...Object.values(badgesByPlayer).map(list => list.length));
   const s1 = sorted[0]?.score ?? 0, s2 = sorted[1]?.score ?? 0;
   const isClutch = topPlayers.length === 1 && (s1 + s2) > 0 && (s1 - s2) / (s1 + s2) < STATISTICS_CONFIG.CLUTCH_THRESHOLD;
 
@@ -98,34 +90,39 @@ export default function Lightbox({ game, games = [], onNavigate, onClose, onDele
             <div className="section-title-line" />
           </div>
 
-          {/* Info bar: date · duration · clutch/farm stickers (expansions live in
-              their own box near the bottom, below the score timeline) */}
-          <div className="lb-info-bar" style={{ marginBottom: '1.2rem', background: 'var(--aged-paper)', border: 'var(--border-tile)', borderRadius: 'var(--radius-tile)', padding: '0.45rem 1rem', display: 'flex', flexWrap: 'wrap', gap: '1.5rem', alignItems: 'center' }}>
-            <div style={{ fontFamily: "'Crimson Text', serif", fontSize: 'clamp(0.8rem, 2.2vw, 0.95rem)', color: 'var(--stone-gray)', fontStyle: 'italic' }}>
-              {formatDate(game.date)}
+          {/* Info bar: date (left) · clutch/farm stickers (centered) · duration
+              (right) — expansions live in their own box near the bottom,
+              below the score timeline. Date and duration share the same LED
+              stadium-clock look (.game-clock-digits--record) and the same
+              fixed width, so the middle segment's flex: 1 auto-centers the
+              stickers in the true middle of the bar, not just "whatever
+              space is left" — no pipe divider needed between date/duration
+              and the stickers now that they're in their own segment instead
+              of crammed into one group. */}
+          <div className="lb-info-bar" style={{ marginBottom: '1.2rem', background: 'var(--aged-paper)', border: 'var(--border-tile)', borderRadius: 'var(--radius-tile)', padding: '0.45rem 1rem', display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'center' }}>
+            <div className="game-clock">
+              <div className="game-clock-housing">
+                <span className="game-clock-digits game-clock-digits--record">{formatDateDigital(game.date)}</span>
+              </div>
+            </div>
+            <div style={{ flex: '1 1 auto', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: '0.75rem' }}>
+              {isClutch && (
+                <ValInfo tip="Clutch win" placement="above">
+                  <img src={cImg} alt="clutch" style={{ height: 20, width: 'auto', opacity: 0.85, display: 'block' }} />
+                </ValInfo>
+              )}
+              {game.farmWin && topPlayers.length === 1 && (
+                <ValInfo tip="Farm win" placement="above">
+                  <img src={pigImg} alt="farm win" style={{ height: 16, width: 'auto', opacity: 0.85, display: 'block' }} />
+                </ValInfo>
+              )}
             </div>
             {(game.gameDuration || 0) > 0 && (
-              <>
-                <div style={{ width: '1px', height: '20px', background: 'var(--stone-gray)', opacity: 0.3 }} />
-                <div className="game-clock">
-                  <div className="game-clock-housing">
-                    <span className="game-clock-digits game-clock-digits--record">{formatDurationHMS(game.gameDuration)}</span>
-                  </div>
+              <div className="game-clock">
+                <div className="game-clock-housing">
+                  <span className="game-clock-digits game-clock-digits--record">{formatDurationHMS(game.gameDuration)}</span>
                 </div>
-              </>
-            )}
-            {(isClutch || (game.farmWin && topPlayers.length === 1)) && (
-              <div style={{ width: '1px', height: '20px', background: 'var(--stone-gray)', opacity: 0.3 }} />
-            )}
-            {isClutch && (
-              <ValInfo tip="Clutch win" placement="above">
-                <img src={cImg} alt="clutch" style={{ height: 20, width: 'auto', opacity: 0.85, display: 'block' }} />
-              </ValInfo>
-            )}
-            {game.farmWin && topPlayers.length === 1 && (
-              <ValInfo tip="Farm win" placement="above">
-                <img src={pigImg} alt="farm win" style={{ height: 16, width: 'auto', opacity: 0.85, display: 'block' }} />
-              </ValInfo>
+              </div>
             )}
           </div>
 
@@ -133,17 +130,24 @@ export default function Lightbox({ game, games = [], onNavigate, onClose, onDele
           <div className="tile-card" style={{ marginBottom: '1.4rem', borderTop: '4px solid var(--warm-gold)' }}>
             <div className="chart-header" style={{ margin: '0 0 1rem', textAlign: 'left' }}>Standings</div>
             <div className="postgame-scores-grid">
-              {sorted.map((p) => {
+              {sorted.map((p, i) => {
                 const color = getMeepleColor(p.meeple);
                 return (
-                  <div key={p.name} className="postgame-player-card" style={{ borderLeft: `3px solid ${color}` }}>
-                    {/* Name/score/badges stay three columns at every width — badges
-                        wrap and shrink internally instead of dropping to a new row */}
+                  <div key={p.name} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                    {PLACE_MEDALS[i] ? (
+                      <img src={PLACE_MEDALS[i]} alt={`${i + 1} place`} style={{ height: MEDAL_SIZE, width: 'auto', flexShrink: 0 }} />
+                    ) : (
+                      <span style={{ flexShrink: 0, width: MEDAL_SIZE }} />
+                    )}
+                    <div className="postgame-player-card" style={{ borderLeft: `3px solid ${color}` }}>
+                    {/* Headline-record medal chips now live on the score timeline
+                        instead of here (see ScoreTimelineChart.jsx) — just name and
+                        score in this row. */}
                     <div style={{ display: 'flex', flexWrap: 'nowrap', alignItems: 'center', gap: '0.5rem' }}>
                       <img src={MEEPLE_IMGS[p.meeple] || FALLBACK_MEEPLE} alt={p.name} style={{ height: 26, width: 'auto', flexShrink: 0 }} />
-                      {/* Col 1: name — every row shares one font size and width (both
-                          set by the longest name) so scores line up directly to the
-                          right of the longest name across every row */}
+                      {/* Name — every row shares one font size and width (both set by
+                          the longest name) so scores line up directly to the right of
+                          the longest name across every row */}
                       <span style={{
                         fontFamily: 'Cinzel, serif',
                         color,
@@ -155,28 +159,14 @@ export default function Lightbox({ game, games = [], onNavigate, onClose, onDele
                       }}>
                         {p.name}
                       </span>
-                      {/* Col 2: medal chips — reserved at the widest badge holder's count so
-                          every row matches, even players with none; badges left-align, wrap,
-                          and shrink with the viewport */}
-                      {maxBadgeCount > 0 && (
-                        <span className="lb-badge-col" style={{ flex: `0 1 calc(${maxBadgeCount} * clamp(32px, 9vw, 48px) + ${maxBadgeCount - 1} * 0.75rem)`, minWidth: 0, display: 'flex', alignSelf: 'stretch', alignItems: 'center' }}>
-                          {(badgesByPlayer[p.name] || []).length > 0 && (
-                            <span className="lb-badge-strip" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.4rem 0.75rem' }}>
-                              {badgesByPlayer[p.name].map(({ key, amount }) => (
-                                <RecordBadge key={key} badgeKey={key} amount={amount} size="clamp(32px, 9vw, 48px)" />
-                              ))}
-                            </span>
-                          )}
-                        </span>
-                      )}
-                      {/* Col 3: score — pushed flush to the row's right edge (marginLeft:
-                          auto) regardless of whether badges are present */}
+                      {/* Score — a bit of breathing room after the name, now that
+                          the row is content-sized rather than stretched
+                          edge-to-edge (see .postgame-scores-grid). */}
                       <span style={{
                         display: 'flex',
                         alignItems: 'center',
                         flexShrink: 0,
-                        marginLeft: 'auto',
-                        padding: '0 0 0 0.5rem',
+                        marginLeft: '1.5rem',
                         alignSelf: 'stretch',
                       }}>
                         <div className="game-clock">
@@ -186,6 +176,7 @@ export default function Lightbox({ game, games = [], onNavigate, onClose, onDele
                         </div>
                       </span>
                     </div>
+                  </div>
                   </div>
                 );
               })}
@@ -397,6 +388,7 @@ export default function Lightbox({ game, games = [], onNavigate, onClose, onDele
                 timeline={game.scoreTimeline}
                 players={game.players.map(p => p.name)}
                 duration={game.gameDuration}
+                achievements={game.achievements}
               />
             </div>
           )}

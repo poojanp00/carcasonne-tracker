@@ -3,8 +3,6 @@
 // parts of the app can reuse the rank math outside the Profile carousel.
 
 import { ACCOUNT_MILESTONES, accountMilestoneProgress, categoryTierState, tierStateForProgress } from '../data/accountMilestones';
-import { CHESTS, chestUnlockRank } from '../data/chests';
-import { SPINES, spineUnlockRank } from '../data/spines';
 
 export const RANK_TITLES = [
   'Wanderer', 'Pioneer', 'Settler', 'Reeve', 'Steward', 'Magistrate',
@@ -97,14 +95,18 @@ export function buildCategoryProgress(account) {
 // through the skipped tier's name instead of it never being shown at all —
 // same idea as the rank reel already showing every rank crossed, not just
 // the endpoints. Also plus before/after bar data for each (for the
-// fill-to-100%-then-settle animation) and which chest/logbook art newly
-// unlocked in the given rank range. Only fires alongside a rank-up (see
+// fill-to-100%-then-settle animation). Only fires alongside a rank-up (see
 // App.jsx's gating), so every included category is one that actually earned
 // a tier this update — nothing here is "just progress, no crossing." Pure —
 // both the live-controller path and the deferred/other-device path
 // (App.jsx) feed it whatever before/after values they have (locally computed
 // or read back from user_progress).
-export function buildRankUpDiff({ beforeCategoryProgress, afterCategoryProgress, beforeRank, afterRank }) {
+//
+// Chest/logbook art no longer unlocks automatically per rank here — that's
+// now owned entirely by the independent chest/logbook grab-bag tracks
+// (utils/artUnlocks.js), surfaced as their own artGrants stage in
+// RankUpModal instead of a parallel "new art" reveal in this diff.
+export function buildRankUpDiff({ beforeCategoryProgress, afterCategoryProgress }) {
   const categoryDiffs = ACCOUNT_MILESTONES
     .map(cat => {
       const beforeTierNum = beforeCategoryProgress?.[cat.id]?.tierNumber ?? 0;
@@ -145,28 +147,7 @@ export function buildRankUpDiff({ beforeCategoryProgress, afterCategoryProgress,
     })
     .filter(Boolean);
 
-  const newChests = CHESTS
-    .map((img, i) => ({ img, unlockRank: chestUnlockRank(i) }))
-    .filter(c => c.unlockRank > beforeRank && c.unlockRank <= afterRank);
-  const newSpines = SPINES
-    .map((img, i) => ({ img, unlockRank: spineUnlockRank(i) }))
-    .filter(s => s.unlockRank > beforeRank && s.unlockRank <= afterRank);
-
-  // Grouped by the rank they unlocked at — crossing several ranks in one
-  // celebration (e.g. a big multi-tier jump) unlocks a chest/logbook per
-  // rank crossed, so without grouping they'd render as two flat, unrelated
-  // rows of art. One rank's chest+logbook are the "set" for that rank, so
-  // they're paired here and share that rank's title as a single label,
-  // rather than each rendering its own generic "New chest/logbook" caption.
-  const artRanks = [...new Set([...newChests, ...newSpines].map(a => a.unlockRank))].sort((a, b) => a - b);
-  const newArtPairs = artRanks.map(rank => ({
-    rank,
-    name: rankTitle(rank),
-    chests: newChests.filter(c => c.unlockRank === rank),
-    spines: newSpines.filter(s => s.unlockRank === rank),
-  }));
-
-  return { categoryDiffs, newChests, newSpines, newArtPairs };
+  return { categoryDiffs };
 }
 
 // Guest fallback: no auth user_metadata to write to, so the highest rank

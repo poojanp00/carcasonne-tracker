@@ -479,14 +479,22 @@ export function calcAccountStats(games, realms, userId) {
     if (combined > (highestCombined?.points || 0)) highestCombined = { points: combined, game: g };
   }
 
-  // Record tallies: how many times I held each best-in-game record, plus
-  // sweeps — games with 2+ tracked records where I held every one
+  // Record tallies: how many times I held each best-in-game record (plus
+  // the actual best amount ever held, e.g. the longest road's real length —
+  // same { count, best } shape as calcPlayerTrophyTallies's per-realm
+  // version above, so Profile's Trophy Cabinet can show the real number
+  // instead of just a count), plus sweeps — games with 2+ tracked records
+  // where I held every one.
   const recordTallies = {};
   let sweeps = 0;
   for (const g of accountGames) {
     const held = Object.values(g.achievements || {}).filter(a => a?.player);
     for (const [key, a] of Object.entries(g.achievements || {}))
-      if (a?.player === ACCOUNT_ME) recordTallies[key] = (recordTallies[key] || 0) + 1;
+      if (a?.player === ACCOUNT_ME) {
+        const entry = (recordTallies[key] ??= { count: 0, best: 0 });
+        entry.count++;
+        if (a.amount > entry.best) entry.best = a.amount;
+      }
     if (held.length >= 2 && held.every(a => a.player === ACCOUNT_ME)) sweeps++;
   }
 
