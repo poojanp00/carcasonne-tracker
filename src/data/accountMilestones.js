@@ -91,6 +91,7 @@ export const ACCOUNT_MILESTONES = [
     label: 'Field',
     types: ['field'],
     unit: 'Field Points',
+    alwaysVisible: true,
     tiers: [
       { tierNumber: 1, threshold: 100,  name: 'Meadow',img: null },
       { tierNumber: 2, threshold: 1000,  name: 'Pasture',img: null },

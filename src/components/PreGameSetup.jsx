@@ -28,9 +28,17 @@ import { DEFAULT_EXPANSIONS, GUEST_ALLOWED_MINIS } from '../data/expansions';
 import { getRealmMemberEmails, getRealmMemberProgress } from '../data/storage';
 import { rankTitle } from '../utils/metaRank';
 import { CreateRealmTourModal, RealmTourModal } from './HowToGuide';
-import { CHESTS, chestFor, unlockedChestCount, chestUnlockRank, visibleChestCount, unlockedChests } from '../data/chests';
-import { SPINES, unlockedSpineCount, spineUnlockRank, visibleSpineCount, unlockedSpines } from '../data/spines';
+import { CHESTS, chestFor } from '../data/chests';
+import { SPINES } from '../data/spines';
 import ValInfo from './ValInfo';
+import ArtPickerGrid from './ArtPickerGrid';
+
+// Picks a random index from an unlocked-index Set (see utils/artUnlocks.js)
+// — not a dense 0..N-1 prefix, so a plain Math.random()*count doesn't work.
+function randomUnlockedIndex(unlockedIdx) {
+  const arr = [...unlockedIdx];
+  return arr.length ? arr[Math.floor(Math.random() * arr.length)] : 0;
+}
 
 /**
  * MEEPLE LOADING SYSTEM (STANDARD MEEPLES)
@@ -92,7 +100,13 @@ function PregameStepper({ step, onJump }) {
   );
 }
 
-export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeples, defaultExpansions, realms = [], currentRealm = null, onExitToHub, onRealmCreate, onExportGroup = null, startAtRealmCreation = false, isGuest = false, selfName = '', selfRank = 1, onToggleOwned = null, tourActive = false, onTourActiveChange = null }) {
+export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeples, defaultExpansions, realms = [], currentRealm = null, onExitToHub, onRealmCreate, onExportGroup = null, startAtRealmCreation = false, isGuest = false, selfName = '', unlockedChestIndices = null, unlockedLogbookIndices = null, onToggleOwned = null, tourActive = false }) {
+  // Which CHESTS/SPINES index is actually claimed via each independent
+  // art-unlock track (see utils/artUnlocks.js) — defaults to just index 0
+  // (item 1's guaranteed rank-1 grant) if the caller hasn't loaded real
+  // state yet.
+  const unlockedChestIdx = unlockedChestIndices || new Set([0]);
+  const unlockedLogbookIdx = unlockedLogbookIndices || new Set([0]);
   // Steps: 1=Players (roster, invite status, and meeples), 2=Realm creation,
   // 5=Expansions. Step 3 was an old Mode Selection step (Table vs. Party)
   // and step 4 was a standalone Meeples step later folded into Players —
@@ -123,20 +137,21 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
   // Covers the whole Players page now — roster/invite status and meeples
   // together — since the two got merged into one step.
   const playersRef = useRef(null);
-  const expansionsRef = useRef(null);
-  const expansionsLeftRef = useRef(null); // popup anchor only — the highlight itself stays on both boxes
+  const expansionsLeftRef = useRef(null); // Expansions stage: highlight + popup anchor, left box only
+  const requiredPiecesRef = useRef(null); // Begin stage: highlight + popup anchor, right box only
   const beginRef = useRef(null);
-  const tourRefs = { players: playersRef, expansions: expansionsRef, begin: beginRef };
+  const tourRefs = { players: playersRef, expansions: expansionsLeftRef, begin: requiredPiecesRef };
   useEffect(() => {
     if (tourStage) tourRefs[tourStage]?.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tourStage]);
-  // Each popup docks beside its own specific target — Expansions highlights
-  // both boxes (unchanged) but anchors the popup to the left one, since
-  // docking to the full-width wrapper reads as unattached to either.
+  // Each popup docks beside its own specific target — Expansions spotlights
+  // just the left (expansion-picking) box, Begin spotlights just the right
+  // (required-pieces) box, so the card visibly points at the one thing it's
+  // describing instead of the whole two-column row.
   const tourTargetRef = tourStage === 'players' ? playersRef
     : tourStage === 'expansions' ? expansionsLeftRef
-    : tourStage === 'begin' ? beginRef
+    : tourStage === 'begin' ? requiredPiecesRef
     : null;
   const advancePlayTour = () => {
     if (step === 1) { if (activePlayers.length > 0) handleNextStep(); }
@@ -164,31 +179,46 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
   // key="realm-creation" in App.jsx); signed-in users open it manually via
   // the "?".
   const [createTourOn, setCreateTourOn] = useState(isGuest);
+  // Guards against a stale-true createTourOn stranding this guest on every
+  // step AFTER realm creation, not just step 2: creating the realm swaps
+  // `session.realm` in App.jsx, which mounts a BRAND NEW PreGameSetup
+  // instance (different `key`) landing straight on step 1 (Players) —
+  // createTourOn's own initial value is still `isGuest` on that fresh
+  // mount, so without this it stays stuck true forever even though the
+  // create-realm tour itself never renders again (gated on step === 2
+  // below). That stuck-true state was silently blocking the arrow-key/
+  // Enter step navigation effect further down, which bails out whenever
+  // createTourOn is true regardless of which step it's actually checking.
+  useEffect(() => { if (step !== 2) setCreateTourOn(false); }, [step]);
   const createTourStage = createTourOn ? createSubStep - 1 : null; // 0 or 1
   const createNameRef = useRef(null);
   const createChestRef = useRef(null);
-  // Re-triggers the tour on the chest/logbook page even if the guest
-  // dismissed it (X) on the name page first — closing the tour there only
-  // closes stage 0, it shouldn't suppress stage 1 too. Fires once per mount
-  // the first time the guest actually reaches sub-step 2, however they got
-  // there (the tour's own "Next →", or the real form's).
-  const [chestTourSeen, setChestTourSeen] = useState(false);
+  // Re-triggers the tour on the chest/logbook page every time a guest
+  // arrives there — even if they dismissed it (X) on the name page first
+  // (closing stage 0 shouldn't suppress stage 1 too), and even if they'd
+  // already dismissed stage 1 itself on an earlier visit this same mount
+  // (← Back to the name page, then Next → forward again still re-opens it —
+  // guaranteed every arrival, not just the first). Only fires on an actual
+  // transition into sub-step 2 (the dependency array), not continuously
+  // while already there, so it doesn't fight a guest who closes it mid-visit.
   useEffect(() => {
-    if (isGuest && createSubStep === 2 && !chestTourSeen) {
-      setCreateTourOn(true);
-      setChestTourSeen(true);
-    }
-  }, [isGuest, createSubStep, chestTourSeen]);
+    if (isGuest && createSubStep === 2) setCreateTourOn(true);
+  }, [isGuest, createSubStep]);
   useEffect(() => {
     if (createTourStage === 0) createNameRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     else if (createTourStage === 1) createChestRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }, [createTourStage]);
   const advanceCreateTour = () => {
     // Same validation the real "Next →" runs — the tour can't wave the
-    // user through onto chest/logbook (and "Got it!" straight into
-    // creating the realm) without a valid name/roster behind it.
+    // user through onto chest/logbook without a valid name/roster behind
+    // it. The last step's "Create" IS the real create action now — closes
+    // the tour and submits in one click instead of leaving the user to
+    // close it and hunt for the (until now disabled) real Create button.
     if (createSubStep === 1) { if (validateNamesSubStep()) setCreateSubStep(2); }
-    else setCreateTourOn(false); // "Got it!" — leaves the user right here to pick for real
+    else {
+      setCreateTourOn(false);
+      handleCreateRealm({ preventDefault: () => {} });
+    }
   };
   const backCreateTour = () => setCreateSubStep(1);
   const [realmName, setRealmName] = useState('');
@@ -203,8 +233,25 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
   // forever on the realm from this point (see handleCreateRealm below).
   // Guests don't get a choice — customizing cosmetics requires an account,
   // so they're locked to the first chest/logbook (see the picker below).
-  const [chestIndex, setChestIndex] = useState(() => (isGuest ? 0 : Math.floor(Math.random() * unlockedChests(selfRank).length)));
-  const [spineIndex, setSpineIndex] = useState(() => (isGuest ? 0 : Math.floor(Math.random() * unlockedSpines(selfRank).length)));
+  const [chestIndex, setChestIndex] = useState(() => (isGuest ? 0 : randomUnlockedIndex(unlockedChestIdx)));
+  const [spineIndex, setSpineIndex] = useState(() => (isGuest ? 0 : randomUnlockedIndex(unlockedLogbookIdx)));
+
+  // Re-picks if the current selection ever isn't actually unlocked —
+  // covers both the initial random pick racing ahead of App.jsx's
+  // art-unlock fetch (this component can mount before that resolves, so
+  // the very first render's "random unlocked" pick may have been computed
+  // against a stale/fallback set) and a genuine regression (e.g. deleting a
+  // realm lowers rank, revoking a chest/logbook this session had already
+  // landed on) while this screen stays mounted. No-op once the selection
+  // is actually valid.
+  useEffect(() => {
+    if (isGuest) return;
+    if (!unlockedChestIdx.has(chestIndex)) setChestIndex(randomUnlockedIndex(unlockedChestIdx));
+  }, [isGuest, unlockedChestIdx, chestIndex]);
+  useEffect(() => {
+    if (isGuest) return;
+    if (!unlockedLogbookIdx.has(spineIndex)) setSpineIndex(randomUnlockedIndex(unlockedLogbookIdx));
+  }, [isGuest, unlockedLogbookIdx, spineIndex]);
 
   // Export Group (step 0) — invite another account to this realm
   const [showExport,   setShowExport]   = useState(false);
@@ -636,18 +683,30 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
 
       if (e.key === 'ArrowLeft') {
         if (step === 1) onExitToHub();
-        else if (step === 2 && realms.length > 0) onExitToHub();
+        // Step 2 has its own two sub-steps (name/players, then chest/
+        // logbook) — mirrors the real "‹ Back" button's own branch (see
+        // its onClick above): back from sub-step 2 means sub-step 1, not
+        // all the way out to the Realms hub.
+        else if (step === 2 && createSubStep === 2) setCreateSubStep(1);
+        else if (step === 2 && createSubStep === 1 && realms.length > 0) onExitToHub();
         else if (step === 5) setStep(1);
         return;
       }
-      // Steps 1–2 page forward the same way for either key; step 5's Begin
-      // (which actually starts the game) is Enter-only — ArrowRight there is a no-op.
+      // Steps 1 and step 2's FIRST sub-step page forward the same way for
+      // either key; the actual create/start action — step 2's sub-step 2
+      // "Create", and step 5's "Begin" — is Enter-only, same reasoning as
+      // step 5 already had: ArrowRight shouldn't silently submit/start
+      // something from a page that's still just picking cosmetics.
       const advance = () => {
         if (step === 1) { if (activePlayers.length > 0) handleNextStep(); }
-        else if (step === 2) createFormRef.current?.requestSubmit();
+        else if (step === 2 && createSubStep === 1) createFormRef.current?.requestSubmit();
       };
-      if (e.key === 'ArrowRight') { if (step !== 5) advance(); return; }
-      if (e.key === 'Enter') { if (step === 5) handleStart(); else advance(); }
+      if (e.key === 'ArrowRight') { advance(); return; }
+      if (e.key === 'Enter') {
+        if (step === 5) handleStart();
+        else if (step === 2 && createSubStep === 2) createFormRef.current?.requestSubmit();
+        else advance();
+      }
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
@@ -658,13 +717,13 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
     // silently started the game with default/empty meeples and expansions
     // no matter what was actually picked afterward.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, realms.length, activePlayers.length, tourActive, createTourOn, meeples, selectedExp]);
+  }, [step, createSubStep, realms.length, activePlayers.length, tourActive, createTourOn, meeples, selectedExp]);
 
   // ── Step 1: Players (roster/invite status + meeples, merged) ──
   if (step === 1) {
     return (
       <div className={`pregame-screen${tourStage ? ' tour-inert' : ''}`}>
-        {tourStage && <RealmTourModal stage={tourStage} onNext={advancePlayTour} onBack={backPlayTour} onClose={() => { onTourActiveChange?.(false); onExitToHub(); }} targetRef={tourTargetRef} />}
+        {tourStage && <RealmTourModal stage={tourStage} onNext={advancePlayTour} onBack={backPlayTour} onClose={onExitToHub} targetRef={tourTargetRef} />}
 
         <div className="section-title">
           {currentRealm && (
@@ -971,53 +1030,38 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
                   <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.6rem' }}>
                     Select a Chest
                   </label>
-                  <div className="chest-picker-row">
-                    {CHESTS.slice(0, isGuest ? 3 : visibleChestCount(selfRank)).map((img, i) => {
-                      const guestBlocked = isGuest && i !== 0;
-                      const rankLocked = !isGuest && i >= unlockedChestCount(selfRank);
-                      const locked = guestBlocked || rankLocked;
-                      const btn = (
-                        <button
-                          key={i}
-                          type="button"
-                          className={`chest-pick${locked ? ' locked-tile' : ''}${chestIndex === i ? ' selected' : ''}`}
-                          disabled={locked}
-                          onClick={locked ? undefined : () => setChestIndex(i)}
-                        >
-                          <img src={img} alt={`Chest ${i + 1}`} />
-                        </button>
-                      );
-                      if (guestBlocked) return <ValInfo key={i} tip="Sign in to customize your realm's chest.">{btn}</ValInfo>;
-                      if (rankLocked) return <ValInfo key={i} tip={`Unlocks at Rank ${chestUnlockRank(i)}`}>{btn}</ValInfo>;
-                      return <ValInfo key={i} tip={`Unlocked at Rank ${chestUnlockRank(i)}`}>{btn}</ValInfo>;
-                    })}
-                  </div>
+                  <ArtPickerGrid
+                    items={CHESTS}
+                    rowClassName="chest-picker-row"
+                    pickClassName="chest-pick"
+                    altPrefix="Chest"
+                    selectedIndex={chestIndex}
+                    onSelect={setChestIndex}
+                    // Chests 002–006 (indices 1-5) don't even render a
+                    // locked silhouette for guests — signing in reveals
+                    // them, rather than teasing that art up front.
+                    hideIndex={i => isGuest && i >= 1 && i <= 5}
+                    isGuestBlocked={i => isGuest && i !== 0}
+                    isLocked={i => !isGuest && !unlockedChestIdx.has(i)}
+                    guestTip="Sign in to customize your realm's chest."
+                  />
                 </div>
                 <div className="chest-logbook-col">
                   <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.6rem' }}>
                     Select a Logbook
                   </label>
-                  <div className="logbook-picker-row">
-                    {SPINES.slice(0, isGuest ? 3 : visibleSpineCount(selfRank)).map((img, i) => {
-                      const guestBlocked = isGuest && i !== 0;
-                      const rankLocked = !isGuest && i >= unlockedSpineCount(selfRank);
-                      const locked = guestBlocked || rankLocked;
-                      const btn = (
-                        <button
-                          key={i}
-                          type="button"
-                          className={`logbook-pick${locked ? ' locked-tile' : ''}${spineIndex === i ? ' selected' : ''}`}
-                          disabled={locked}
-                          onClick={locked ? undefined : () => setSpineIndex(i)}
-                        >
-                          <img src={img} alt={`Logbook ${i + 1}`} draggable={false} />
-                        </button>
-                      );
-                      if (guestBlocked) return <ValInfo key={i} tip="Sign in to customize your realm's logbook.">{btn}</ValInfo>;
-                      if (rankLocked) return <ValInfo key={i} tip={`Unlocks at Rank ${spineUnlockRank(i)}`}>{btn}</ValInfo>;
-                      return <ValInfo key={i} tip={`Unlocked at Rank ${spineUnlockRank(i)}`}>{btn}</ValInfo>;
-                    })}
-                  </div>
+                  <ArtPickerGrid
+                    items={SPINES}
+                    rowClassName="logbook-picker-row"
+                    pickClassName="logbook-pick"
+                    altPrefix="Logbook"
+                    selectedIndex={spineIndex}
+                    onSelect={setSpineIndex}
+                    hideIndex={i => isGuest && i >= 1 && i <= 5}
+                    isGuestBlocked={i => isGuest && i !== 0}
+                    isLocked={i => !isGuest && !unlockedLogbookIdx.has(i)}
+                    guestTip="Sign in to customize your realm's logbook."
+                  />
                 </div>
               </div>
             </div>
@@ -1050,7 +1094,7 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
   // ── Step 5: Expansions + Start ──
   return (
     <div className={`pregame-screen${tourStage ? ' tour-inert' : ''}`}>
-      {tourStage && <RealmTourModal stage={tourStage} onNext={advancePlayTour} onBack={backPlayTour} onClose={() => { onTourActiveChange?.(false); onExitToHub(); }} targetRef={tourTargetRef} />}
+      {tourStage && <RealmTourModal stage={tourStage} onNext={advancePlayTour} onBack={backPlayTour} onClose={onExitToHub} targetRef={tourTargetRef} />}
 
       <div className="section-title">
         {currentRealm && (
@@ -1064,9 +1108,9 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
         {currentRealm && <span className="game-count">{currentRealm.name}</span>}
       </div>
 
-      <div ref={expansionsRef} className={tourStage === 'expansions' ? 'tour-highlight' : ''} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.4rem', marginBottom: '1.4rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.4rem', marginBottom: '1.4rem' }}>
         {/* Expansions Selection — Edit swaps in the full catalog to manage ownership */}
-        <div ref={expansionsLeftRef} className="tile-card" style={{ display: 'flex', flexDirection: 'column' }}>
+        <div ref={expansionsLeftRef} className={`tile-card${tourStage === 'expansions' ? ' tour-highlight' : ''}`} style={{ display: 'flex', flexDirection: 'column' }}>
 
           {editCollection ? (() => {
             const itemState = (exp) => {
@@ -1089,7 +1133,7 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
                         key={exp.name}
                         type="button"
                         className={`expansion-chip ${ownedExpansions.includes(exp.name) ? 'selected' : ''}${editable ? '' : ' settings-dev'}`}
-                        onClick={editable ? () => toggleOwned(exp.name) : undefined}
+                        onClick={editable ? (e) => { toggleOwned(exp.name); e.currentTarget.blur(); } : undefined}
                         style={editable ? undefined : { opacity: 0.55, cursor: 'var(--cursor-arrow)' }}
                       >
                         {exp.name}
@@ -1126,7 +1170,7 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
                       key={name}
                       type="button"
                       className={`expansion-chip ${selectedExp.includes(name) ? 'selected' : ''}`}
-                      onClick={() => toggleExpansion(name)}
+                      onClick={(e) => { toggleExpansion(name); e.currentTarget.blur(); }}
                     >
                       {name}
                     </button>
@@ -1153,7 +1197,7 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
         </div>
 
         {/* Required Pieces Checklist */}
-        <div className="tile-card">
+        <div ref={requiredPiecesRef} className={`tile-card${tourStage === 'begin' ? ' tour-highlight' : ''}`}>
           <div style={{ fontSize: '0.7rem', fontFamily: 'Cinzel, serif', letterSpacing: '0.1em', color: 'var(--stone-gray)', marginBottom: '0.8rem' }}>
             REQUIRED PIECES
           </div>
@@ -1242,7 +1286,7 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
         <button
           ref={beginRef}
           type="button"
-          className={`btn pregame-begin-btn${tourStage === 'begin' ? ' tour-highlight' : ''}`}
+          className="btn pregame-begin-btn"
           onClick={tourActive ? onExitToHub : handleStart}
           disabled={tourActive && tourStage !== 'begin'}
           title={tourActive && tourStage !== 'begin' ? 'Close the tour to start a real game' : undefined}

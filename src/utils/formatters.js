@@ -20,6 +20,20 @@ export function formatDate(dateStr) {
 }
 
 /**
+ * Format date string for the LED/neon stadium-clock display (.game-clock-digits) —
+ * paired with formatDurationHMS in the post-game form / logbook lightbox info bars.
+ * @param {string} dateStr - Date in YYYY-MM-DD format
+ * @returns {string} DD/MM/YY (e.g., "05/03/26")
+ */
+export function formatDateDigital(dateStr) {
+  const d = new Date(dateStr + 'T12:00:00');
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const yy = String(d.getFullYear()).slice(-2);
+  return `${dd}/${mm}/${yy}`;
+}
+
+/**
  * Get meeple color from filename
  * @param {string} filename - Meeple filename (e.g., "1red.png")
  * @returns {string} Hex color code

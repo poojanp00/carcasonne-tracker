@@ -59,7 +59,7 @@ export default function Landing() {
 
       {/* Hero */}
       <section className="landing-hero">
-        <h2 className="landing-welcome">Carcasscore is the ultimate Carcassonne companion.</h2>
+        <h2 className="landing-welcome">The ultimate board game companion.</h2>
       </section>
 
       {/* Divider */}

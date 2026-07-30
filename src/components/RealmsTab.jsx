@@ -3,15 +3,45 @@ import RealmsHub from './RealmsHub';
 import RealmBook from './RealmBook';
 import { RealmTourModal, RealmHubTourCards } from './HowToGuide';
 import { spineFor } from '../data/spines';
-import { DEMO_REALMS, DEMO_GAMES } from '../data/demoData';
+import { DEMO_REALMS, makeTourLogbookGames } from '../data/demoData';
 
 // The demo realm never appears as a card on the shelf — not on a guest's
-// first visit, not after creating a realm, not even from the "?" button —
-// it's purely a stand-in the guided tour's logbook leg reaches for behind
-// the scenes, since a guest's own real logbook stays locked either way
-// (see RealmsHub.jsx) and so has nothing real to show. See bookHighlightRealm/
-// openRealm/bookGames below for the three places that stand-in is threaded in.
+// first visit, not after creating a realm, not even from the "?" button.
+// Its only remaining job is as a defensive fallback for `highlightRealm`
+// below, for the (likely unreachable in practice) case of a guest reaching
+// the hub tour with zero real realms yet — the logbook leg itself now opens
+// the guest's own real realm instead (see openRealm/bookGames below), with
+// its logbook unlocked and populated with a personalized stand-in game set
+// (see makeTourLogbookGames) rather than routing through this demo realm.
 const DEMO_REALM = DEMO_REALMS[0];
+const FIRST_LOG_PAGE = 2; // 0 overview, 1 roster, 2.. game log — matches RealmBook.jsx
+
+// Book progress (Overview/Roster/Game Log) — same grow-and-darken chip
+// treatment as PreGameSetup's PregameStepper (Players/Expansions), reusing
+// its `.pregame-stepper`/`.pregame-step` styling so both guided walks read
+// as the same UI pattern. Replaces the plain page-name label that used to
+// live inside RealmBook's own header (see RealmBook.jsx).
+function BookStepper({ page, onJump }) {
+  const items = [{ p: 0, label: 'Overview' }, { p: 1, label: 'Roster' }, { p: FIRST_LOG_PAGE, label: 'Game Log' }];
+  const activeIndex = page === 0 ? 0 : page === 1 ? 1 : 2;
+  return (
+    <div className="pregame-stepper">
+      {items.map((item, i) => (
+        <span key={item.label} style={{ display: 'inline-flex', alignItems: 'baseline', gap: '0.5rem' }}>
+          {i > 0 && <span className="pregame-step-sep">›</span>}
+          <button
+            type="button"
+            className={`pregame-step${i === activeIndex ? ' active' : ''}`}
+            onClick={() => onJump(item.p)}
+            style={{ background: 'none', border: 'none', padding: 0, cursor: 'var(--cursor-pointer)' }}
+          >
+            {item.label}
+          </button>
+        </span>
+      ))}
+    </div>
+  );
+}
 
 // Container for the "browsing" state of the Realms tab: switches between
 // the hub grid (RealmsHub) and an open realm's history book (RealmBook).
@@ -24,13 +54,14 @@ const DEMO_REALM = DEMO_REALMS[0];
 // so a tour that's mid-loop needs its "on/off" to survive that boundary.
 export default function RealmsTab({
   realms = [], games = [], onPlayRealm, onCreateRealm, onDeleteGame,
-  onDeleteRealm, onLeaveRealm, onUpdateRealm, selfRank = 1, isGuest = false,
+  onDeleteRealm, onLeaveRealm, onUpdateRealm, unlockedChestIndices = null, unlockedLogbookIndices = null, isGuest = false,
   openGame = null,
   onOpenGameClear, resetSignal = 0, tourActive = false, onTourActiveChange = null,
-  tourVisitedChest = false, tourVisitedBook = false,
+  tourVisitedChest = false, tourVisitedBook = false, tourVisitedProfile = false,
   onTourVisitChest = null, onTourVisitBook = null,
   tourShown = false, onTourShown = null,
   scrollToRealmId = null, onScrollToRealmConsumed = null,
+  onHubStageChange = null,
 }) {
   const [openBookRealmId, setOpenBookRealmId] = useState(null); // null = hub
   const [page,            setPage]            = useState(0);
@@ -51,15 +82,42 @@ export default function RealmsTab({
   const rosterRef = useRef(null);
   const gamelogRef = useRef(null);
 
-  // The demo realm is never in `realms` (see DEMO_REALM above), so its own
-  // id has to be checked for separately here.
-  const openRealm = realms.find(r => r.id === openBookRealmId)
-    || (isGuest && openBookRealmId === DEMO_REALM.id ? DEMO_REALM : null);
-  // The book needs demo games specifically when it's the demo realm open —
-  // the real `games` array never contains them (see DEMO_REALM above).
-  const bookGames = openRealm?.isDemo ? DEMO_GAMES : games;
+  const openRealm = realms.find(r => r.id === openBookRealmId) || null;
+  // A guest walking the tour's logbook leg opens their own real realm —
+  // freshly created, so it has no real games yet (see RealmsHub.jsx's
+  // tour-only unlock). Substitutes a personalized stand-in set (see
+  // makeTourLogbookGames) so there's something real to page through, rather
+  // than an empty book. Never applies outside the tour, or once real games
+  // actually exist for this realm.
+  const bookGames = (isGuest && tourActive && openRealm && !games.some(g => g.realmId === openRealm.id))
+    ? makeTourLogbookGames(openRealm)
+    : games;
 
   const tourStage = !openRealm ? 'hub' : page === 0 ? 'overview' : page === 1 ? 'roster' : 'gamelog';
+  // Lets App.jsx know whether the book is open — its own ProfileTabTourCard
+  // (the Realms tour's third leg) is only meant to show at the hub itself,
+  // not while inside the logbook (App.jsx already knows separately whether
+  // the chest path is open, via `session`). Reported via effect rather than
+  // just a prop the parent reads off a ref, since App.jsx needs to re-render
+  // when this changes to show/hide that card.
+  useEffect(() => { onHubStageChange?.(tourStage === 'hub'); }, [tourStage, onHubStageChange]);
+  // Ends the Realms tour once all three legs — chest, logbook, and Profile —
+  // have been visited, regardless of the order taken. Checked locally here
+  // (against this component's OWN `tourStage`) rather than from a
+  // flags-only effect in App.jsx: tourVisitedChest/Book flip true the
+  // instant their icon is CLICKED, not once that path's own walkthrough
+  // finishes (see handlePlayRealm/handleOpenBook below) — so if the last
+  // remaining leg is chest or logbook, all three flags go true in the very
+  // same batch that opens it, before its own tour has shown a single step.
+  // Gating on `tourStage === 'hub'` is what keeps that from reading as
+  // "done" prematurely: tourStage only returns to 'hub' after that leg's
+  // own walkthrough actually finishes (or is closed), so this only ever
+  // fires once every leg has genuinely been completed, not just entered.
+  useEffect(() => {
+    if (tourActive && tourStage === 'hub' && tourVisitedChest && tourVisitedBook && tourVisitedProfile) {
+      onTourActiveChange?.(false);
+    }
+  }, [tourActive, tourStage, tourVisitedChest, tourVisitedBook, tourVisitedProfile, onTourActiveChange]);
   // Which sub-section of the book gets the spotlight — passed to RealmBook
   // so it (not this component) decides which of its own elements gets the
   // `tour-highlight` class.
@@ -75,26 +133,21 @@ export default function RealmsTab({
     : tourStage === 'gamelog' ? gamelogRef
     : null;
 
-  // The hub-stage popup only ever spotlights (and its "Play Now" prompt
-  // only ever targets) one realm at a time. For a signed-in account that's
-  // preferably the first (by creation order, matching the hub's own shelf
-  // order) that actually has recorded games, so the book/roster/gamelog
-  // stages have something real to show; falling back to any real realm
-  // (even a brand new, gameless one) covers every signed-in case. For a
-  // guest, though, it's specifically their own real realm once they have
-  // one — the tour should walk through the chest/realm they just created,
-  // not the demo one — falling back to the (never-rendered, see DEMO_REALM
-  // above) demo realm before that. Either way, the logbook leg is a fixed
-  // exception: a guest's own real logbook stays locked no matter what (see
-  // RealmsHub.jsx), so `bookHighlightRealm` always prefers the demo realm
-  // for guests specifically, regardless of what the chest leg is pointing at.
+  // The hub stage only ever spotlights one realm's card at a time. For a
+  // signed-in account that's preferably the first (by creation order,
+  // matching the hub's own shelf order) that actually has recorded games, so
+  // the book/roster/gamelog stages have something real to show; falling back
+  // to any real realm (even a brand new, gameless one) covers every
+  // signed-in case. For a guest, though, it's specifically their own real
+  // realm once they have one — the tour should walk through the chest/realm
+  // they just created, not the demo one — falling back to the
+  // (never-rendered, see DEMO_REALM above) demo realm before that.
   const sortedRealms = [...realms].sort((a, b) =>
     new Date(a.createdAt || a.created_at) - new Date(b.createdAt || b.created_at)
   );
   const realmsWithGames = sortedRealms.filter(r => games.some(g => g.realmId === r.id));
   const ownRealm = isGuest ? sortedRealms[0] || null : null;
   const highlightRealm = ownRealm || realmsWithGames[0] || sortedRealms[0] || (isGuest ? DEMO_REALM : null);
-  const bookHighlightRealm = isGuest ? DEMO_REALM : highlightRealm;
 
   const startTour = () => onTourActiveChange?.(true);
   // Auto-opens the tour the *first* time a guest reaches this tab this
@@ -109,24 +162,32 @@ export default function RealmsTab({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  // Close always resets to where this tour started — the hub — regardless
-  // of whether the user wandered into the book path first.
-  const closeTour = () => {
-    closeBook();
-    onTourActiveChange?.(false);
+  // X on the hub's own chest/logbook fork card (see RealmHubTourCards
+  // below) dismisses just that offer — marks BOTH chest and logbook
+  // visited (so it won't reappear) without ending tourActive itself, so a
+  // still-unvisited Profile leg (see App.jsx's ProfileTabTourCard) keeps
+  // showing. The completion effect further down is what actually ends the
+  // tour, once every leg — this dismissal included — has been accounted for.
+  const dismissHubForkTour = () => {
+    onTourVisitChest?.();
+    onTourVisitBook?.();
   };
+  // X on the book path's OWN tour card (see RealmTourModal below) only
+  // backs out of the book, same as its Back button at the Overview stage
+  // already does — tourActive is left on, so a chest/Profile leg still
+  // unvisited keeps showing once the user's back at the hub, instead of the
+  // whole tour ending just because they dismissed this one leg.
+  const closeBookLegTour = () => closeBook();
   // The hub is a fork, not a fixed step — the user picks a side by clicking
-  // a real chest/logbook icon (both live throughout via `.tour-highlight`'s
-  // `pointer-events: auto` on the whole spotlighted card) or by the matching
-  // popup's own action button (see RealmHubTourCards, whose actions target
-  // highlightRealm/bookHighlightRealm — including the never-rendered demo
-  // realm for the book leg, see DEMO_REALM above). These wrap the real
-  // onPlayRealm/openBook handlers just to also mark that path visited; once
-  // both have been, the effect below closes the tour instead of leaving the
-  // popups up indefinitely. The `realm.isDemo` checks are defensive — the
-  // demo realm can only ever reach these handlers via the tour's own
-  // buttons, which don't render until the tour (and so `tourActive`) already
-  // is, but they keep this correct even if that ever changes.
+  // the real chest or logbook icon on the spotlighted card (both live
+  // throughout via `.tour-highlight`'s `pointer-events: auto`, and the
+  // logbook one is unlocked for a guest here specifically — see
+  // RealmsHub.jsx). These wrap the real onPlayRealm/openBook handlers just
+  // to also mark that path visited; once both have been, the effect below
+  // closes the tour instead of leaving the hub's fork card up indefinitely.
+  // The `realm.isDemo` checks are defensive leftovers from when the demo
+  // realm could still be reached this way — harmless no-ops now, since
+  // nothing passes a demo realm into these handlers anymore.
   const handlePlayRealm = (realm) => {
     if (realm.isDemo && !tourActive) startTour();
     if (tourActive || realm.isDemo) onTourVisitChest?.();
@@ -168,18 +229,6 @@ export default function RealmsTab({
     tourTargetRef.current.scrollIntoView({ behavior: 'smooth', block });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tourActive, tourStage]);
-
-  // Once both forks have been visited, the tour's done — no need to make
-  // the user hunt for the X (or leave an empty popup-less hub sitting
-  // there once RealmHubTourCards has nothing left to show). Checked on
-  // every hub arrival, including the one right after this component
-  // remounts post-chest-path (App.jsx swaps PreGameSetup back out), since
-  // `tourVisitedChest` is lifted state that survives that unmount.
-  useEffect(() => {
-    if (tourActive && tourStage === 'hub' && tourVisitedChest && tourVisitedBook) {
-      onTourActiveChange?.(false);
-    }
-  }, [tourActive, tourStage, tourVisitedChest, tourVisitedBook, onTourActiveChange]);
 
   const openBook = (realm) => {
     setOpenBookRealmId(realm.id);
@@ -223,7 +272,6 @@ export default function RealmsTab({
     if (realm) {
       setOpenBookRealmId(realm.id);
       const GAMES_PER_PAGE = 25;
-      const FIRST_LOG_PAGE = 2;
       const idx = games.filter(g => g.realmId === realm.id).findIndex(g => g.id === openGame.id);
       setPage(idx >= 0 ? FIRST_LOG_PAGE + Math.floor(idx / GAMES_PER_PAGE) : 0);
       setSelectedGame(openGame);
@@ -231,11 +279,9 @@ export default function RealmsTab({
     onOpenGameClear?.();
   }, [openGame]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Return to the hub if the open realm disappears (deleted / left) — the
-  // demo realm is exempt, since it's never actually in `realms` (see
-  // DEMO_REALM above) but is still a valid thing to have open.
+  // Return to the hub if the open realm disappears (deleted / left).
   useEffect(() => {
-    if (openBookRealmId && openBookRealmId !== DEMO_REALM.id && !realms.some(r => r.id === openBookRealmId)) closeBook();
+    if (openBookRealmId && !realms.some(r => r.id === openBookRealmId)) closeBook();
   }, [openBookRealmId, realms]);
 
   return (
@@ -250,20 +296,24 @@ export default function RealmsTab({
           whatever stage it was (gamelog, most often). */}
       {tourActive && !selectedGame && (
         tourStage === 'hub' ? (
-          <RealmHubTourCards
-            showChest={!tourVisitedChest}
-            showBook={!tourVisitedBook}
-            onChestAction={() => highlightRealm && handlePlayRealm(highlightRealm)}
-            onBookAction={() => bookHighlightRealm && handleOpenBook(bookHighlightRealm)}
-            onClose={closeTour}
-            targetRef={hubRef}
-          />
+          // Nothing to show once both forks are visited — leaves the
+          // Profile leg's own card (see App.jsx's ProfileTabTourCard) as
+          // the only thing pointing the user anywhere, instead of an empty
+          // popup-less box sitting here too.
+          (!tourVisitedChest || !tourVisitedBook) && (
+            <RealmHubTourCards
+              showChest={!tourVisitedChest}
+              showBook={!tourVisitedBook}
+              onClose={dismissHubForkTour}
+              targetRef={hubRef}
+            />
+          )
         ) : (
           <RealmTourModal
             stage={tourStage}
             onNext={advanceTour}
             onBack={backTour}
-            onClose={closeTour}
+            onClose={closeBookLegTour}
             targetRef={tourTargetRef}
           />
         )
@@ -278,7 +328,8 @@ export default function RealmsTab({
           onDeleteRealm={onDeleteRealm}
           onLeaveRealm={onLeaveRealm}
           onUpdateRealm={onUpdateRealm}
-          selfRank={selfRank}
+          unlockedChestIndices={unlockedChestIndices}
+          unlockedLogbookIndices={unlockedLogbookIndices}
           isGuest={isGuest}
           tourActive={tourActive}
           highlightRealmId={tourActive && tourStage === 'hub' ? highlightRealm?.id : null}
@@ -299,6 +350,7 @@ export default function RealmsTab({
                 <img className="section-title-back-spine" src={spineFor(openRealm)} alt="" draggable={false} />
               </span>
             </button>
+            <BookStepper page={page} onJump={setPage} />
             <div className="section-title-line" />
             <span className="game-count">{openRealm.name}</span>
           </div>

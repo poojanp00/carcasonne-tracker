@@ -1,8 +1,8 @@
 import { useMemo, useState, useEffect, useRef } from 'react';
 import { SCORE_TYPE_ORDER, SCORE_TYPE_COLORS } from '../constants';
 import { calcAccountStats } from '../utils/stats';
-import { ACCOUNT_MILESTONES, METRIC_UNITS, accountMilestoneProgress, categoryTierState } from '../data/accountMilestones';
-import { getCurrentRank, countUnlockedTiers, rankTitle, tiersRequiredForRank, getMaxRank, getTotalTiers } from '../utils/metaRank';
+import { METRIC_UNITS, categoryTierState, visibleAccountMilestones } from '../data/accountMilestones';
+import { getCurrentRank, countUnlockedTiers, rankTitle, getTotalTiers } from '../utils/metaRank';
 import QuarterTierBar from './QuarterTierBar';
 import RankQuarterBar from './RankQuarterBar';
 import { MEEPLE_IMGS, TYPE_LABELS } from './StatWidgets';
@@ -15,6 +15,7 @@ import ValInfo from './ValInfo';
 import Lightbox from './Lightbox';
 import { GearIcon, TrashIcon } from './icons';
 import { ProfileHowToModal } from './HowToGuide';
+import { RankUpRankBar } from './RankUpModal';
 
 // The 5 base color meeples, no fun/reskinned ones — a fresh account with
 // no favorite meeple yet (nothing played) gets one of these assigned
@@ -177,7 +178,7 @@ const sectionHeaderStyle = { borderBottom: '1px solid var(--warm-gold)', padding
 // Renders bare (no outer card wrapper) — the caller (ProfileHero's flip-card
 // back face) already supplies its own card chrome.
 function AllMilestonesQuarterCard({ account }) {
-  const started = ACCOUNT_MILESTONES.filter(cat => accountMilestoneProgress(cat, account) > 0);
+  const started = visibleAccountMilestones(account);
   return (
     <>
       <div className="milestone-card-header">
@@ -215,7 +216,7 @@ function AllMilestonesQuarterCard({ account }) {
 // Career Highlights, stacking below it on narrow screens.
 function TrophyCabinet({ account }) {
   const { recordTallies } = account;
-  const tallied = ACHIEVEMENT_DISPLAY_ORDER.filter(key => recordTallies[key] > 0);
+  const tallied = ACHIEVEMENT_DISPLAY_ORDER.filter(key => recordTallies[key]?.count > 0);
   return (
     <div>
       <div className="tile-card-header" style={sectionHeaderStyle}>Trophy Cabinet</div>
@@ -228,10 +229,19 @@ function TrophyCabinet({ account }) {
               <span className="stat-label" style={{ fontStyle: 'normal', fontSize: 'clamp(0.9rem, 2.2vw, 1.1rem)', flex: 1, minWidth: 0 }}>
                 {ACHIEVEMENT_LABEL_OVERRIDE[key] ?? formatAchievementName(key)}
               </span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              {/* Best actual amount (e.g. the real longest-road length) on
+                  hover — same treatment as the Logbook roster page's own
+                  Trophy Cabinet (PlayerCard.jsx's TrophyBack/ValInfo tip),
+                  rather than printing it inline. Anchored to the left
+                  (same line as the badge) rather than above it. */}
+              <ValInfo
+                tip={`Best: ${recordTallies[key].best}`}
+                placement="left"
+                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'var(--cursor-pointer)' }}
+              >
                 <img src={ACHIEVEMENT_BADGE[key]} alt={ACHIEVEMENT_LABEL_OVERRIDE[key] ?? formatAchievementName(key)} style={{ height: '44px', width: 'auto' }} draggable={false} />
-                <span className="stat-value" style={{ fontSize: 'clamp(1rem, 2.5vw, 1.25rem)' }}>×{recordTallies[key]}</span>
-              </div>
+                <span className="stat-value" style={{ fontSize: 'clamp(1rem, 2.5vw, 1.25rem)' }}>×{recordTallies[key].count}</span>
+              </ValInfo>
             </div>
           ))}
         </div>
@@ -247,7 +257,7 @@ function TrophyCabinet({ account }) {
 // is owned by the parent (see Profile's heroFlipped/handleHeroFlip) rather
 // than locally, so the guided tour can drive it in lockstep with its own
 // step — this component just renders whatever `flipped` it's given.
-function ProfileHero({ account, userId, displayName, title, titleTip, tierCount, totalTiers, onOpenSettings, heroRef, highlighted = false, flipped, onFlip }) {
+function ProfileHero({ account, userId, displayName, title, tierCount, totalTiers, onOpenSettings, heroRef, highlighted = false, flipped, rotation = 0, onFlip, demoActive = false, realTierCount = 0 }) {
   const { stats, favMeeple, favMeepleCount, playingSince, totalPlaytime } = account;
   // No games played yet means no real favorite meeple — assigned one
   // (see pickDefaultMeeple) instead of showing an empty hero card.
@@ -266,7 +276,13 @@ function ProfileHero({ account, userId, displayName, title, titleTip, tierCount,
 
   return (
     <div ref={heroRef} className={`player-card-flip${flipped ? ' flipped' : ''}${highlighted ? ' tour-highlight' : ''}`} style={{ marginBottom: '1.2rem' }}>
-      <div className="player-card-flip-inner">
+      {/* rotation (not just the flipped on/off class) drives the actual
+          transform here — repeated ArrowRight/ArrowLeft/Enter presses (see
+          Profile's keyboard shortcut) keep accumulating past a single
+          180deg turn, so mashing one direction spins the card through full
+          360deg turns instead of just snapping between the two faces. A
+          plain click still only moves it one half-turn at a time. */}
+      <div className="player-card-flip-inner" style={{ transform: `rotateY(${rotation * 180}deg)` }}>
         <div className="player-card p2 profile-hero player-card-front" onClick={onFlip}>
           {onOpenSettings && (
             <button type="button" className="profile-settings-btn" onClick={onOpenSettings} title="Account settings" aria-label="Account settings">
@@ -281,13 +297,26 @@ function ProfileHero({ account, userId, displayName, title, titleTip, tierCount,
             )}
             <div>
               <div className="profile-hero-name">{displayName || 'Adventurer'}</div>
-              <ValInfo tip={titleTip}>
-                <span className="profile-hero-title" style={{ display: 'block' }}>{title}</span>
-              </ValInfo>
+              <span className="profile-hero-title" style={{ display: 'block' }}>{title}</span>
             </div>
           </div>
 
-          <RankQuarterBar tierCount={tierCount} currentRank={currentRank} />
+          {/* While the guided tour's demo data is active, replay the same
+              rank-up celebration reveal RankUpModal uses for a real rank-up
+              — mounting fresh (see the demoActive branch swap) each time the
+              tour (re)starts, so the ladder climbs from the guest's real
+              rank up through the demo's, one rank at a time, instead of
+              jumping straight to the end. */}
+          {demoActive ? (
+            <RankUpRankBar
+              beforeRank={getCurrentRank(realTierCount)}
+              afterRank={currentRank}
+              beforeTierCount={realTierCount}
+              tierCount={tierCount}
+            />
+          ) : (
+            <RankQuarterBar tierCount={tierCount} currentRank={currentRank} />
+          )}
 
           <div className="profile-hero-stats">
             {primaryStats.map(([label, value]) => (
@@ -374,21 +403,35 @@ function CareerHighlights({ account, onNavigateToGame }) {
   );
 }
 
-export default function Profile({ games: realGames, realms: realRealms, userId: realUserId, displayName: realDisplayName, isGuest = false, tourShown = false, onTourShown = null, storedMetaRank = 0, onGuestMetaRankAchieved = null, onChangeDisplayName, onDeleteAccount, onSignOut }) {
+export default function Profile({ games: realGames, realms: realRealms, userId: realUserId, displayName: realDisplayName, isGuest = false, tourShown = false, onTourShown = null, autoStartTour = false, onAutoStartTourConsumed = null, onTourComplete = null, storedMetaRank = 0, onGuestMetaRankAchieved = null, onChangeDisplayName, onDeleteAccount, onSignOut }) {
   const [selectedGame, setSelectedGame] = useState(null);
 
   // Guided tour opened from the "?" button: null = closed, 0-3 = which
   // PROFILE_STEPS entry is showing. Next/Back scroll to the matching
   // section; closing (or finishing) returns to the top of the page.
   const [tourStep, setTourStep] = useState(null);
+  // True while the currently-open tour was auto-started by chaining in
+  // from the Realms tour completing (see App.jsx's handleRealmsTourComplete/
+  // profileTourAutoStart), as opposed to a normal manual "?" open — only
+  // that chained case should send the user back to Realms once this tour
+  // itself finishes (see the tourStep effect below).
+  const [chainedFromRealms, setChainedFromRealms] = useState(false);
   const heroRef = useRef(null);
   const careerHighlightsRef = useRef(null);
   // Hero/Career Highlights flip-cards — same click-to-flip as a Fellowship
   // PlayerCard when browsed freely, but *driven* by the tour (below) rather
   // than independently toggled while the tour is open, so each step can show
-  // exactly the face it's describing.
-  const [heroFlipped, setHeroFlipped] = useState(false);
-  const [careerFlipped, setCareerFlipped] = useState(false);
+  // exactly the face it's describing. A rotation COUNT rather than a plain
+  // on/off boolean — a click (or one keyboard step, see the shortcut effect
+  // below) only ever moves it a single half-turn, but repeated ArrowRight/
+  // ArrowLeft/Enter presses keep accumulating past that, so mashing one
+  // direction spins the card through full 360deg turns rather than just
+  // snapping between the two faces. Which face is actually showing is just
+  // this count's parity (odd = back) — see heroFlipped/careerFlipped below.
+  const [heroRotation, setHeroRotation] = useState(0);
+  const [careerRotation, setCareerRotation] = useState(0);
+  const heroFlipped = Math.abs(heroRotation % 2) === 1;
+  const careerFlipped = Math.abs(careerRotation % 2) === 1;
   // Milestones/Trophy Cabinet now live on the BACK of the hero/career-
   // highlights flip-cards (see ProfileHero/the CareerHighlights flip below),
   // so those tour steps just re-spotlight the same physical card as the
@@ -422,6 +465,29 @@ export default function Profile({ games: realGames, realms: realRealms, userId: 
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  // Chained in from the Realms tour finishing (App.jsx sets autoStartTour
+  // once and expects it consumed) — fires regardless of isGuest/tourShown,
+  // since the point is to continue the walkthrough the user's already in,
+  // not gate on the usual first-visit-only rules.
+  useEffect(() => {
+    if (autoStartTour) {
+      setChainedFromRealms(true);
+      startTour();
+      onAutoStartTourConsumed?.();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoStartTour]);
+  // Mirrors RealmsTab's own completion chain: once this tour closes (either
+  // by finishing all steps or being dismissed early), and it was the one
+  // chained in from Realms, send the user back there to land where they
+  // started.
+  useEffect(() => {
+    if (tourStep === null && chainedFromRealms) {
+      setChainedFromRealms(false);
+      onTourComplete?.();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tourStep]);
   useEffect(() => {
     if (tourStep === 0) {
       heroRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -472,62 +538,38 @@ export default function Profile({ games: realGames, realms: realRealms, userId: 
   // advanceTour finishing), resets both cards to their fronts rather than
   // leaving one stuck flipped once the tour's no longer pointing at it.
   useEffect(() => {
-    setHeroFlipped(tourStep === 1);
-    setCareerFlipped(tourStep === 3);
+    setHeroRotation(tourStep === 1 ? 1 : 0);
+    setCareerRotation(tourStep === 3 ? 1 : 0);
   }, [tourStep]);
 
   // Clicking the spotlighted card itself acts exactly like clicking the
   // tour's own "Next" (advancing/finishing the tour) while a tour is open —
   // the flip itself is driven by the effect above, not toggled here — and
-  // falls back to a normal independent flip once there's no tour to advance.
-  // Both still ignore clicks on a real button inside the card (the hero's
-  // settings gear, CareerHighlights' game-link buttons).
+  // falls back to a normal independent flip (one half-turn, same as one
+  // keyboard step — see the shortcut effect below) once there's no tour to
+  // advance. Both still ignore clicks on a real button inside the card (the
+  // hero's settings gear, CareerHighlights' game-link buttons).
   const handleHeroFlip = (e) => {
     if (e.target.closest('button')) return;
     if (tourStep !== null) { advanceTour(); return; }
-    setHeroFlipped(v => !v);
+    setHeroRotation(r => r + 1);
   };
   const handleCareerFlip = (e) => {
     if (e.target.closest('button')) return;
     if (tourStep !== null) { advanceTour(); return; }
-    setCareerFlipped(v => !v);
+    setCareerRotation(r => r + 1);
   };
 
   const tierCount     = useMemo(() => countUnlockedTiers(account), [account]);
   const computedRank  = getCurrentRank(tierCount);
   const displayedRank = computedRank; // always the live rank — no never-regress floor
 
-  // Why-am-I-this-rank tooltip: a vertical dot-and-line ladder — the next
-  // (unearned) rank on top, the current rank highlighted, and every earned
-  // rank below it in order — echoing the milestone progress bars' notch-and-
-  // line visual language. Each row's number is the tier count required for
-  // that rank, not the rank's own ordinal.
-  const ladderRanks = [];
-  if (displayedRank < getMaxRank()) ladderRanks.push({ rank: displayedRank + 1, state: 'next' });
-  for (let r = displayedRank; r >= 1; r--) ladderRanks.push({ rank: r, state: r === displayedRank ? 'current' : 'earned' });
-
-  const rankTip = (
-    <div style={{ textAlign: 'left', maxWidth: 250, whiteSpace: 'normal' }}>
-      <div style={{ fontSize: '0.66rem', letterSpacing: '0.1em', textTransform: 'uppercase', opacity: 0.75, marginBottom: '0.3rem' }}>
-        Rank Ladder
-      </div>
-      <div className="rank-ladder-header">
-        <span className="rank-ladder-col-num">#</span>
-        <span className="rank-ladder-col-name">Rank</span>
-        <span className="rank-ladder-col-tiers">Tiers</span>
-      </div>
-      <div className="rank-ladder">
-        {ladderRanks.map(({ rank, state }) => (
-          <div key={rank} className="rank-ladder-row">
-            <span className={`rank-ladder-dot ${state}`} />
-            <span className="rank-ladder-col-num">{rank}</span>
-            <span className={`rank-ladder-name ${state}`}>{rankTitle(rank)}</span>
-            <span className="rank-ladder-col-tiers">{tiersRequiredForRank(rank)}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
+  // Real (never demo-swapped) tier count — the guided tour's rank reveal
+  // (see ProfileHero below) animates up FROM this, so a guest who's really
+  // at rank 1 watches the bar climb through every rank the demo data jumps
+  // them to, instead of the whole ladder just appearing already-filled.
+  const realAccount   = useMemo(() => calcAccountStats(realGames, realRealms, realUserId), [realGames, realRealms, realUserId]);
+  const realTierCount = useMemo(() => countUnlockedTiers(realAccount), [realAccount]);
 
   // Guest-only rank persistence (localStorage) — real accounts are handled
   // entirely server-side now (migrations/server_side_progress.sql), but a
@@ -611,6 +653,63 @@ export default function Profile({ games: realGames, realms: realRealms, userId: 
     document.body.style.overflow = isOpen ? 'hidden' : '';
     return () => { document.body.style.overflow = ''; };
   }, [selectedGame, settingsView, deleteStep]);
+
+  // Keyboard flip shortcut for whichever of the two flip-cards (hero,
+  // Career Highlights) is most relevant right now — Enter and ArrowRight
+  // both spin it one half-turn forward, ArrowLeft one half-turn backward;
+  // holding/mashing the same key keeps accumulating in that direction
+  // (see heroRotation/careerRotation above), so repeated presses spin the
+  // card through full 360deg turns rather than just snapping between the
+  // two faces. On a desktop with a real mouse, "most relevant" is whichever
+  // card's center is physically closest to the last-known cursor position;
+  // on a touch device (no mousemove ever observed this page load), it falls
+  // back to whichever card currently has more of its own area actually
+  // visible in the viewport. Skipped during the guided tour (which drives
+  // both cards' flips itself) and while any modal is open on top (same
+  // isOpen check the scroll-lock effect above uses).
+  useEffect(() => {
+    if (tourStep !== null) return;
+    let lastMouse = null;
+    const onMouseMove = (e) => { lastMouse = { x: e.clientX, y: e.clientY }; };
+    window.addEventListener('mousemove', onMouseMove);
+
+    const visibleArea = (rect) => {
+      const w = Math.max(0, Math.min(rect.right, window.innerWidth) - Math.max(rect.left, 0));
+      const h = Math.max(0, Math.min(rect.bottom, window.innerHeight) - Math.max(rect.top, 0));
+      return w * h;
+    };
+
+    const pickTarget = () => {
+      const heroEl = heroRef.current;
+      const careerEl = careerHighlightsRef.current;
+      if (!heroEl || !careerEl) return heroEl ? 'hero' : careerEl ? 'career' : null;
+      const heroRect = heroEl.getBoundingClientRect();
+      const careerRect = careerEl.getBoundingClientRect();
+      if (lastMouse) {
+        const centerOf = (r) => ({ x: r.left + r.width / 2, y: r.top + r.height / 2 });
+        const dist = (r) => Math.hypot(centerOf(r).x - lastMouse.x, centerOf(r).y - lastMouse.y);
+        return dist(heroRect) <= dist(careerRect) ? 'hero' : 'career';
+      }
+      return visibleArea(heroRect) >= visibleArea(careerRect) ? 'hero' : 'career';
+    };
+
+    const onKey = (e) => {
+      if (tourStep !== null || selectedGame || settingsView || deleteStep > 0) return;
+      if (e.key !== 'Enter' && e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+      const tag = e.target.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || tag === 'BUTTON' || e.target.isContentEditable) return;
+      const target = pickTarget();
+      if (!target) return;
+      const setRotation = target === 'hero' ? setHeroRotation : setCareerRotation;
+      if (e.key === 'ArrowLeft') setRotation(r => r - 1);
+      else setRotation(r => r + 1); // Enter or ArrowRight
+    };
+    document.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [tourStep, selectedGame, settingsView, deleteStep]);
 
   return (
     <div>
@@ -794,9 +893,12 @@ export default function Profile({ games: realGames, realms: realRealms, userId: 
           something real to point at for a brand new account too. */}
       <div className={tourStep !== null ? 'tour-inert' : ''}>
         <div className="me-hero-grid" style={{ marginBottom: '1.2rem' }}>
-          <ProfileHero heroRef={heroRef} highlighted={tourStep === 0 || tourStep === 1} account={account} userId={userId} displayName={displayName} title={`Rank ${displayedRank} ${rankTitle(displayedRank)}`} titleTip={rankTip} tierCount={tierCount} totalTiers={getTotalTiers()} onOpenSettings={isGuest ? null : openSettings} flipped={heroFlipped} onFlip={handleHeroFlip} />
+          <ProfileHero heroRef={heroRef} highlighted={tourStep === 0 || tourStep === 1} account={account} userId={userId} displayName={displayName} title={`Rank ${displayedRank} ${rankTitle(displayedRank)}`} tierCount={tierCount} totalTiers={getTotalTiers()} onOpenSettings={isGuest ? null : openSettings} flipped={heroFlipped} rotation={heroRotation} onFlip={handleHeroFlip} demoActive={demoActive} realTierCount={realTierCount} />
           <div ref={careerHighlightsRef} className={`player-card-flip${careerFlipped ? ' flipped' : ''}${(tourStep === 2 || tourStep === 3) ? ' tour-highlight' : ''}`}>
-            <div className="player-card-flip-inner">
+            {/* rotation drives the transform directly (see ProfileHero's
+                matching comment) so repeated keyboard presses spin the card
+                through full turns instead of snapping between faces. */}
+            <div className="player-card-flip-inner" style={{ transform: `rotateY(${careerRotation * 180}deg)` }}>
               <div className="player-card player-card-front" style={{ padding: '1.5rem' }} onClick={handleCareerFlip}>
                 <CareerHighlights account={account} onNavigateToGame={openGameLightbox} />
               </div>

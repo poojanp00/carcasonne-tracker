@@ -52,7 +52,7 @@ export default function QuarterTierBar({ tiers, progress, unit, currentTier, nex
               key={tier.tierNumber}
               style={{
                 flex: '1 1 25%', textAlign: 'center', padding: '0 0.15rem',
-                fontFamily: "'Crimson Text', serif", fontStyle: 'italic', fontSize: '0.62rem', lineHeight: 1.15,
+                fontFamily: "'Crimson Text', serif", fontStyle: 'italic', fontSize: '0.58rem', lineHeight: 1.15,
                 color: isActive ? 'var(--deep-red)' : isCurrent ? 'var(--earth-brown)' : 'var(--stone-gray)',
                 fontWeight: isCurrent ? 700 : 400,
                 opacity: isLocked ? 0.45 : 1,
