@@ -8,6 +8,17 @@ import { LIVE_PLAY_ONLY_RECORD_TYPES, MONASTERY_RECORD_TYPES, MONASTERY_LIKE_MAX
 export const DEMO_USER_ID   = 'demo-user';
 export const DEMO_USER_NAME = 'Alex';
 
+// Profile tour's Gallery (see Profile.jsx's demoActive) — a guest's own
+// real unlock set is just item 1 (index 0, same lock everyone starts at),
+// which would make the Gallery step look empty/pointless mid-tour. These
+// stand in for a populated account instead, matching CHESTS/SPINES'
+// 001.png.. filename-sorted indices (see data/chests.js/spines.js) — 001,
+// 002, 003, 005, 008, 009 zero-indexed. Same indices for both chest and
+// logbook since the tour just needs "several unlocked, not all", not any
+// particular pairing.
+export const DEMO_UNLOCKED_CHEST_INDICES    = new Set([0, 1, 2, 4, 7, 8]);
+export const DEMO_UNLOCKED_LOGBOOK_INDICES  = new Set([0, 1, 2, 4, 7, 8]);
+
 const demoPlayers = (names) => names.map((name, i) =>
   i === 0
     ? { name, userId: DEMO_USER_ID, status: 'owner' }

@@ -37,10 +37,12 @@ const BOOK_PATH_STAGES = [
 const REALM_TOUR_STAGES = [...PLAY_PATH_STAGES, ...BOOK_PATH_STAGES];
 
 const PROFILE_STEPS = [
-  'Your character card displays your rank and overall progress. Click to flip it. ',
+  'Your Character Card displays your rank and overall progress. Click to flip it. ',
   'Completing milestones increases your rank and unlock rewards.',
   'This card shows your records, and memorable victories. Click to flip.',
-  'The trophy cabinet displays the hardware you have earned along the way.',
+  'The Trophy Cabinet displays the hardware you have earned along the way.',
+  'The Gallery showcases your unlocked chests and logbooks.',
+  'Your Collection tracks which expansions you own. Tap Edit to update it.',
 ];
 
 // Opened from the score board's "?" — a plain Next/Back walkthrough like
