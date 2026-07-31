@@ -11,9 +11,9 @@ import { useTapTooltip } from '../hooks/useTapTooltip';
  * never paint above a sibling player card. Rendered through a portal with viewport-fixed
  * coordinates instead, so it always sits on top regardless of which card it's opened from.
  */
-export default function ValInfo({ tip, children, style, placement = 'below' }) {
+export default function ValInfo({ tip, children, style, placement = 'below', zIndex }) {
   const { visible, open, onMouseEnter, onMouseLeave, triggerRef } = useTapTooltip();
-  const { tooltipRef, portalStyle } = usePortalTooltip(visible, triggerRef, placement);
+  const { tooltipRef, portalStyle } = usePortalTooltip(visible, triggerRef, placement, zIndex);
 
   if (!tip) return <span className="val-info-wrap" style={style}>{children}</span>;
 

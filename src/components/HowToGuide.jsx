@@ -12,10 +12,11 @@ const STEPS = [
 
 // Realm creation is its own short, linear (non-forking) tour — separate from
 // the Realms hub's loop above since it only ever runs on the two
-// create-realm sub-steps in PreGameSetup.jsx.
+// create-realm sub-steps in PreGameSetup.jsx. No titles — see BOARD_TOUR_STEPS'
+// comment below for why every tour in this file dropped them.
 const CREATE_REALM_TOUR_STAGES = [
-  { title: 'Create New Realm', text: 'Name your realm and add the players.' },
-  { title: 'Chest & Logbook', text: ' Choose a chest for game pieces and a book for history.' },
+  'Name your realm and add the players.',
+  'Choose a chest to store game pieces and a book to write history in.',
 ];
 
 // The hub itself isn't part of this linear stage list at all — it's a fork
@@ -24,22 +25,36 @@ const CREATE_REALM_TOUR_STAGES = [
 // below). Mode Selection isn't a stage here either, and Meeples is no
 // longer its own stage — it's merged into Players (see PreGameSetup.jsx).
 const PLAY_PATH_STAGES = [
-  { key: 'players',    title: 'Players',    text: 'Each player picks their game piece. ' },
-  { key: 'expansions', title: 'Expansions', text: 'Choose expansions that are in play.' },
-  { key: 'begin',      title: 'Gather Your Pieces', text: 'Grab the tiles and meeples listed here, then click Begin when you\'re ready to start the game.' },
+  { key: 'players',    text: 'Each player picks their game piece. ' },
+  { key: 'expansions', text: 'Choose expansions that are in play.' },
+  { key: 'begin',      text: 'Gather the pieces and click Begin!' },
 ];
 const BOOK_PATH_STAGES = [
-  { key: 'overview', title: 'Overview', text: 'The overview contains general realm statistics.' },
-  { key: 'roster',   title: 'Roster',   text: 'Individual player stats are stored here. Tap a player\'s card to view their trophies.' },
-  { key: 'gamelog',  title: 'Game log', text: 'Explore match history. Click an entry to view game data.' },
+  { key: 'overview', text: 'The Overview contains general realm statistics.' },
+  { key: 'roster',   text: 'The Roster shows all player cards. Tap one to flip it.' },
+  { key: 'gamelog',  text: 'Use the Game Log to explore match history. Click an entry to view more.' },
 ];
 const REALM_TOUR_STAGES = [...PLAY_PATH_STAGES, ...BOOK_PATH_STAGES];
 
 const PROFILE_STEPS = [
-  { title: 'Character Card', text: 'View your profile, rank, and overall progress. Click to view the back. ' },
-  { title: 'Milestones', text: 'Complete milestones by scoring points to increase your rank and unlock rewards.' },
-  { title: 'Career Highlights', text: 'Achievements, records, and memorable victories. Click to flip.' },
-  { title: 'Trophy Cabinet', text: 'View the hardware you\'ve earned along the way.' },
+  'Your character card displays your rank and overall progress. Click to flip it. ',
+  'Completing milestones increases your rank and unlock rewards.',
+  'This card shows your records, and memorable victories. Click to flip.',
+  'The trophy cabinet displays the hardware you have earned along the way.',
+];
+
+// Opened from the score board's "?" — a plain Next/Back walkthrough like
+// every other tour in this file (see ProfileHowToModal), purely
+// informational: while it's open, Board.jsx blocks every scoring
+// interaction (player pick, type/goods buttons, Final Scoring, Finish
+// Game — see the tourStep guards on those handlers) rather than reacting to
+// real clicks, so nothing about the actual game can change mid-tour.
+export const BOARD_TOUR_STEPS = [
+  'This is your score board.',
+  'Select a player to record their score.',
+  'Enter amount and tap the type of score to add it.',
+  'View the score log here and control game settings below.',
+  'Once the final tile is placed, tap Final Scoring and score the rest of the features.',
 ];
 
 /** Renders **markers** in a step as bold text. */
@@ -84,26 +99,39 @@ export function CreateRealmTourModal({ stage, onNext, onBack, onClose, targetRef
         ref={cardRef}
         className="realm-modal tile-card tour-card"
         style={{
-          maxWidth: '340px',
+          // min(), not a flat px value — useTourCardPosition clamps the
+          // card's fixed-position LEFT so it doesn't dock off-screen, but
+          // it never shrinks the card's own WIDTH, so a flat 340px still
+          // overflowed on any viewport narrower than ~300px (the card plus
+          // its edge margin). This caps the card at the viewport's width
+          // minus that same margin, whichever is smaller.
+          maxWidth: 'min(300px, calc(100vw - 2rem))',
           ...(posStyle || {}),
           ...(arrowLeft != null ? { '--tour-arrow-left': `${arrowLeft}px` } : {}),
         }}
       >
         <button type="button" className="tour-close-btn" onClick={onClose} title="Close tour" aria-label="Close tour" />
-        <h3 style={{ color: 'var(--earth-brown)', marginBottom: '0.8rem' }}>{current.title}</h3>
-        <p style={{ fontFamily: 'Crimson Text, serif', fontSize: 'clamp(0.92rem, 2.2vw, 1.05rem)', lineHeight: 1.5, color: 'var(--charcoal)', margin: 0 }}>
-          {renderStep(current.text)}
+        <p style={{ fontFamily: 'Crimson Text, serif', fontSize: 'clamp(0.85rem, 2vw, 0.95rem)', lineHeight: 1.4, color: 'var(--charcoal)', margin: 0 }}>
+          {renderStep(current)}
         </p>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: stage === 0 ? 'flex-end' : 'space-between', gap: '0.8rem', marginTop: '1.2rem' }}>
-          {stage > 0 && <button type="button" className="btn btn-ghost btn-sm" onClick={onBack}>‹ Back</button>}
-          {isLast
-            ? <button type="button" className="btn btn-sm" onClick={onNext}>Create</button>
-            : <button type="button" className="btn btn-sm" onClick={onNext}>Next ›</button>}
-        </div>
-        <div className="tour-dots" style={{ justifyContent: 'center', marginTop: '0.7rem' }}>
-          {CREATE_REALM_TOUR_STAGES.map((s, i) => (
-            <span key={s.title} className={`tour-dot${i === stage ? ' active' : ''}`} />
-          ))}
+        {/* Grid, not flex — keeps the dots dead-centered between Back and
+            Next regardless of whether Back is showing (an empty first
+            column still reserves its space) instead of drifting whenever
+            Back is hidden on stage 0. */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', gap: '0.4rem', marginTop: '0.75rem' }}>
+          <div style={{ justifySelf: 'start' }}>
+            {stage > 0 && <button type="button" className="btn btn-ghost btn-sm" onClick={onBack}>‹ Back</button>}
+          </div>
+          <div className="tour-dots" style={{ justifySelf: 'center' }}>
+            {CREATE_REALM_TOUR_STAGES.map((_, i) => (
+              <span key={i} className={`tour-dot${i === stage ? ' active' : ''}`} />
+            ))}
+          </div>
+          <div style={{ justifySelf: 'end' }}>
+            {isLast
+              ? <button type="button" className="btn btn-sm" onClick={onNext}>Create</button>
+              : <button type="button" className="btn btn-sm" onClick={onNext}>Next ›</button>}
+          </div>
         </div>
       </div>
     </div>
@@ -132,8 +160,8 @@ export default function HowToModal({ onClose }) {
  * section — the parent advances/reverses `step` and scrolls to the
  * matching section on each Next/Back (see Profile.jsx's tour handlers).
  * Matches the Realms tour's chrome: a top-left "×" to end the tour from
- * wherever the user is, Back/Next on one row with centered dots below, and
- * the card docked beside whatever's spotlighted via `targetRef` (see
+ * wherever the user is, Back/dots/Next on one centered row, and the card
+ * docked beside whatever's spotlighted via `targetRef` (see
  * useTourCardPosition) rather than a fixed screen position. Everything
  * outside the spotlighted section is inert while this is open (see the
  * `.tour-inert` wrapper in Profile.jsx) — only the highlighted content
@@ -150,26 +178,97 @@ export function ProfileHowToModal({ step, onNext, onBack, onClose, targetRef = n
         ref={cardRef}
         className="realm-modal tile-card tour-card"
         style={{
-          maxWidth: '340px',
+          // min(), not a flat px value — useTourCardPosition clamps the
+          // card's fixed-position LEFT so it doesn't dock off-screen, but
+          // it never shrinks the card's own WIDTH, so a flat 340px still
+          // overflowed on any viewport narrower than ~300px (the card plus
+          // its edge margin). This caps the card at the viewport's width
+          // minus that same margin, whichever is smaller.
+          maxWidth: 'min(300px, calc(100vw - 2rem))',
           ...(posStyle || {}),
           ...(arrowLeft != null ? { '--tour-arrow-left': `${arrowLeft}px` } : {}),
         }}
       >
         <button type="button" className="tour-close-btn" onClick={onClose} title="Close tour" aria-label="Close tour" />
-        <h3 style={{ color: 'var(--earth-brown)', marginBottom: '0.8rem' }}>{PROFILE_STEPS[step].title}</h3>
-        <p style={{ fontFamily: 'Crimson Text, serif', fontSize: 'clamp(0.92rem, 2.2vw, 1.05rem)', lineHeight: 1.5, color: 'var(--charcoal)', margin: 0 }}>
-          {renderStep(PROFILE_STEPS[step].text)}
+        <p style={{ fontFamily: 'Crimson Text, serif', fontSize: 'clamp(0.85rem, 2vw, 0.95rem)', lineHeight: 1.4, color: 'var(--charcoal)', margin: 0 }}>
+          {renderStep(PROFILE_STEPS[step])}
         </p>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: step === 0 ? 'flex-end' : 'space-between', gap: '0.8rem', marginTop: '1.2rem' }}>
-          {step > 0 && <button type="button" className="btn btn-ghost btn-sm" onClick={onBack}>‹ Back</button>}
-          {isLastStep
-            ? <button type="button" className="btn btn-sm" onClick={onNext}>Got it!</button>
-            : <button type="button" className="btn btn-sm" onClick={onNext}>Next ›</button>}
+        {/* Grid, not flex — keeps the dots dead-centered between Back and
+            Next regardless of whether Back is showing (an empty first
+            column still reserves its space) instead of drifting whenever
+            Back is hidden on step 0. */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', gap: '0.4rem', marginTop: '0.75rem' }}>
+          <div style={{ justifySelf: 'start' }}>
+            {step > 0 && <button type="button" className="btn btn-ghost btn-sm" onClick={onBack}>‹ Back</button>}
+          </div>
+          <div className="tour-dots" style={{ justifySelf: 'center' }}>
+            {PROFILE_STEPS.map((_, i) => (
+              <span key={i} className={`tour-dot${i === step ? ' active' : ''}`} />
+            ))}
+          </div>
+          <div style={{ justifySelf: 'end' }}>
+            {isLastStep
+              ? <button type="button" className="btn btn-sm" onClick={onNext}>Got it!</button>
+              : <button type="button" className="btn btn-sm" onClick={onNext}>Next ›</button>}
+          </div>
         </div>
-        <div className="tour-dots" style={{ justifyContent: 'center', marginTop: '0.7rem' }}>
-          {PROFILE_STEPS.map((s, i) => (
-            <span key={s.title} className={`tour-dot${i === step ? ' active' : ''}`} />
-          ))}
+      </div>
+    </div>
+  );
+}
+
+/** Opened from the score board's "?" button — same plain Next/Back/dots
+ * chrome as ProfileHowToModal, docked beside whatever BOARD_TOUR_STEPS'
+ * current stop is describing (see Board.jsx's tour-target lookup). No
+ * heading — just the one line, see BOARD_TOUR_STEPS. The last stop docks
+ * ABOVE its target (the Final Scoring button) instead of below — see
+ * useTourCardPosition's `placement` param — so the button itself stays
+ * visible under the card instead of getting covered by it. */
+export function BoardTourModal({ step, onNext, onBack, onClose, targetRef = null }) {
+  const current = BOARD_TOUR_STEPS[step];
+  const isLastStep = step === BOARD_TOUR_STEPS.length - 1;
+  const cardRef = useRef(null);
+  const { style: posStyle, arrowLeft } = useTourCardPosition(targetRef, cardRef, true, isLastStep ? 'above' : 'below');
+  useTourCardKeys(onNext, onBack);
+  return (
+    <div className="tour-overlay">
+      <div
+        ref={cardRef}
+        className={`realm-modal tile-card tour-card${isLastStep ? ' tour-card-arrow-down' : ''}`}
+        style={{
+          // min(), not a flat px value — useTourCardPosition clamps the
+          // card's fixed-position LEFT so it doesn't dock off-screen, but
+          // it never shrinks the card's own WIDTH, so a flat 340px still
+          // overflowed on any viewport narrower than ~300px (the card plus
+          // its edge margin). This caps the card at the viewport's width
+          // minus that same margin, whichever is smaller.
+          maxWidth: 'min(300px, calc(100vw - 2rem))',
+          ...(posStyle || {}),
+          ...(arrowLeft != null ? { '--tour-arrow-left': `${arrowLeft}px` } : {}),
+        }}
+      >
+        <button type="button" className="tour-close-btn" onClick={onClose} title="Close tour" aria-label="Close tour" />
+        <p style={{ fontFamily: 'Crimson Text, serif', fontSize: 'clamp(0.85rem, 2vw, 0.95rem)', lineHeight: 1.4, color: 'var(--charcoal)', margin: 0 }}>
+          {renderStep(current)}
+        </p>
+        {/* Grid, not flex — keeps the dots dead-centered between Back and
+            Next regardless of whether Back is showing (an empty first
+            column still reserves its space) instead of drifting whenever
+            Back is hidden on step 0. */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', gap: '0.4rem', marginTop: '0.75rem' }}>
+          <div style={{ justifySelf: 'start' }}>
+            {step > 0 && <button type="button" className="btn btn-ghost btn-sm" onClick={onBack}>‹ Back</button>}
+          </div>
+          <div className="tour-dots" style={{ justifySelf: 'center' }}>
+            {BOARD_TOUR_STEPS.map((_, i) => (
+              <span key={i} className={`tour-dot${i === step ? ' active' : ''}`} />
+            ))}
+          </div>
+          <div style={{ justifySelf: 'end' }}>
+            {isLastStep
+              ? <button type="button" className="btn btn-sm" onClick={onNext}>Got it!</button>
+              : <button type="button" className="btn btn-sm" onClick={onNext}>Next ›</button>}
+          </div>
         </div>
       </div>
     </div>
@@ -214,42 +313,56 @@ export function RealmTourModal({ stage, onNext, onBack, onClose, targetRef = nul
         ref={cardRef}
         className="realm-modal tile-card tour-card"
         style={{
-          maxWidth: '340px',
+          // min(), not a flat px value — useTourCardPosition clamps the
+          // card's fixed-position LEFT so it doesn't dock off-screen, but
+          // it never shrinks the card's own WIDTH, so a flat 340px still
+          // overflowed on any viewport narrower than ~300px (the card plus
+          // its edge margin). This caps the card at the viewport's width
+          // minus that same margin, whichever is smaller.
+          maxWidth: 'min(300px, calc(100vw - 2rem))',
           ...(posStyle || {}),
           ...(arrowLeft != null ? { '--tour-arrow-left': `${arrowLeft}px` } : {}),
         }}
       >
         <button type="button" className="tour-close-btn" onClick={onClose} title="Close tour" aria-label="Close tour" />
-        <h3 style={{ color: 'var(--earth-brown)', marginBottom: '0.8rem' }}>{current.title}</h3>
-        <p style={{ fontFamily: 'Crimson Text, serif', fontSize: 'clamp(0.92rem, 2.2vw, 1.05rem)', lineHeight: 1.5, color: 'var(--charcoal)', margin: 0 }}>
+        <p style={{ fontFamily: 'Crimson Text, serif', fontSize: 'clamp(0.85rem, 2vw, 0.95rem)', lineHeight: 1.4, color: 'var(--charcoal)', margin: 0 }}>
           {renderStep(current.text)}
         </p>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.8rem', marginTop: '1.2rem' }}>
-          <button type="button" className="btn btn-ghost btn-sm" onClick={onBack}>‹ Back</button>
-          <button type="button" className="btn btn-sm" onClick={onNext}>Next ›</button>
-        </div>
-        {path && (
-          <div className="tour-dots" style={{ justifyContent: 'center', marginTop: '0.7rem' }}>
-            {path.map((s, i) => (
-              <span key={s.key} className={`tour-dot${i === pathIndex ? ' active' : ''}`} />
-            ))}
+        {/* Grid, not flex — keeps the dots dead-centered between Back and
+            Next (Back always shows here, unlike the other tours, but the
+            empty middle column still needs reserving when a stage has no
+            path — the book's Overview/Roster/Game Log pages). */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', gap: '0.4rem', marginTop: '0.75rem' }}>
+          <div style={{ justifySelf: 'start' }}>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={onBack}>‹ Back</button>
           </div>
-        )}
+          <div style={{ justifySelf: 'center' }}>
+            {path && (
+              <div className="tour-dots">
+                {path.map((s, i) => (
+                  <span key={s.key} className={`tour-dot${i === pathIndex ? ' active' : ''}`} />
+                ))}
+              </div>
+            )}
+          </div>
+          <div style={{ justifySelf: 'end' }}>
+            <button type="button" className="btn btn-sm" onClick={onNext}>Next ›</button>
+          </div>
+        </div>
       </div>
     </div>
   );
 }
 
-/** One row within RealmHubTourCards below: a heading, then its description —
- * no action button (see RealmHubTourCards) — the real chest/logbook icon on
- * the spotlighted card is what the user clicks; this section just tells
- * them to, the same way the rest of the app expects a click on the real
- * thing rather than a stand-in button. */
-function HubSection({ title, text, divider = false }) {
+/** One row within RealmHubTourCards below: no heading, no action button (see
+ * RealmHubTourCards) — the real chest/logbook icon on the spotlighted card
+ * is what the user clicks; this section just tells them to, the same way
+ * the rest of the app expects a click on the real thing rather than a
+ * stand-in button. */
+function HubSection({ text, divider = false }) {
   return (
     <div className={divider ? 'tour-hub-section tour-hub-section-divider' : 'tour-hub-section'}>
-      <h3 style={{ color: 'var(--earth-brown)', marginBottom: '0.5rem' }}>{title}</h3>
-      <p style={{ fontFamily: 'Crimson Text, serif', fontSize: 'clamp(0.88rem, 2.1vw, 1rem)', lineHeight: 1.4, color: 'var(--charcoal)', margin: 0 }}>
+      <p style={{ fontFamily: 'Crimson Text, serif', fontSize: 'clamp(0.82rem, 1.9vw, 0.92rem)', lineHeight: 1.35, color: 'var(--charcoal)', margin: 0 }}>
         {text}
       </p>
     </div>
@@ -281,20 +394,20 @@ export function RealmHubTourCards({ showChest, showBook, onClose, targetRef }) {
         ref={cardRef}
         className="realm-modal tile-card tour-card"
         style={{
-          // Narrower than the other tour cards' 340px — this one lost its
-          // action buttons (see HubSection), so 360px left a visible strip
-          // of empty space to the right of the now text-only sections.
-          maxWidth: '280px',
+          // Narrower than the other tour cards' 300px — this one lost its
+          // action buttons (see HubSection). Same min() responsive cap as
+          // every other tour card (see CreateRealmTourModal's comment).
+          maxWidth: 'min(240px, calc(100vw - 2rem))',
           ...(posStyle || {}),
           ...(arrowLeft != null ? { '--tour-arrow-left': `${arrowLeft}px` } : {}),
         }}
       >
         <button type="button" className="tour-close-btn" onClick={onClose} title="Close tour" aria-label="Close tour" />
         {showChest && (
-          <HubSection title="Chest" text="Click the chest to set up a game." />
+          <HubSection text="Open the Chest to set up a game." />
         )}
         {showBook && (
-          <HubSection title="Logbook" text="Click the logbook to view game history." divider={showChest} />
+          <HubSection text="Open the Logbook to view history." divider={showChest} />
         )}
       </div>
     </div>
@@ -318,14 +431,13 @@ export function ProfileTabTourCard({ onClose, targetRef }) {
         ref={cardRef}
         className="realm-modal tile-card tour-card"
         style={{
-          maxWidth: '280px',
+          maxWidth: 'min(240px, calc(100vw - 2rem))',
           ...(posStyle || {}),
           ...(arrowLeft != null ? { '--tour-arrow-left': `${arrowLeft}px` } : {}),
         }}
       >
         <button type="button" className="tour-close-btn" onClick={onClose} title="Close tour" aria-label="Close tour" />
-        <h3 style={{ color: 'var(--earth-brown)', marginBottom: '0.8rem' }}>Profile</h3>
-        <p style={{ fontFamily: 'Crimson Text, serif', fontSize: 'clamp(0.92rem, 2.2vw, 1.05rem)', lineHeight: 1.5, color: 'var(--charcoal)', margin: 0 }}>
+        <p style={{ fontFamily: 'Crimson Text, serif', fontSize: 'clamp(0.85rem, 2vw, 0.95rem)', lineHeight: 1.4, color: 'var(--charcoal)', margin: 0 }}>
           Click this tab to view your profile.
         </p>
       </div>

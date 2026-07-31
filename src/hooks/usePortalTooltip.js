@@ -19,8 +19,12 @@ const GAP = 6;
  * centered horizontally on the trigger, shifted sideways if that would run off-screen. 'left'
  * anchors to the trigger's left edge, vertically centered on it (same line) instead — shifted
  * up/down if that would run off-screen top/bottom.
+ *
+ * `zIndex` defaults to above every tour surface (see below) — pass a lower value for a
+ * tooltip that should instead stay underneath a tour popup card it might otherwise cover
+ * (e.g. ArtPickerGrid's guest-locked tooltip during the create-realm tour).
  */
-export function usePortalTooltip(open, triggerRef, placement = 'below') {
+export function usePortalTooltip(open, triggerRef, placement = 'below', zIndex = 10500) {
   const tooltipRef = useRef(null);
   const [pos, setPos] = useState(null);
   const isSide = placement === 'left';
@@ -75,10 +79,10 @@ export function usePortalTooltip(open, triggerRef, placement = 'below') {
     transform: isSide
       ? `translateY(-50%) translateY(${pos.shift}px)`
       : `translateX(-50%) translateX(${pos.shift}px)`,
-    // Above .tour-highlight (9500) and .tour-overlay (10001) — a tooltip
-    // anchored to something inside a spotlighted section (e.g. the rank
-    // ladder, win-rate breakdown) must still render on top of both.
-    zIndex: 10500,
+    // Above .tour-highlight (9500) and .tour-overlay (10001) by default — a
+    // tooltip anchored to something inside a spotlighted section (e.g. the
+    // rank ladder, win-rate breakdown) must still render on top of both.
+    zIndex,
   } : null;
 
   return { tooltipRef, portalStyle };

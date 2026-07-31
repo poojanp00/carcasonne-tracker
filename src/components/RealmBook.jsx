@@ -33,7 +33,7 @@ function formatEstablished(realm) {
   return isNaN(d) ? '—' : d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 }
 
-function OverviewPage({ realm, realmGames, standings, onOpenGame }) {
+function OverviewPage({ realm, realmGames, standings, onOpenGame, progressByName }) {
   const gs = useMemo(() => calcGroupStats(realmGames), [realmGames]);
   const records = useMemo(
     () => calcPlayerRecords(realmGames, (realm.players || []).map(p => p.name)),
@@ -90,6 +90,7 @@ function OverviewPage({ realm, realmGames, standings, onOpenGame }) {
       title={null}
       bare
       winsByPlayer={Object.fromEntries(standings.sorted.map(ps => [ps.name, records[ps.name.toLowerCase()]?.w || 0]))}
+      rankByPlayer={Object.fromEntries(standings.sorted.map(ps => [ps.name, progressByName[ps.name.toLowerCase()]?.rank ?? null]))}
       />
       <div style={{ marginTop: '1.2rem', borderTop: '1px solid rgba(201,163,74,0.35)', paddingTop: '1.2rem' }}>
         <div className="book-overview-grid">
@@ -163,8 +164,8 @@ function OverviewPage({ realm, realmGames, standings, onOpenGame }) {
   );
 }
 
-function FellowshipPage({ standings, realmGames, onOpenGame, rosterRef, progressByName }) {
-  const { sorted, leaders } = standings;
+function FellowshipPage({ standings, realmGames, onOpenGame, rosterRef }) {
+  const { sorted } = standings;
   return (
     <div>
       {/* rosterRef is only a docking target for the tour card's position
@@ -180,9 +181,7 @@ function FellowshipPage({ standings, realmGames, onOpenGame, rosterRef, progress
             favMeeple={ps.favMeeple}
             favMeepleCount={ps.favMeepleCount}
             colorClass={PLAYER_COLOR_CLASSES[i % PLAYER_COLOR_CLASSES.length]}
-            isLeader={leaders.has(ps.name)}
             onNavigateToGame={onOpenGame}
-            progress={progressByName[ps.name.toLowerCase()] ?? null}
           />
         ))}
       </div>
@@ -371,6 +370,7 @@ export default function RealmBook({ realm, games, page, onPageChange, selectedGa
           onNavigate={onSelectGame}
           onClose={() => onSelectGame(null)}
           onDeleteRequest={tourActive || realm?.isDemo || realm?.isOwner === false ? null : () => setConfirmDeleteId(selectedGame.id)}
+          realmName={realm?.name}
         />
       )}
 
@@ -402,10 +402,11 @@ export default function RealmBook({ realm, games, page, onPageChange, selectedGa
               realmGames={realmGames}
               standings={standings}
               onOpenGame={onSelectGame}
+              progressByName={progressByName}
             />
           )}
           {page === 1 && (
-            <FellowshipPage standings={standings} realmGames={realmGames} onOpenGame={onSelectGame} rosterRef={rosterRef} progressByName={progressByName} />
+            <FellowshipPage standings={standings} realmGames={realmGames} onOpenGame={onSelectGame} rosterRef={rosterRef} />
           )}
           {page >= FIRST_LOG_PAGE && (
             <GameLogPage

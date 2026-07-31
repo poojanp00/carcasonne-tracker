@@ -22,6 +22,9 @@ export default function RealmSettingsModal({ realm, realms = [], unlockedChestIn
   const [spinePick,      setSpinePick]      = useState(realm.spine ?? 0);
   const [confirmDelete,  setConfirmDelete]  = useState(false);
   const [confirmLeave,   setConfirmLeave]   = useState(false);
+  // Danger Zone starts collapsed — Delete/Leave only becomes visible (let
+  // alone clickable) once deliberately opened.
+  const [dangerZoneOpen, setDangerZoneOpen] = useState(false);
 
   useEffect(() => {
     const isOpen = view || confirmDelete || confirmLeave;
@@ -86,8 +89,13 @@ export default function RealmSettingsModal({ realm, realms = [], unlockedChestIn
             )}
 
             <div className="settings-section settings-danger">
-              <div className="settings-section-header">Danger Zone</div>
-              {realm.isOwner !== false ? (
+              <div className="settings-section-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span>Danger Zone</span>
+                <button type="button" className="settings-edit-btn" onClick={() => setDangerZoneOpen(v => !v)}>
+                  {dangerZoneOpen ? 'Close' : 'Open'}
+                </button>
+              </div>
+              {dangerZoneOpen && (realm.isOwner !== false ? (
                 <div className="settings-row">
                   <span className="settings-row-label" style={{ color: 'var(--stone-gray)', fontSize: '0.85rem' }}>
                     Permanently delete this realm and all its games
@@ -113,7 +121,7 @@ export default function RealmSettingsModal({ realm, realms = [], unlockedChestIn
                     Leave Realm
                   </button>
                 </div>
-              )}
+              ))}
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1.4rem' }}>

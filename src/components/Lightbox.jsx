@@ -1,13 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import ValInfo from './ValInfo';
 import ScoreTimelineChart from './ScoreTimelineChart';
 import { SCORE_TYPE_ORDER, SCORE_TYPE_COLORS, STATISTICS_CONFIG } from '../constants';
 import { getMeepleColor, formatDurationHMS, formatDateDigital } from '../utils/formatters';
-import pigImg    from '../../images/icons/pig.png';
-import cImg      from '../../images/icons/C.png';
-import goldImg   from '../../images/icons/gold.png';
-import silverImg from '../../images/icons/silver.png';
-import bronzeImg from '../../images/icons/bronze.png';
+import scrollCapTop    from '../../images/icons/scroll-cap-top.png';
+import scrollCapBottom from '../../images/icons/scroll-cap-bottom.png';
 
 const MEEPLE_MODULES = import.meta.glob('../../images/meeples/*.png',     { eager: true, import: 'default' });
 const FUN_MODULES    = import.meta.glob('../../images/meeples/fun/*.png', { eager: true, import: 'default' });
@@ -27,13 +23,6 @@ const SCORE_GROUPS = [
 const TYPE_TO_GROUP = {};
 SCORE_GROUPS.forEach(g => g.types.forEach(t => { TYPE_TO_GROUP[t] = g; }));
 
-// 1st/2nd/3rd place medals — indexed by row position (sorted already puts the
-// standings in score order), shown to the left of the standings box. Fixed
-// MEDAL_SIZE reserved for every row (even 4th place and below, via an empty
-// placeholder) so every box's left edge still lines up in one column.
-const PLACE_MEDALS = [goldImg, silverImg, bronzeImg];
-const MEDAL_SIZE = 40;
-
 // Longer player names get a smaller font instead of being truncated with an ellipsis.
 // Takes a character count (the longest name in the list) so every row can share one size.
 function nameFontSize(len) {
@@ -45,7 +34,7 @@ function nameFontSize(len) {
 }
 
 
-export default function Lightbox({ game, games = [], onNavigate, onClose, onDeleteRequest }) {
+export default function Lightbox({ game, games = [], onNavigate, onClose, onDeleteRequest, realmName = null }) {
   const idx = games.findIndex(g => g.id === game.id);
   const [animKey, setAnimKey] = useState(0);
   const [animDir, setAnimDir] = useState(null);
@@ -90,32 +79,22 @@ export default function Lightbox({ game, games = [], onNavigate, onClose, onDele
             <div className="section-title-line" />
           </div>
 
-          {/* Info bar: date (left) · clutch/farm stickers (centered) · duration
+          {/* Info bar: date (left) · realm name (centered) · duration
               (right) — expansions live in their own box near the bottom,
               below the score timeline. Date and duration share the same LED
               stadium-clock look (.game-clock-digits--record) and the same
               fixed width, so the middle segment's flex: 1 auto-centers the
-              stickers in the true middle of the bar, not just "whatever
-              space is left" — no pipe divider needed between date/duration
-              and the stickers now that they're in their own segment instead
-              of crammed into one group. */}
-          <div className="lb-info-bar" style={{ marginBottom: '1.2rem', background: 'var(--aged-paper)', border: 'var(--border-tile)', borderRadius: 'var(--radius-tile)', padding: '0.45rem 1rem', display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'center' }}>
+              realm name in the true middle of the bar. The clutch/farm win
+              stickers that used to live in this middle segment now sit next
+              to the "Score Timeline" title instead (see ScoreTimelineChart.jsx). */}
+          <div className="lb-info-bar" style={{ marginBottom: '1.2rem', background: 'var(--aged-paper)', border: 'var(--border-tile)', borderRadius: 'var(--radius-tile)', padding: '0.45rem 1rem', display: 'flex', flexWrap: 'nowrap', gap: '1rem', alignItems: 'center' }}>
             <div className="game-clock">
               <div className="game-clock-housing">
                 <span className="game-clock-digits game-clock-digits--record">{formatDateDigital(game.date)}</span>
               </div>
             </div>
-            <div style={{ flex: '1 1 auto', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: '0.75rem' }}>
-              {isClutch && (
-                <ValInfo tip="Clutch win" placement="above">
-                  <img src={cImg} alt="clutch" style={{ height: 20, width: 'auto', opacity: 0.85, display: 'block' }} />
-                </ValInfo>
-              )}
-              {game.farmWin && topPlayers.length === 1 && (
-                <ValInfo tip="Farm win" placement="above">
-                  <img src={pigImg} alt="farm win" style={{ height: 16, width: 'auto', opacity: 0.85, display: 'block' }} />
-                </ValInfo>
-              )}
+            <div style={{ flex: '1 1 auto', minWidth: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {realmName && <h2 style={{ margin: 0, color: 'var(--earth-brown)', textAlign: 'center', fontSize: 'clamp(0.4rem, 3.4vw, 1.3rem)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>{realmName}</h2>}
             </div>
             {(game.gameDuration || 0) > 0 && (
               <div className="game-clock">
@@ -127,24 +106,23 @@ export default function Lightbox({ game, games = [], onNavigate, onClose, onDele
           </div>
 
           {/* Standings: one bordered card per player, meeple-colored */}
-          <div className="tile-card" style={{ marginBottom: '1.4rem', borderTop: '4px solid var(--warm-gold)' }}>
-            <div className="chart-header" style={{ margin: '0 0 1rem', textAlign: 'left' }}>Standings</div>
+          <div style={{ maxWidth: '560px', margin: '0 auto 0.5rem' }}>
+            <div className="standings-scroll-top">
+              <img src={scrollCapTop} alt="" className="standings-scroll-cap" />
+              <div className="chart-header standings-scroll-title">Standings</div>
+            </div>
+            <div className="standings-scroll-body">
             <div className="postgame-scores-grid">
-              {sorted.map((p, i) => {
+              {sorted.map((p) => {
                 const color = getMeepleColor(p.meeple);
                 return (
                   <div key={p.name} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                    {PLACE_MEDALS[i] ? (
-                      <img src={PLACE_MEDALS[i]} alt={`${i + 1} place`} style={{ height: MEDAL_SIZE, width: 'auto', flexShrink: 0 }} />
-                    ) : (
-                      <span style={{ flexShrink: 0, width: MEDAL_SIZE }} />
-                    )}
                     <div className="postgame-player-card" style={{ borderLeft: `3px solid ${color}` }}>
                     {/* Headline-record medal chips now live on the score timeline
                         instead of here (see ScoreTimelineChart.jsx) — just name and
                         score in this row. */}
                     <div style={{ display: 'flex', flexWrap: 'nowrap', alignItems: 'center', gap: '0.5rem' }}>
-                      <img src={MEEPLE_IMGS[p.meeple] || FALLBACK_MEEPLE} alt={p.name} style={{ height: 26, width: 'auto', flexShrink: 0 }} />
+                      <img src={MEEPLE_IMGS[p.meeple] || FALLBACK_MEEPLE} alt={p.name} style={{ height: 'clamp(18px, 5vw, 26px)', width: 'auto', flexShrink: 0 }} />
                       {/* Name — every row shares one font size and width (both set by
                           the longest name) so scores line up directly to the right of
                           the longest name across every row */}
@@ -181,6 +159,8 @@ export default function Lightbox({ game, games = [], onNavigate, onClose, onDele
                 );
               })}
             </div>
+            </div>
+            <img src={scrollCapBottom} alt="" className="standings-scroll-cap" />
           </div>
 
           {/* Points breakdown table */}
@@ -389,6 +369,8 @@ export default function Lightbox({ game, games = [], onNavigate, onClose, onDele
                 players={game.players.map(p => p.name)}
                 duration={game.gameDuration}
                 achievements={game.achievements}
+                isClutch={isClutch}
+                farmWin={game.farmWin && topPlayers.length === 1}
               />
             </div>
           )}

@@ -296,7 +296,7 @@ h3 { font-size: clamp(0.9rem, 2.5vw, 1.15rem); font-weight: 600; }
   gap: 1rem;
   margin-bottom: 0.8rem;
 }
-.section-title h2 { white-space: nowrap; color: var(--earth-brown); font-size: clamp(0.85rem, 3vw, 1.55rem); }
+.section-title h2 { white-space: nowrap; color: var(--earth-brown); font-size: clamp(0.55rem, 3vw, 1.55rem); }
 .section-title-back {
   display: inline-flex;
   align-items: center;
@@ -311,7 +311,7 @@ h3 { font-size: clamp(0.9rem, 2.5vw, 1.15rem); font-weight: 600; }
   line-height: 1.2;
   white-space: nowrap;
   color: var(--earth-brown);
-  font-size: clamp(0.85rem, 3vw, 1.55rem);
+  font-size: clamp(0.55rem, 3vw, 1.55rem);
   transition: color var(--transition-lift);
 }
 .section-title-back:hover { color: var(--warm-gold); }
@@ -358,7 +358,7 @@ h3 { font-size: clamp(0.9rem, 2.5vw, 1.15rem); font-weight: 600; }
 }
 .pregame-step.active {
   color: var(--earth-brown);
-  font-size: clamp(0.85rem, 3vw, 1.55rem);
+  font-size: clamp(0.55rem, 3vw, 1.55rem);
 }
 .pregame-step-sep {
   color: var(--stone-gray);
@@ -395,11 +395,11 @@ h3 { font-size: clamp(0.9rem, 2.5vw, 1.15rem); font-weight: 600; }
 /* ── Wooden Button ── */
 .btn {
   font-family: 'Cinzel', serif;
-  font-size: clamp(0.68rem, 1.8vw, 0.82rem);
+  font-size: clamp(0.5rem, 1.8vw, 0.82rem);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   cursor: var(--cursor-pointer);
-  padding: 0.6rem 1.5rem;
+  padding: clamp(0.4rem, 2.5vw, 0.6rem) clamp(0.8rem, 5vw, 1.5rem);
   border-radius: var(--radius-tile);
   border: 2px solid #6B4F10;
   background: linear-gradient(160deg, #D9AE52 0%, #B88B2E 55%, #9A7020 100%);
@@ -437,6 +437,15 @@ h3 { font-size: clamp(0.9rem, 2.5vw, 1.15rem); font-weight: 600; }
    here, unconditionally, fixes that direction too instead of just working
    around it per-direction. */
 .pregame-begin-btn {
+  transition: transform var(--transition-lift);
+}
+
+/* Same fix, same reason — the score board tour's last stop spotlights
+   Final Scoring, and closing the tour there ("Got it!") reverts this
+   button from tour-highlight's huge spotlight shadow back to its own,
+   animated by .btn's own transition, unless box-shadow is excluded here
+   too. See Board.jsx for where this class is applied. */
+.board-tour-finish-btn {
   transition: transform var(--transition-lift);
 }
 
@@ -489,7 +498,12 @@ h3 { font-size: clamp(0.9rem, 2.5vw, 1.15rem); font-weight: 600; }
   width: 100%;
   padding: 0.58rem 0.9rem;
   font-family: 'Crimson Text', serif;
-  font-size: clamp(0.88rem, 2.2vw, 1.05rem);
+  /* Floor is 1rem (16px), not lower — iOS Safari auto-zooms the whole page
+     in when a focused input's font-size computes under 16px, and the
+     sign-in form autofocuses on load (see Auth.jsx), so this was zooming
+     the page in immediately on every sign-in with no user pinch/zoom
+     involved at all. */
+  font-size: clamp(1rem, 2.2vw, 1.05rem);
   background: rgba(244,230,200,0.85);
   border: 1.5px solid rgba(43,43,43,0.38);
   border-radius: var(--radius-sm);
@@ -516,6 +530,17 @@ input[type="search"], input[type="number"] {
   grid-template-columns: 1fr 64px 1fr;
   gap: 1.2rem;
   align-items: start;
+}
+
+/* Expansions + Required Pieces boxes (PreGameSetup.jsx) — side by side on
+   normal screens, but forcing two 1fr columns has no floor: on a narrow
+   phone both boxes just keep getting squeezed instead of ever stacking.
+   Stacks to one column at the same 640px breakpoint the rest of this file
+   uses for two-column-to-one-column swaps (see .log-form-grid above). */
+.pregame-expansions-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.4rem;
 }
 
 .vs-divider {
@@ -563,8 +588,8 @@ input[type="search"], input[type="number"] {
 
 .expansion-chip {
   font-family: 'Crimson Text', serif;
-  font-size: clamp(0.7rem, 2vw, 0.88rem);
-  padding: 0.28rem 0.75rem;
+  font-size: clamp(0.5rem, 2vw, 0.88rem);
+  padding: clamp(0.18rem, 1.2vw, 0.28rem) clamp(0.45rem, 3vw, 0.75rem);
   border: 1.5px solid var(--charcoal);
   border-radius: var(--radius-sm);
   background: var(--parchment);
@@ -680,7 +705,7 @@ input[type="search"], input[type="number"] {
    characters, since it's a record, not a timer. */
 .game-clock-digits--record {
   width: 6.4em; /* fits "00:00:00"/"00/00/00" without clipping the last digit */
-  font-size: clamp(0.68rem, 2vw, 0.8rem);
+  font-size: clamp(0.18rem, 2.6vw, 0.8rem);
 }
 
 /* Final-score variant of the same stadium-clock housing (post-game form,
@@ -690,7 +715,7 @@ input[type="search"], input[type="number"] {
    of the row rather than a secondary detail. */
 .game-clock-digits--score {
   width: 2.6em;
-  font-size: clamp(0.8rem, 2.4vw, 1rem);
+  font-size: clamp(0.65rem, 2.4vw, 1rem);
 }
 
 .board-ui {
@@ -868,14 +893,6 @@ input[type="search"], input[type="number"] {
 .player-card.p1 { border-top: 4px solid var(--deep-red); }
 .player-card.p2 { border-top: 4px solid var(--royal-blue); }
 
-.card-crown {
-  position: absolute;
-  top: 6px;
-  right: 12px;
-  width: clamp(28px, 5vw, 52px);
-  height: auto;
-  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.25));
-}
 
 .player-card-name {
   font-family: 'Cinzel', serif;
@@ -888,16 +905,15 @@ input[type="search"], input[type="number"] {
 .p1 .player-card-name { color: var(--deep-red); }
 .p2 .player-card-name { color: var(--royal-blue); }
 
-/* Account rank badge — shown on a PlayerCard only for players linked to a
-   real account (self or a realm co-member); see PlayerCard.jsx's `progress`
-   prop. A real button (not a span) — click opens MemberProgressModal, that
-   member's current milestone standing; background/cursor reset since it's a
-   <button>, not just a display chip. */
+/* Account rank badge — Overview standings row (PointBreakdownChart.jsx),
+   shown for players linked to a real account (self or a realm co-member).
+   Kept small so the full rank name (up to 11 characters, "Realmkeeper")
+   reads without ellipsizing at its fixed column width in the row. */
 .player-card-rank-badge {
   font-family: 'Cinzel', serif;
-  font-size: 0.6rem;
+  font-size: clamp(0.34rem, 1.3vw, 0.5rem);
   font-weight: 600;
-  padding: 0.1rem 0.4rem;
+  padding: clamp(0.04rem, 0.4vw, 0.08rem) clamp(0.18rem, 1vw, 0.32rem);
   border: 1px solid var(--warm-gold);
   border-radius: 8px;
   background: none;
@@ -958,14 +974,34 @@ input[type="search"], input[type="number"] {
 .player-card-flip.flipped .player-card-front { pointer-events: none; }
 
 /* ── Me page hero card ── */
+/* Wide screens: character card and Career Highlights stacked in the left
+   column, Gallery spanning both their rows in a tall right column (see
+   Profile.jsx — .me-hero-char/.me-hero-highlights/.me-hero-gallery assign
+   each child to its area). Narrow screens: a single column, ordered by
+   the area list below (char, then highlights, then gallery) regardless of
+   each element's actual position in the DOM/JSX — grid-template-areas is
+   what lets the wide 2-column arrangement and the narrow stacking order
+   both come from CSS alone, with no reordering needed in the markup. */
 .me-hero-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-areas:
+    "char      gallery"
+    "highlights gallery";
   gap: 0.5rem 2rem;
   align-items: start;
 }
-@media (max-width: 640px) {
-  .me-hero-grid { grid-template-columns: minmax(0, 1fr); }
+.me-hero-char       { grid-area: char; }
+.me-hero-highlights { grid-area: highlights; }
+.me-hero-gallery    { grid-area: gallery; }
+@media (max-width: 900px) {
+  .me-hero-grid {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "char"
+      "highlights"
+      "gallery";
+  }
 }
 
 /* ── Account milestone tiers (Me page) ── */
@@ -1163,12 +1199,43 @@ input[type="search"], input[type="number"] {
   border: var(--border-tile);
   border-radius: var(--radius-tile);
   box-shadow: var(--shadow-tile);
-  padding: 0.5rem 1.5rem 1.5rem 1.5rem;
+  padding: 0.5rem 0.5rem 1.5rem 0.5rem;
   transition: box-shadow var(--transition-lift);
+  /* Own stacking context, raised just above normal page content (way below
+     any real modal/tour z-index — see index.css's overlay scale) — so a
+     score-timeline callout (see ScoreTimelineChart.jsx) that spills past
+     this card's own box, which is expected when several records cluster
+     close together, paints over whatever's next on the page instead of
+     sliding underneath it. */
+  position: relative;
+  z-index: 1;
 }
 
 .chart-container:hover {
   box-shadow: var(--shadow-tile-hover);
+}
+
+/* Recharts sets overflow: hidden inline on its own wrapper div and the
+   <svg> it renders, which silently wins over the overflow: 'visible' style
+   passed to <LineChart> in ScoreTimelineChart.jsx (that lands on the wrong
+   node) — !important is what it actually takes to override an inline
+   style here, same reason .recharts-legend-wrapper's padding below needs
+   it too. Without this, anything the achievement-badge callouts push past
+   the plotted area (see layoutCallouts) gets silently clipped instead of
+   spilling visibly, however far off it lands. */
+.chart-container .recharts-wrapper,
+.chart-container .recharts-wrapper svg {
+  overflow: visible !important;
+}
+
+/* The container's own left/right padding is kept tight (0.5rem, see above)
+   so chart CONTENT — axis numbers, plotted bars/lines — sits close to the
+   card edge, but the title itself still needs to line up with every other
+   card's title (e.g. Standings' tile-card, 1.5rem padding) — the extra
+   1rem here makes up that difference so titles read as one consistent row
+   across cards regardless of how tight the chart body underneath is. */
+.chart-container .chart-header {
+  padding-left: 1rem;
 }
 
 /* Box-less variant — sits directly on the page background (realm overview) */
@@ -1507,7 +1574,7 @@ input[type="file"] { display: none; }
 /* ── Game count badge ── */
 .game-count {
   font-family: 'Cinzel', serif;
-  font-size: clamp(0.55rem, 1.8vw, 0.72rem);
+  font-size: clamp(0.4rem, 1.8vw, 0.72rem);
   background: rgba(201,163,74,0.18);
   border: 1px solid var(--warm-gold);
   color: var(--earth-brown);
@@ -1688,6 +1755,20 @@ input[type="file"] { display: none; }
 
 .tour-card {
   background: #FFFFFF;
+  /* Smaller than .tile-card's default 1.5rem — full tile-card padding reads
+     oversized on a small, temporary popup like this, especially once the
+     Back/Next buttons below shrink too and leave visible slack around them. */
+  padding: 0.8rem 0.9rem;
+}
+
+/* Back/Next/Got it!/Create inside a tour card — .btn-sm alone still reads
+   chunky at this card's scale (full-word uppercase Cinzel labels, generous
+   padding). Scoped to .tour-card rather than a new global .btn-xs so
+   nothing outside these popups is affected. */
+.tour-card .btn {
+  font-size: clamp(0.55rem, 1.3vw, 0.64rem);
+  padding: 0.25rem 0.55rem;
+  letter-spacing: 0.03em;
 }
 
 /* Triangle on the card's top edge, pointing up at whatever's spotlighted
@@ -1712,12 +1793,24 @@ input[type="file"] { display: none; }
   border-bottom: 14px solid #FFFFFF;
 }
 
+/* The Board tour's last stop docks ABOVE its target instead of below (see
+   useTourCardPosition's `placement` param) so the Final Scoring button it's
+   pointing at stays visible underneath the card rather than covered by it.
+   The arrow flips to match — pointing down from the card's bottom edge
+   instead of up from its top. */
+.tour-card.tour-card-arrow-down::after {
+  top: auto;
+  bottom: -14px;
+  border-bottom: none;
+  border-top: 14px solid #FFFFFF;
+}
+
 /* Realms hub's chest/logbook fork (see RealmHubTourCards/HubSection in
    HowToGuide.jsx) — one ordinary .tour-card holding two sections (chest,
    then logbook) instead of two separate popups. */
 .tour-hub-section-divider {
-  margin-top: 1rem;
-  padding-top: 1rem;
+  margin-top: 0.6rem;
+  padding-top: 0.6rem;
   border-top: 1px solid rgba(43, 27, 10, 0.15);
 }
 
@@ -1821,7 +1914,14 @@ input[type="file"] { display: none; }
   cursor: var(--cursor-pointer);
   box-shadow: 1px 2px 0 rgba(0, 0, 0, 0.2);
 }
-.tour-close-btn:hover { background: rgba(158, 42, 43, 0.07); }
+/* A solid fill, not a faint tint — the same near-invisible wash
+   .btn-ghost-red:hover uses reads fine on a full-size button but
+   disappears at this control's 18px scale, landing as "goes a bit
+   transparent" rather than an actual highlight. The × itself flips to
+   parchment on hover for contrast against the now-solid red. */
+.tour-close-btn:hover { background: var(--deep-red); }
+.tour-close-btn:hover::before,
+.tour-close-btn:hover::after { background: var(--parchment); }
 /* The "×" itself, drawn from two rotated bars rather than a text glyph —
    a Unicode × at this size renders inconsistently thin/off-center across
    system fonts (the same issue the "i" info-icon glyph had). */
@@ -1835,21 +1935,24 @@ input[type="file"] { display: none; }
   height: 1.5px;
   background: var(--deep-red);
   border-radius: 1px;
+  transition: background var(--transition-lift);
 }
 .tour-close-btn::before { transform: translate(-50%, -50%) rotate(45deg); }
 .tour-close-btn::after { transform: translate(-50%, -50%) rotate(-45deg); }
 
 /* Non-interactive progress dots for the tour card, mirroring the milestone
-   carousel's dot pagination look. */
+   carousel's dot pagination look. Kept tiny — this row also has to fit
+   Back and Next on either side of it (see the grid footer in
+   HowToGuide.jsx), so the dots shouldn't be competing for width. */
 .tour-dots {
   display: flex;
-  gap: 0.45rem;
+  gap: 0.3rem;
 }
 .tour-dot {
-  width: 9px;
-  height: 9px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
-  border: 1.5px solid var(--earth-brown);
+  border: 1px solid var(--earth-brown);
   background: transparent;
 }
 .tour-dot.active {
@@ -1921,8 +2024,8 @@ input[type="file"] { display: none; }
 }
 
 .meeple-option {
-  width: 50px;
-  height: 50px;
+  width: clamp(28px, 9vw, 50px);
+  height: clamp(28px, 9vw, 50px);
   border-radius: var(--radius-sm);
   border: 2px solid rgba(43,43,43,0.3);
   background: var(--parchment);
@@ -1953,19 +2056,24 @@ input[type="file"] { display: none; }
 /* Side by side on wide screens, stacked on narrow ones (see
    PreGameSetup.jsx's chest-logbook-columns wrapper). min-width matches
    what a 4-column row of .chest-pick/.logbook-pick boxes actually needs
-   at their largest (4 × 100px box + 3 × 0.6rem gap ≈ 429px, +buffer) —
-   without it, flex would happily shrink each column narrower than that,
-   and the fixed-column grid inside (which doesn't shrink) would overflow
-   past its column and visually stack on top of the other one instead of
-   the row wrapping to stacked layout like it's supposed to. */
+   at their SMALLEST — the clamp() floor below, not the max — (4 × 46px
+   box + 3 × 0.4rem gap ≈ 203px, +buffer). Sizing this off the floor
+   rather than the ceiling is what actually lets it fit a narrow phone
+   (previously this was sized off the 100px ceiling — 429px — which is
+   wider than most phones are AT ALL, forcing overflow no matter how
+   small the boxes themselves could shrink). Without a min-width here,
+   flex would happily shrink each column narrower than the grid inside
+   needs, and the fixed-column grid (which doesn't shrink itself) would
+   overflow past its column and visually stack on top of the other one
+   instead of the row wrapping to stacked layout like it's supposed to. */
 .chest-logbook-columns {
   display: flex;
   flex-wrap: wrap;
   gap: 1.5rem;
 }
 .chest-logbook-col {
-  flex: 1 1 450px;
-  min-width: 450px;
+  flex: 1 1 300px;
+  min-width: 210px;
 }
 
 /* Chest and logbook pickers — each item sits in its own light grid-cell
@@ -1977,13 +2085,22 @@ input[type="file"] { display: none; }
    throughout rather than a jagged row of differently-shaped/sized tiles.
    Both rows use a fixed 4-column grid (not flex-wrap, which could wrap at
    a different count for each depending on the art) so a row of chests
-   always lines up with a same-size row of logbooks next to it. */
+   always lines up with a same-size row of logbooks next to it.
+   Columns are 1fr (not max-content) and the tiles are width: 100% of
+   their column — when exactly 4 fit in a row (the common case) they
+   share the full row width instead of sitting at their own small natural
+   size with dead space around them. This box also now renders inside
+   Profile.jsx's much narrower Gallery column, not just PreGameSetup's
+   full-width one, so sizing off the actual grid column (not a vw-based
+   clamp, which only ever knew about the full viewport) is what makes it
+   look intentional at any container width. max-width keeps a single
+   leftover tile (a row of 1-3) from stretching absurdly large. */
 .chest-picker-row,
 .logbook-picker-row {
   display: grid;
-  grid-template-columns: repeat(4, max-content);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   align-items: end;
-  gap: 0.6rem;
+  gap: 0.4rem;
 }
 .chest-pick,
 .logbook-pick {
@@ -1991,9 +2108,10 @@ input[type="file"] { display: none; }
   display: flex;
   align-items: center;
   justify-content: center;
-  width: clamp(72px, 9vw, 100px);
-  height: clamp(72px, 9vw, 100px);
-  padding: 0.5rem;
+  width: 100%;
+  aspect-ratio: 1;
+  max-width: 100px;
+  padding: 0.35rem;
   background: var(--aged-paper);
   border: 1px solid rgba(107, 79, 16, 0.25);
   border-radius: var(--radius-sm);
@@ -2113,8 +2231,12 @@ input[type="file"] { display: none; }
   /* Widened for the newer, much wider logbook art (some pieces are closer
      to a book cover's ~0.75 aspect than the old narrow-spine ~0.2) — at
      max chest+book height the row can now need up to ~250px, which the
-     old 240px cap didn't leave room for. */
-  width: clamp(140px, 34vw, 300px);
+     old 240px cap didn't leave room for. Floor raised from 140px, then
+     again from 190px — every card in the grid needs the same height, and
+     a name that wraps to a second line (see .realm-card-name) makes that
+     one card taller than its neighbors, so the floor needs to stay wide
+     enough that wrapping is rare, not just survivable. */
+  width: clamp(230px, 34vw, 300px);
 }
 .realm-card-art-row {
   display: flex;
@@ -2155,17 +2277,20 @@ input[type="file"] { display: none; }
   font-family: 'Cinzel', serif;
   font-weight: 700;
   /* Low floor matters here: .realm-card itself bottoms out at a fixed
-     200px (clamp(200px, 34vw, 300px)) below a ~588px viewport, but this
+     230px (clamp(230px, 34vw, 300px)) below a ~676px viewport, but this
      3.6vw term keeps shrinking well past that point — without a low floor
-     a 20-char name on a narrow phone would just get truncated instead of
-     actually getting smaller to fit. */
-  font-size: clamp(0.8rem, 3.6vw, 1.35rem);
+     a 20-char name on a narrow phone would just get bigger than the card
+     instead of actually getting smaller to fit. Forced onto one line
+     (nowrap) rather than allowed to wrap — a name that wraps makes that
+     one card taller than every other card in the grid, which reads worse
+     than the rare truncated name at the very smallest sizes. */
+  font-size: clamp(0.45rem, 3.6vw, 1.35rem);
   color: var(--earth-brown);
   text-align: center;
   max-width: 100%;
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
 }
 .realm-card-settings-btn {
   position: absolute;
@@ -2183,15 +2308,75 @@ input[type="file"] { display: none; }
 .realm-card-settings-btn:hover { color: var(--earth-brown); }
 
 /* ── Post-game record form ── */
+
+/* Standings "scroll" (PostGameForm.jsx/Lightbox.jsx) — scroll-cap-top.png/
+   scroll-cap-bottom.png (cropped from images/icons/scroll-part1.png/
+   scroll-part2.png: the roller + velvet + stitched border, stopping just
+   inside the flat parchment so the crop edge lands in a boring, uniform
+   part of the art) cap a flexible middle whose height just follows however
+   many player rows there are — two players needs a much shorter scroll
+   than six. The middle's flat fill color (#f2e5cb) is sampled directly
+   from the cap images' own parchment tone, not the app's usual
+   --aged-paper (a noticeably darker tan) — matching the real art is what
+   makes the seam where each image ends and the CSS fill begins invisible.
+   The title sits inside the top cap's own parchment strip, not the
+   flexible body below it, via absolute positioning with a PERCENTAGE
+   bottom offset rather than a flat px one — the cap image is responsive
+   (width: 100%, height: auto), and a percentage is what keeps the title
+   sitting in that same strip regardless of how wide the card itself
+   renders, since the strip is a fixed fraction of the image's own height. */
+.standings-scroll-top {
+  position: relative;
+}
+.standings-scroll-cap {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.standings-scroll-title {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -5%;
+  margin: 0;
+  text-align: center;
+  font-size: clamp(0.55rem, 2.4vw, 1rem);
+  font-weight: 700;
+}
+/* Tiled from scroll-middle.png (cropped from the same green-velvet scroll
+   art as the caps) rather than a flat fill — a solid color left the body
+   reading as plain background with the textured parchment grain only on
+   the caps, breaking the illusion that it's one continuous scroll.
+   scroll-cap-top.png/scroll-cap-bottom.png/scroll-middle.png are all
+   trimmed to their opaque bounding box and normalized to the same 788px
+   content width (see images/icons/) — the three crops came from two
+   different source canvases (scroll-part1.png at 858px, scroll-part2.png
+   at 940px) with different amounts of transparent padding around the same
+   physical cloth width, so naively stretching each to the card's width
+   independently left the velvet border a different width in the middle
+   than in the caps. background-size: 100% auto then scales that shared
+   788px reference to the card's actual rendered width, keeping the tile's
+   own aspect ratio so the border lines up with the caps regardless of how
+   wide the card renders. */
+.standings-scroll-body {
+  background-color: #f2e5cb;
+  background-image: url(../images/icons/scroll-middle.png);
+  background-repeat: repeat-y;
+  background-size: 100% auto;
+  padding: 1rem 1.6rem 0.8rem;
+}
+
 .postgame-scores-grid {
   display: flex;
   flex-direction: column;
   /* Centers each row instead of stretching it to the tile-card's full
      width — with the medal-chip badges gone (see ScoreTimelineChart.jsx),
-     a row only needs to fit a meeple, the longest name, a rank badge, and
-     a score, all of which are already fixed/min-width (see .postgame-
-     player-card usage in Lightbox.jsx/PostGameForm.jsx), so every row
-     naturally lands at the same, much narrower width. */
+     a row only needs to fit a meeple, the longest name, and a score, all
+     of which are already fixed/min-width (see .postgame-player-card usage
+     in Lightbox.jsx/PostGameForm.jsx), so every row naturally lands at the
+     same, much narrower width. PostGameForm.jsx's rank badge is gone too —
+     the whole card is clickable there now, when the player has a rank to
+     show (see its onClick). */
   align-items: center;
   gap: 0.5rem;
 }
@@ -2200,8 +2385,19 @@ input[type="file"] { display: none; }
   background: var(--parchment);
   border: 1.5px solid rgba(43,43,43,0.28);
   border-radius: var(--radius-sm);
-  padding: 0.6rem 0.8rem;
+  padding: clamp(0.4rem, 2vw, 0.6rem) clamp(0.5rem, 2.5vw, 0.8rem);
   box-shadow: 1px 2px 4px rgba(0,0,0,0.1);
+}
+/* Only PostGameForm.jsx's cards ever get this modifier (a player with a
+   rank to show — see its onClick) — Lightbox.jsx's identical-looking cards
+   are never clickable, so they shouldn't lift on hover just because they
+   share the base class. */
+.postgame-player-card--clickable {
+  transition: transform var(--transition-lift), box-shadow var(--transition-lift);
+}
+.postgame-player-card--clickable:hover {
+  transform: translateY(-2px);
+  box-shadow: 2px 5px 10px rgba(0,0,0,0.22);
 }
 
 .postgame-crown {
@@ -2247,6 +2443,10 @@ input[type="file"] { display: none; }
     grid-template-columns: 1fr;
     gap: 0;
   }
+  .pregame-expansions-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
   .vs-divider {
     flex-direction: row;
     padding: 0.5rem 0;
@@ -2266,7 +2466,6 @@ input[type="file"] { display: none; }
   .history-table thead th,
   .history-table tbody td { padding: 0.5rem 0.5rem; }
 
-  .meeple-option { width: 38px; height: 38px; padding: 3px; }
   .meeple-options { gap: 0.3rem; }
 
   .app-wrapper { padding: 0 0.9rem; }
@@ -2355,6 +2554,24 @@ input[type="file"] { display: none; }
   padding: 0.55rem 0;
 }
 .settings-row + .settings-row { border-top: 1px solid rgba(201, 163, 74, 0.18); }
+/* BoardSettingsModal wraps each row in a .settings-item (row + its own
+   optional inline expand panel below, see .settings-expand) so the
+   separator lives on the WRAPPER instead — a bare .settings-row directly
+   under one of these expand panels would otherwise pick up the adjacent-
+   sibling rule above and gain a spurious border of its own. Every other
+   .settings-row user (Profile/RealmSettingsModal's Account Settings) has no
+   wrapper and keeps using the plain rule above unaffected. */
+.settings-item + .settings-item { border-top: 1px solid rgba(201, 163, 74, 0.18); }
+/* The inline editor panel itself — a lightly tinted inset box so it reads
+   as "belongs to the row above it" rather than a whole separate card
+   dropped into the middle of the list. */
+.settings-expand {
+  margin: 0 0 0.7rem;
+  padding: 0.8rem;
+  background: rgba(201, 163, 74, 0.08);
+  border: 1px solid rgba(201, 163, 74, 0.25);
+  border-radius: var(--radius-sm);
+}
 .settings-row-label { font-size: 0.92rem; color: var(--charcoal); }
 .settings-row-control {
   display: inline-flex;
@@ -2373,9 +2590,9 @@ input[type="file"] { display: none; }
   background: none;
   border: 1px solid var(--warm-gold);
   border-radius: var(--radius-sm);
-  padding: 0.2rem 0.65rem;
+  padding: clamp(0.14rem, 1vw, 0.2rem) clamp(0.4rem, 2.5vw, 0.65rem);
   font-family: 'Cinzel', serif;
-  font-size: 0.62rem;
+  font-size: clamp(0.45rem, 1.6vw, 0.62rem);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--earth-brown);
