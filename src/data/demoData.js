@@ -12,13 +12,12 @@ export const DEMO_USER_NAME = 'Alex';
 // real unlock set is just item 1 (index 0, same lock everyone starts at),
 // which would make the Gallery step look empty/pointless mid-tour. These
 // stand in for a populated account instead, matching CHESTS/SPINES'
-// 001.png.. filename-sorted indices (see data/chests.js/spines.js) — 001
-// (index 0, listed first since it's always the actual first-ever unlock)
-// plus 003/004/008/012/014 zero-indexed. Same indices for both chest and
+// 001.png.. filename-sorted indices (see data/chests.js/spines.js) — 001,
+// 002, 003, 005, 008, 009 zero-indexed. Same indices for both chest and
 // logbook since the tour just needs "several unlocked, not all", not any
 // particular pairing.
-export const DEMO_UNLOCKED_CHEST_INDICES    = new Set([0, 2, 3, 7, 11, 13]);
-export const DEMO_UNLOCKED_LOGBOOK_INDICES  = new Set([0, 2, 3, 7, 11, 13]);
+export const DEMO_UNLOCKED_CHEST_INDICES    = new Set([0, 1, 2, 4, 7, 8]);
+export const DEMO_UNLOCKED_LOGBOOK_INDICES  = new Set([0, 1, 2, 4, 7, 8]);
 
 const demoPlayers = (names) => names.map((name, i) =>
   i === 0

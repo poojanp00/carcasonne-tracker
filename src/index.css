@@ -2284,12 +2284,19 @@ input[type="file"] { display: none; }
   display: block;
   height: clamp(58px, 14vw, 120px);
   width: auto;
+  max-width: 150px;
   filter: drop-shadow(3px 4px 6px rgba(43, 27, 10, 0.4));
 }
 .realm-card-book img {
   display: block;
   height: clamp(54px, 13vw, 110px);
   width: auto;
+  /* Newer logbook art ranges from old narrow-spine (~0.2 aspect) to
+     book-cover style (~0.75-0.8 aspect) — height-only sizing lets a
+     cover-style piece render nearly twice as wide as a spine-style one at
+     the same height, making it look oversized next to its neighbors.
+     Capped so no single piece of art can outgrow the row. */
+  max-width: 90px;
   filter: drop-shadow(3px 4px 6px rgba(43, 27, 10, 0.4));
 }
 .realm-card-chest.locked-tile img,

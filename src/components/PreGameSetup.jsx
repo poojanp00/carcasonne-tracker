@@ -106,6 +106,18 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
   // state yet.
   const unlockedChestIdx = unlockedChestIndices || new Set([0]);
   const unlockedLogbookIdx = unlockedLogbookIndices || new Set([0]);
+  // Same capping Profile.jsx's Gallery uses (see galleryFarthest there):
+  // only show up to the farthest item either track has reached — not the
+  // whole catalog with everything past it teased as locked/guest-blocked.
+  // Both chest and logbook columns share one farthest point so a chest
+  // stuck at 007 while logbooks reached 009 still shows chest silhouettes
+  // for 008/009, matching the logbook column's length. Applies the same to
+  // guests and signed-in accounts alike — a guest's real unlocked set is
+  // just index 0, so this naturally leaves them with a single chest/
+  // logbook pair and nothing else to preview.
+  const pickerFarthest = Math.max(-1, ...unlockedChestIdx, ...unlockedLogbookIdx);
+  const pickerChests = Array.from({ length: pickerFarthest + 1 }, (_, i) => CHESTS[i]);
+  const pickerLogbooks = Array.from({ length: pickerFarthest + 1 }, (_, i) => SPINES[i]);
   // Steps: 1=Players (roster, invite status, and meeples), 2=Realm creation,
   // 5=Expansions. Step 3 was an old Mode Selection step (Table vs. Party)
   // and step 4 was a standalone Meeples step later folded into Players —
@@ -1008,19 +1020,13 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
                     Select a Chest
                   </label>
                   <ArtPickerGrid
-                    items={CHESTS}
+                    items={pickerChests}
                     rowClassName="chest-picker-row"
                     pickClassName="chest-pick"
                     altPrefix="Chest"
                     selectedIndex={chestIndex}
                     onSelect={setChestIndex}
-                    // Chests 002–006 (indices 1-5) don't even render a
-                    // locked silhouette for guests — signing in reveals
-                    // them, rather than teasing that art up front.
-                    hideIndex={i => isGuest && i >= 1 && i <= 5}
-                    isGuestBlocked={i => isGuest && i !== 0}
-                    isLocked={i => !isGuest && !unlockedChestIdx.has(i)}
-                    guestTip="Sign in to customize your realm's chest."
+                    isLocked={i => !unlockedChestIdx.has(i)}
                   />
                 </div>
                 <div className="chest-logbook-col">
@@ -1028,16 +1034,13 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
                     Select a Logbook
                   </label>
                   <ArtPickerGrid
-                    items={SPINES}
+                    items={pickerLogbooks}
                     rowClassName="logbook-picker-row"
                     pickClassName="logbook-pick"
                     altPrefix="Logbook"
                     selectedIndex={spineIndex}
                     onSelect={setSpineIndex}
-                    hideIndex={i => isGuest && i >= 1 && i <= 5}
-                    isGuestBlocked={i => isGuest && i !== 0}
-                    isLocked={i => !isGuest && !unlockedLogbookIdx.has(i)}
-                    guestTip="Sign in to customize your realm's logbook."
+                    isLocked={i => !unlockedLogbookIdx.has(i)}
                   />
                 </div>
               </div>
