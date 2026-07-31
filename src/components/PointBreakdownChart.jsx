@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
 import { SCORE_TYPE_ORDER, SCORE_TYPE_COLORS } from '../constants';
+import { rankTitle } from '../utils/metaRank';
 
 const TYPE_LABELS = {
   road: 'Road', city: 'City', monastery: 'Monastery', field: 'Field',
@@ -31,7 +32,7 @@ SCORE_GROUPS.forEach(g => g.types.forEach(t => { TYPE_TO_GROUP[t] = g; }));
  * @param {boolean}   footerAlways - Show the footer outright instead of tucking it behind the dropdown
  * @param {boolean}   bare         - Render without the card box, directly on the page background
  */
-export default function PointBreakdownChart({ players, showLegend = false, title = 'Complete Points Breakdown', winsByPlayer = null, footer = null, footerAlways = false, bare = false }) {
+export default function PointBreakdownChart({ players, showLegend = false, title = 'Complete Points Breakdown', winsByPlayer = null, rankByPlayer = null, footer = null, footerAlways = false, bare = false }) {
   const [tooltip, setTooltip] = useState(null);
   const [showTable, setShowTable] = useState(false);
   const [combined, setCombined] = useState(false);
@@ -122,13 +123,34 @@ export default function PointBreakdownChart({ players, showLegend = false, title
             return (
               <div key={player.name} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                 {winsByPlayer && (
-                  <span style={{ fontFamily: 'Cinzel, serif', fontSize: 'clamp(1rem, 3vw, 1.3rem)', color: 'var(--forest-green)', fontWeight: 600, minWidth: '1.5em', textAlign: 'right', flexShrink: 0 }}>
+                  <span style={{ fontFamily: 'Cinzel, serif', fontSize: 'clamp(1rem, 3vw, 1.3rem)', color: 'var(--forest-green)', fontWeight: 600, minWidth: '1.5em', textAlign: 'left', flexShrink: 0 }}>
                     {winsByPlayer[player.name] ?? ''}
                   </span>
                 )}
-                <span style={{ fontFamily: 'Cinzel, serif', fontSize: winsByPlayer ? 'clamp(1rem, 3vw, 1.3rem)' : 'clamp(0.6rem, 1.8vw, 0.78rem)', color: winsByPlayer ? 'var(--charcoal)' : 'var(--stone-gray)', minWidth: winsByPlayer ? 'clamp(100px, 28vw, 180px)' : 'clamp(48px, 12vw, 80px)', textAlign: winsByPlayer ? 'left' : 'right', flexShrink: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {/* Narrower on tight phone widths than the old fixed
+                    100-180px range — that reserved more room than most
+                    names need and left too little for the bar itself on a
+                    narrow screen; a long name now just ellipsizes instead. */}
+                <span style={{ fontFamily: 'Cinzel, serif', fontSize: winsByPlayer ? 'clamp(1rem, 3vw, 1.3rem)' : 'clamp(0.6rem, 1.8vw, 0.78rem)', color: winsByPlayer ? 'var(--charcoal)' : 'var(--stone-gray)', width: winsByPlayer ? 'clamp(64px, 18vw, 150px)' : 'clamp(48px, 12vw, 80px)', minWidth: 0, textAlign: winsByPlayer ? 'left' : 'right', flexShrink: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {player.name}
                 </span>
+                {/* Fixed-width slot (kept even when this player has no rank
+                    yet, via `visibility: hidden` rather than omitting the
+                    span) — moved here from the Roster/Fellowship page's
+                    PlayerCard, only ever set (rankByPlayer) when this chart
+                    is used as Overview's standings box. Reserving the slot
+                    unconditionally keeps every row's bar starting at the
+                    same x regardless of whether that particular player has
+                    a fetched rank (real for a linked member only, same rule
+                    PlayerCard used to apply). */}
+                {rankByPlayer && (
+                  <span
+                    className="player-card-rank-badge"
+                    style={{ flexShrink: 0, width: '11.5ch', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', visibility: rankByPlayer[player.name] != null ? 'visible' : 'hidden' }}
+                  >
+                    {rankByPlayer[player.name] != null ? rankTitle(rankByPlayer[player.name]) : ' '}
+                  </span>
+                )}
                 <div style={{ flex: 1, height: barHeight }}>
                   <div style={{ width: `${(total / maxTotal) * 100}%`, height: barHeight, borderRadius: '6px', overflow: 'hidden', display: 'flex' }}>
                     {total === 0
@@ -147,7 +169,7 @@ export default function PointBreakdownChart({ players, showLegend = false, title
                     }
                   </div>
                 </div>
-                <span style={{ fontFamily: 'Cinzel, serif', fontSize: 'clamp(0.6rem, 1.8vw, 0.78rem)', color: 'var(--stone-gray)', minWidth: '28px', flexShrink: 0 }}>
+                <span style={{ fontFamily: 'Cinzel, serif', fontSize: 'clamp(0.6rem, 1.8vw, 0.78rem)', color: 'var(--stone-gray)', minWidth: '28px', textAlign: 'right', flexShrink: 0 }}>
                   {total}
                 </span>
               </div>

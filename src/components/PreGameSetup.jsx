@@ -24,13 +24,12 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { MAX_GAME_PLAYERS, MAX_REALMS } from '../constants';
 import { formatPieceName } from '../utils/formatters';
-import { DEFAULT_EXPANSIONS, GUEST_ALLOWED_MINIS } from '../data/expansions';
+import { DEFAULT_EXPANSIONS } from '../data/expansions';
 import { getRealmMemberEmails, getRealmMemberProgress } from '../data/storage';
 import { rankTitle } from '../utils/metaRank';
 import { CreateRealmTourModal, RealmTourModal } from './HowToGuide';
 import { CHESTS, chestFor } from '../data/chests';
 import { SPINES } from '../data/spines';
-import ValInfo from './ValInfo';
 import ArtPickerGrid from './ArtPickerGrid';
 
 // Picks a random index from an unlocked-index Set (see utils/artUnlocks.js)
@@ -100,7 +99,7 @@ function PregameStepper({ step, onJump }) {
   );
 }
 
-export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeples, defaultExpansions, realms = [], currentRealm = null, onExitToHub, onRealmCreate, onExportGroup = null, startAtRealmCreation = false, isGuest = false, selfName = '', unlockedChestIndices = null, unlockedLogbookIndices = null, onToggleOwned = null, tourActive = false }) {
+export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeples, defaultExpansions, realms = [], currentRealm = null, onExitToHub, onRealmCreate, onExportGroup = null, startAtRealmCreation = false, isGuest = false, selfName = '', unlockedChestIndices = null, unlockedLogbookIndices = null, tourActive = false }) {
   // Which CHESTS/SPINES index is actually claimed via each independent
   // art-unlock track (see utils/artUnlocks.js) — defaults to just index 0
   // (item 1's guaranteed rank-1 grant) if the caller hasn't loaded real
@@ -547,21 +546,6 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
     setSelectedExp(prev => prev.includes(name) ? prev.filter(e => e !== name) : [...prev, name]);
 
   /**
-   * COLLECTION EDITING (absorbed from the old Collection tab)
-   *
-   * Edit mode swaps the owned-expansion chips for the full catalog so
-   * ownership can be toggled in place. Removing an owned expansion also
-   * deselects it from the upcoming game.
-   */
-  const [editCollection, setEditCollection] = useState(false);
-  const toggleOwned = (name) => {
-    if (ownedExpansions.includes(name)) {
-      setSelectedExp(prev => prev.filter(n => n !== name));
-    }
-    onToggleOwned?.(name);
-  };
-
-  /**
    * REQUIRED PIECES CALCULATION
    *
    * Dynamically computes all required components based on selected expansions.
@@ -756,21 +740,8 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
                         lines up with the meeple chips row below rather than
                         just hugging its own (narrower) content width. */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', width: '100%' }}>
-                      <span style={{
-                        fontFamily: 'Cinzel, serif',
-                        fontSize: '0.7rem',
-                        color: 'var(--stone-gray)',
-                        opacity: 0.5,
-                        minWidth: '1rem',
-                        textAlign: 'right',
-                      }}>{i + 1}</span>
                       <span className="meeple-picker-name" style={{ minWidth: 0, flex: '0 1 auto' }}>
                         {name}
-                        {memberRanks[name] && (
-                          <span style={{ fontFamily: 'Crimson Text, serif', fontStyle: 'italic', fontSize: '0.72rem', color: 'var(--stone-gray)', opacity: 0.7, marginLeft: '0.4rem' }}>
-                            {rankTitle(memberRanks[name])}
-                          </span>
-                        )}
                       </span>
                       {/* Right side: the player's link status — or an Invite
                           action while the slot is unclaimed (any member) —
@@ -798,7 +769,13 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
                               marginLeft: 'auto',
                             }}
                           >
-                            {{ owner: 'Owner', member: 'Member', pending: 'Pending', uninvited: 'Uninvited' }[status] || 'Uninvited'}
+                            {/* An actual member (owner/member) shows their rank
+                                instead of that role word, once it's loaded —
+                                pending/uninvited slots have no rank to show,
+                                so those keep the plain status text. */}
+                            {(status === 'owner' || status === 'member') && memberRanks[name]
+                              ? rankTitle(memberRanks[name])
+                              : { owner: 'Owner', member: 'Member', pending: 'Pending', uninvited: 'Uninvited' }[status] || 'Uninvited'}
                           </span>
                         )
                       )}
@@ -1108,52 +1085,13 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
         {currentRealm && <span className="game-count">{currentRealm.name}</span>}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.4rem', marginBottom: '1.4rem' }}>
-        {/* Expansions Selection — Edit swaps in the full catalog to manage ownership */}
+      <div className="pregame-expansions-grid" style={{ marginBottom: '1.4rem' }}>
+        {/* Expansions Selection — which of your owned expansions are in play
+            this game. Ownership itself is no longer editable from here (see
+            Collection on the Profile page instead) — this box only ever
+            picks from what's already owned. */}
         <div ref={expansionsLeftRef} className={`tile-card${tourStage === 'expansions' ? ' tour-highlight' : ''}`} style={{ display: 'flex', flexDirection: 'column' }}>
-
-          {editCollection ? (() => {
-            const itemState = (exp) => {
-              if (isGuest && !(exp.type === 'mini' && GUEST_ALLOWED_MINIS.has(exp.name))) {
-                return { editable: false, tip: 'Sign in to use expansions.' };
-              }
-              if (!exp.complete) return { editable: false, tip: 'Under development. Please check back later.' };
-              return { editable: true };
-            };
-            const renderEditGroup = (label, exps) => exps.length === 0 ? null : (
-              <div style={{ marginBottom: '1rem' }}>
-                <div style={{ fontSize: '0.8rem', fontFamily: 'Cinzel, serif', fontWeight: 600, letterSpacing: '0.06em', color: 'var(--earth-brown)', marginBottom: '0.6rem' }}>
-                  {label}
-                </div>
-                <div className="expansion-chips">
-                  {exps.map(exp => {
-                    const { editable, tip } = itemState(exp);
-                    const chip = (
-                      <button
-                        key={exp.name}
-                        type="button"
-                        className={`expansion-chip ${ownedExpansions.includes(exp.name) ? 'selected' : ''}${editable ? '' : ' settings-dev'}`}
-                        onClick={editable ? (e) => { toggleOwned(exp.name); e.currentTarget.blur(); } : undefined}
-                        style={editable ? undefined : { opacity: 0.55, cursor: 'var(--cursor-arrow)' }}
-                      >
-                        {exp.name}
-                      </button>
-                    );
-                    return editable ? chip : <ValInfo key={exp.name} tip={tip}>{chip}</ValInfo>;
-                  })}
-                </div>
-              </div>
-            );
-            return (
-              <>
-                <p className="section-intro" style={{ fontSize: '0.85rem', marginBottom: '0.8rem' }}>
-                  Tap an expansion to add or remove it from your collection.
-                </p>
-                {renderEditGroup('Full Expansions', DEFAULT_EXPANSIONS.filter(e => e.type === 'full'))}
-                {renderEditGroup('Mini Expansions', DEFAULT_EXPANSIONS.filter(e => e.type === 'mini'))}
-              </>
-            );
-          })() : ownedExpansions.length === 0 ? (
+          {ownedExpansions.length === 0 ? (
             <p className="section-intro">No expansions owned — base game only.</p>
           ) : (() => {
             const categoryOf = Object.fromEntries(DEFAULT_EXPANSIONS.map(e => [e.name, e.category]));
@@ -1161,7 +1099,7 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
             const mini = ownedExpansions.filter(n => categoryOf[n] === 'mini' || categoryOf[n] === 'base_mini');
             const renderGroup = (label, names) => names.length === 0 ? null : (
               <div style={{ marginBottom: '1rem' }}>
-                <div style={{ fontSize: '0.8rem', fontFamily: 'Cinzel, serif', fontWeight: 600, letterSpacing: '0.06em', color: 'var(--earth-brown)', marginBottom: '0.6rem' }}>
+                <div style={{ fontSize: 'clamp(0.55rem, 2vw, 0.8rem)', fontFamily: 'Cinzel, serif', fontWeight: 600, letterSpacing: '0.06em', color: 'var(--earth-brown)', marginBottom: '0.6rem' }}>
                   {label}
                 </div>
                 <div className="expansion-chips">
@@ -1185,31 +1123,22 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
               </>
             );
           })()}
-
-          {/* margin-top auto pins the button to the very bottom of the card */}
-          {onToggleOwned && (
-            <div style={{ marginTop: 'auto', paddingTop: '0.8rem', display: 'flex', justifyContent: 'flex-end' }}>
-              <button type="button" className="settings-edit-btn" onClick={() => setEditCollection(v => !v)}>
-                {editCollection ? 'Done' : 'Edit'}
-              </button>
-            </div>
-          )}
         </div>
 
         {/* Required Pieces Checklist */}
         <div ref={requiredPiecesRef} className={`tile-card${tourStage === 'begin' ? ' tour-highlight' : ''}`}>
-          <div style={{ fontSize: '0.7rem', fontFamily: 'Cinzel, serif', letterSpacing: '0.1em', color: 'var(--stone-gray)', marginBottom: '0.8rem' }}>
+          <div style={{ fontSize: 'clamp(0.5rem, 1.8vw, 0.7rem)', fontFamily: 'Cinzel, serif', letterSpacing: '0.1em', color: 'var(--stone-gray)', marginBottom: '0.8rem' }}>
             REQUIRED PIECES
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
               {/* Tiles section */}
               <div>
-                <div style={{ fontSize: '0.75rem', fontFamily: 'Cinzel, serif', fontWeight: 600, color: 'var(--stone-gray)', marginBottom: '0.4rem', letterSpacing: '0.05em' }}>
+                <div style={{ fontSize: 'clamp(0.55rem, 1.8vw, 0.75rem)', fontFamily: 'Cinzel, serif', fontWeight: 600, color: 'var(--stone-gray)', marginBottom: '0.4rem', letterSpacing: '0.05em' }}>
                   TILES
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
                   {requiredPieces.tiles.map(({ source, qty }) => (
-                    <div key={source} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.88rem', fontFamily: 'Crimson Text, serif' }}>
+                    <div key={source} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 'clamp(0.65rem, 2vw, 0.88rem)', fontFamily: 'Crimson Text, serif' }}>
                       <span>{source === 'Game' ? 'Base game' : source}</span>
                       <span style={{ fontWeight: 600, color: 'var(--earth-brown)' }}>×{qty}</span>
                     </div>
@@ -1222,16 +1151,16 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
 
               {/* Per-player pieces section */}
               <div>
-                <div style={{ fontSize: '0.75rem', fontFamily: 'Cinzel, serif', fontWeight: 600, color: 'var(--stone-gray)', marginBottom: '0.4rem', letterSpacing: '0.05em' }}>
+                <div style={{ fontSize: 'clamp(0.55rem, 1.8vw, 0.75rem)', fontFamily: 'Cinzel, serif', fontWeight: 600, color: 'var(--stone-gray)', marginBottom: '0.4rem', letterSpacing: '0.05em' }}>
                   Meeples Per Player
                 </div>
                 {Object.keys(requiredPieces.perPlayer).length === 0 ? (
-                  <p style={{ fontSize: '0.82rem', fontFamily: 'Crimson Text, serif', fontStyle: 'italic', color: 'var(--stone-gray)', margin: 0 }}>None</p>
+                  <p style={{ fontSize: 'clamp(0.6rem, 1.8vw, 0.82rem)', fontFamily: 'Crimson Text, serif', fontStyle: 'italic', color: 'var(--stone-gray)', margin: 0 }}>None</p>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
                     {Object.entries(requiredPieces.perPlayer)
                       .map(([piece, qty]) => (
-                        <div key={piece} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.88rem', fontFamily: 'Crimson Text, serif' }}>
+                        <div key={piece} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 'clamp(0.65rem, 2vw, 0.88rem)', fontFamily: 'Crimson Text, serif' }}>
                           <span>{formatPieceName(piece)}</span>
                           <span style={{ fontWeight: 600, color: 'var(--earth-brown)' }}>×{qty}</span>
                         </div>
@@ -1247,7 +1176,7 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
 
                   {/* Other (Fixed) pieces section */}
                   <div>
-                    <div style={{ fontSize: '0.75rem', fontFamily: 'Cinzel, serif', fontWeight: 600, color: 'var(--stone-gray)', marginBottom: '0.4rem', letterSpacing: '0.05em' }}>
+                    <div style={{ fontSize: 'clamp(0.55rem, 1.8vw, 0.75rem)', fontFamily: 'Cinzel, serif', fontWeight: 600, color: 'var(--stone-gray)', marginBottom: '0.4rem', letterSpacing: '0.05em' }}>
                       OTHER
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
@@ -1256,14 +1185,14 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
                           const breakdown = componentBreakdown[piece];
                           return (
                             <div key={piece} style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.88rem', fontFamily: 'Crimson Text, serif' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 'clamp(0.65rem, 2vw, 0.88rem)', fontFamily: 'Crimson Text, serif' }}>
                                 <span>{formatPieceName(piece)}</span>
                                 {!breakdown && <span style={{ fontWeight: 600, color: 'var(--earth-brown)' }}>×1</span>}
                               </div>
                               {breakdown && (
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem', marginLeft: '1rem', borderLeft: '2px solid rgba(201,163,74,0.3)', paddingLeft: '0.6rem' }}>
                                   {breakdown.map(comp => (
-                                    <div key={comp.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.82rem', fontFamily: 'Crimson Text, serif', color: 'var(--stone-gray)' }}>
+                                    <div key={comp.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 'clamp(0.6rem, 1.8vw, 0.82rem)', fontFamily: 'Crimson Text, serif', color: 'var(--stone-gray)' }}>
                                       <span>{comp.name}</span>
                                       <span style={{ fontWeight: 600, color: 'var(--earth-brown)' }}>×{comp.qty}</span>
                                     </div>

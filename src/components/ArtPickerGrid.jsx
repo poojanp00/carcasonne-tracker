@@ -65,7 +65,12 @@ export default function ArtPickerGrid({
               <img src={img} alt={`${altPrefix} ${i + 1}`} draggable={false} />
             </button>
           );
-          return guestBlocked ? <ValInfo key={i} tip={guestTip}>{btn}</ValInfo> : btn;
+          // Below .tour-overlay (10001, see usePortalTooltip's default) —
+          // unlike most tooltips, this one has to stay UNDER a tour popup
+          // card rather than over it: the create-realm tour spotlights this
+          // exact grid, and a guest hovering a locked chest/logbook while
+          // that card is open shouldn't have this tooltip cover it.
+          return guestBlocked ? <ValInfo key={i} tip={guestTip} zIndex={9600}>{btn}</ValInfo> : btn;
         })}
       </div>
       {paginated && (

@@ -22,7 +22,7 @@ const FIRST_LOG_PAGE = 2; // 0 overview, 1 roster, 2.. game log — matches Real
 // as the same UI pattern. Replaces the plain page-name label that used to
 // live inside RealmBook's own header (see RealmBook.jsx).
 function BookStepper({ page, onJump }) {
-  const items = [{ p: 0, label: 'Overview' }, { p: 1, label: 'Roster' }, { p: FIRST_LOG_PAGE, label: 'Game Log' }];
+  const items = [{ p: 0, label: 'Cover' }, { p: 1, label: 'Roster' }, { p: FIRST_LOG_PAGE, label: 'Log' }];
   const activeIndex = page === 0 ? 0 : page === 1 ? 1 : 2;
   return (
     <div className="pregame-stepper">

@@ -961,7 +961,6 @@ export default function App() {
                           startAtRealmCreation={true}
                           isGuest={isGuest}
                           selfName={displayName}
-                          onToggleOwned={appOperations.toggleExpansion}
                           unlockedChestIndices={unlockedChestIndices}
                           unlockedLogbookIndices={unlockedLogbookIndices}
                           tourActive={tourActive}
@@ -980,7 +979,6 @@ export default function App() {
                         onExportGroup={isGuest ? null : handleExportGroup}
                         isGuest={isGuest}
                         selfName={displayName}
-                        onToggleOwned={appOperations.toggleExpansion}
                         unlockedChestIndices={unlockedChestIndices}
                         unlockedLogbookIndices={unlockedLogbookIndices}
                         tourActive={tourActive}
@@ -1001,7 +999,6 @@ export default function App() {
                       startAtRealmCreation={true}
                       isGuest={isGuest}
                       selfName={displayName}
-                      onToggleOwned={appOperations.toggleExpansion}
                       unlockedChestIndices={unlockedChestIndices}
                       unlockedLogbookIndices={unlockedLogbookIndices}
                       tourActive={tourActive}
@@ -1053,6 +1050,10 @@ export default function App() {
                 onChangeDisplayName={updateDisplayName}
                 onDeleteAccount={async () => { await deleteAccount(user?.id); signOut(); }}
                 onSignOut={() => { signOut(); goHome(); }}
+                ownedExpansions={ownedExpansions}
+                onToggleOwned={appOperations.toggleExpansion}
+                unlockedChestIndices={unlockedChestIndices}
+                unlockedLogbookIndices={unlockedLogbookIndices}
               />
             )}
           </div>

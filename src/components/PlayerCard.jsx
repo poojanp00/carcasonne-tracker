@@ -2,8 +2,6 @@ import { useState } from 'react';
 import { MEEPLE_IMGS, WinRateBadge } from './StatWidgets';
 import { ACHIEVEMENT_DISPLAY_ORDER, ACHIEVEMENT_BADGE, ACHIEVEMENT_LABEL_OVERRIDE } from './GameHighlights';
 import { formatAchievementName } from '../utils/achievements';
-import { rankTitle } from '../utils/metaRank';
-import crownImg from '../../images/icons/crown.png';
 import ValInfo from './ValInfo';
 
 export const PLAYER_COLOR_CLASSES = ['p1', 'p2', 'p3', 'p4', 'p5', 'p6'];
@@ -40,7 +38,7 @@ function TrophyBack({ name, tallies }) {
   );
 }
 
-export default function PlayerCard({ name, stats, tallies, favMeeple, favMeepleCount, colorClass, isLeader, onNavigateToGame, progress = null }) {
+export default function PlayerCard({ name, stats, tallies, favMeeple, favMeepleCount, colorClass, onNavigateToGame }) {
   const meepleImg = favMeeple ? (MEEPLE_IMGS[favMeeple] ?? null) : null;
   const [flipped, setFlipped] = useState(false);
   // Flip on card click, but let the expand arrow and game-link buttons work normally
@@ -52,18 +50,13 @@ export default function PlayerCard({ name, stats, tallies, favMeeple, favMeepleC
     <div className={`player-card-flip${flipped ? ' flipped' : ''}`}>
       <div className="player-card-flip-inner">
         <div className={`player-card player-card-front ${colorClass}`} onClick={handleFlip}>
-      {isLeader && <img src={crownImg} alt="Leader" className="card-crown" />}
-
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.5rem', paddingRight: isLeader ? '60px' : 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.5rem' }}>
         {meepleImg && (
           <ValInfo tip={favMeepleCount ? `Used in ${favMeepleCount} ${favMeepleCount === 1 ? 'game' : 'games'}` : null}>
             <img src={meepleImg} alt="Favorite meeple" style={{ height: '24px', width: 'auto', opacity: 0.85, position: 'relative', top: '-3px' }} />
           </ValInfo>
         )}
         <div className="player-card-name" style={{ margin: 0 }}>{name}</div>
-        {progress != null && (
-          <span className="player-card-rank-badge">{rankTitle(progress.rank)}</span>
-        )}
       </div>
 
       <div className="milestones-subtitle">Player Stats</div>

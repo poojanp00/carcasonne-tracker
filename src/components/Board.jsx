@@ -18,7 +18,7 @@ import BOARD_PATH from '../data/boardCoords';
 import { getBoard, saveBoard, resetBoard } from '../data/boardStorage';
 import { computeWinners } from '../utils/scoring';
 import { MONASTERY_LIKE_TYPES, MONASTERY_LIKE_MAX, LIVE_PLAY_ONLY_RECORD_TYPES, MONASTERY_RECORD_TYPES, MAX_GAME_PLAYERS, EXPANSION_TYPES } from '../constants';
-import HowToModal from './HowToGuide';
+import { BoardTourModal, BOARD_TOUR_STEPS } from './HowToGuide';
 import BoardSettingsModal from './BoardSettingsModal';
 import { TrashIcon, GearIcon } from './icons';
 import { chestFor } from '../data/chests';
@@ -160,9 +160,15 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, onE
   const [leadersAtFinish,  setLeadersAtFinish]  = useState([]);
   const [showTraders,   setShowTraders]   = useState(false);
   const [confirmFinish, setConfirmFinish] = useState(false); // Finish game confirmation
-  // "?" how-to guide modal — guests see it once per game on arrival; suppressed on later
-  // remounts of the same game (e.g. switching tabs away and back to Play).
-  const [showHowTo, setShowHowTo] = useState(() => isGuest && !!autoShowHowTo);
+  // "?" guided tour — null = closed, 0-4 = current BOARD_TOUR_STEPS entry.
+  // Guests see it once per game on arrival (mirrors the old static
+  // how-to-guide's autoShowHowTo/onHowToShown wiring in App.jsx); suppressed
+  // on later remounts of the same game (e.g. switching tabs away and back).
+  // Purely a walkthrough — every scoring interaction is guarded below to
+  // no-op while this is non-null, so nothing about the real game can change
+  // mid-tour (see commitToPlayer/selectType/selectGood/updatePoints/
+  // confirmInitialScoring/handleFinish).
+  const [tourStep, setTourStep] = useState(() => (isGuest && autoShowHowTo) ? 0 : null);
   const [confirmReset,         setConfirmReset]         = useState(false); // Reset board confirmation
   const [confirmExit,          setConfirmExit]          = useState(false); // Back-to-hub confirmation
   const [showSettings,          setShowSettings]          = useState(false); // In-game settings modal (players/meeples/expansions)
@@ -174,10 +180,30 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, onE
   // rather than only ever handling a single name.
   const [expansionRemovalQueue, setExpansionRemovalQueue] = useState([]);
   const [warning,             setWarning]             = useState(null); // Warning toast (e.g. monastery/abbot/abbey point cap)
+  const [warningColor,        setWarningColor]        = useState('#C44040'); // Accent color for the toast above — red by default, green for neutral confirmations (e.g. "Game paused.")
   const [editMode, setEditMode] = useState(false); // Score log edit mode — reveals a delete icon on each entry
   const [pendingDeleteMoveIdx, setPendingDeleteMoveIdx] = useState(null); // moves[] index, or 'final-scoring', awaiting delete confirmation
   const logContainerRef  = useRef(null);
   const boardPopoutChRef = useRef(null);
+  // Guided tour targets — index-matched to BOARD_TOUR_STEPS, see the
+  // tour-target effect below. Step 0 spotlights .board-canvas (the image's
+  // own tile-card, padding: 0 so its box is flush with the image) rather
+  // than the <img> itself — .board-canvas is `overflow: hidden` (see
+  // index.css), and overflow:hidden only clips a box's DESCENDANT content
+  // that spills past it, not the box's own box-shadow, so putting
+  // .tour-highlight on the img (a descendant) got clipped while putting it
+  // on .board-canvas itself doesn't. This also means step 0 can just be a
+  // plain conditional class like every other step, instead of the
+  // rAF-tracked floating-overlay workaround a previous version of this used
+  // (useTourHighlightRect) — that overlay's position came from React state
+  // one frame behind the actual scroll position, reading as the spotlight
+  // visibly lagging/jellying while scrolling; a real box-shadow on a real
+  // element moves in the same paint as the scroll, with no lag at all.
+  const boardImageRef      = useRef(null);
+  const playersBoxRef      = useRef(null);
+  const scoringControlsRef = useRef(null);
+  const scoreLogRef        = useRef(null);
+  const finishBtnRef       = useRef(null);
 
   // Edit mode auto-closes after 6s of inactivity, so a stray tap doesn't leave trash icons
   // exposed on the score log indefinitely.
@@ -187,12 +213,20 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, onE
     return () => clearTimeout(timer);
   }, [editMode]);
 
-  // Tell the parent this game's how-to has been shown, so it isn't auto-shown again on
+  // Tell the parent this game's tour has been shown, so it isn't auto-shown again on
   // remount (tab switch) — but a genuinely new game gets a fresh auto-show.
   useEffect(() => {
     if (isGuest && autoShowHowTo) onHowToShown?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Docks the tour card beside whatever the current step is describing —
+  // index-matched 1:1 to BOARD_TOUR_STEPS.
+  useEffect(() => {
+    if (tourStep === null) return;
+    const targets = [boardImageRef, playersBoxRef, scoringControlsRef, scoreLogRef, finishBtnRef];
+    targets[tourStep]?.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [tourStep]);
 
   // Generate log from moves and undo events merged chronologically.
   // Memoized so its identity is stable across unrelated renders (e.g. the 1s `now` timer
@@ -415,13 +449,13 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, onE
       if (e.key !== 'ArrowLeft') return;
       const tag = e.target.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || tag === 'BUTTON' || e.target.isContentEditable) return;
-      if (confirmFinish || confirmReset || confirmExit || pendingDeleteMoveIdx !== null || showTraders || showHowTo) return;
+      if (confirmFinish || confirmReset || confirmExit || pendingDeleteMoveIdx !== null || showTraders || tourStep !== null) return;
       setConfirmExit(true);
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [confirmFinish, confirmReset, confirmExit, pendingDeleteMoveIdx, showTraders, showHowTo]);
+  }, [confirmFinish, confirmReset, confirmExit, pendingDeleteMoveIdx, showTraders, tourStep]);
 
   if (!board) return null;
 
@@ -436,7 +470,14 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, onE
     if (h > 0) return `${h}:${String(m).padStart(2, '0')}`;
     return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
   }
-  const elapsed = formatElapsed(now - (board.startTime || now));
+  // Frozen at whatever it read the instant Pause was hit (board.pausedAt),
+  // rather than continuing to tick with `now`, while paused — resuming
+  // folds the paused span into board.startTime (see handleTogglePause)
+  // instead of tracking pause duration separately, so this same formula,
+  // and every other `X - board.startTime` computation in this file
+  // (gameDuration at finish, score-timeline offsets), stays correct with no
+  // other changes needed once that fold-in happens.
+  const elapsed = formatElapsed((board.paused ? board.pausedAt : now) - (board.startTime || now));
 
   const track = board.trackLength || 50;
   const hasTB    = (session?.expansions || []).includes('Traders & Builders');
@@ -575,8 +616,9 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, onE
     });
   }
 
-  function showWarning(msg) {
+  function showWarning(msg, color = '#C44040') {
     setWarning(msg);
+    setWarningColor(color);
     setTimeout(() => setWarning(null), 2500);
   }
 
@@ -597,6 +639,7 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, onE
   // Update the points input; if a monastery-like type is currently highlighted
   // and the new value exceeds its cap, un-highlight it and warn.
   function updatePoints(newVal) {
+    if (tourStep !== null) return; // Guided tour is purely a walkthrough — nothing scores while it's open.
     if (selectedType && exceedsMonasteryCap(selectedType, newVal)) {
       setSelectedType(null);
       warnCapExceeded(selectedType);
@@ -626,6 +669,7 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, onE
   // Highlight a score type; clicking a player next commits the current points to them.
   // If a player is already highlighted (clicked first), commit to them immediately instead.
   function selectType(type) {
+    if (tourStep !== null) return; // Guided tour is purely a walkthrough — nothing scores while it's open.
     if (selectedPlayer) {
       const delta = Object.values(input)[0] || 0;
       if (!delta || Number(delta) === 0) {
@@ -652,6 +696,7 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, onE
   // Highlight a goods token; several can be picked at once (e.g. one of each good).
   // If a player is already highlighted (clicked first), award just this one token immediately instead.
   function selectGood(good) {
+    if (tourStep !== null) return; // Guided tour is purely a walkthrough — nothing scores while it's open.
     if (selectedPlayer) {
       const player = selectedPlayer;
       setSelectedPlayer(null);
@@ -670,6 +715,7 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, onE
   // Commit the currently-highlighted score type or goods token(s) to a single player.
   // If nothing is highlighted yet, highlight this player instead, awaiting a type/good click.
   function commitToPlayer(player) {
+    if (tourStep !== null) return; // Guided tour is purely a walkthrough — nothing scores while it's open.
     if (selectedGoods.size > 0) {
       selectedGoods.forEach(good => {
         addMove(player, `goods_${good}`, 0, `${GOODS_LABELS[good]} Token`);
@@ -698,6 +744,20 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, onE
     setConfirmReset(true); // Show confirmation modal
   }
 
+  // Guided tour ("?" button, see BOARD_TOUR_STEPS/BoardTourModal in
+  // HowToGuide.jsx) — a plain step counter, purely a walkthrough (every
+  // scoring interaction below no-ops while this is open). "Next" on the
+  // last step still calls advanceTour, same as ProfileHowToModal's "Got
+  // it!" — stepping past the last index just closes the tour.
+  const startTour = () => setTourStep(0);
+  const advanceTour = () => setTourStep(prev => {
+    if (prev === null) return null;
+    const next = prev + 1;
+    return next >= BOARD_TOUR_STEPS.length ? null : next;
+  });
+  const backTour = () => setTourStep(prev => (prev && prev > 0 ? prev - 1 : prev));
+  const closeTour = () => setTourStep(null);
+
   async function confirmResetBoard() {
     setConfirmReset(false);
     // Keeps the same expansions' scoring categories (goods tokens, extra
@@ -708,6 +768,47 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, onE
     const extraTypes = (session?.expansions || []).flatMap(e => EXPANSION_TYPES[e] || []);
     await resetBoard(userId, players, extraTypes, isGuest);
     onReset();
+  }
+
+  // Pause only stops the CLOCK — scoring/undo/everything else keeps
+  // working normally while paused, this just stops that time from
+  // counting. Resuming folds the just-finished pause's duration straight
+  // into board.startTime (pushing it later by however long the pause
+  // lasted) rather than tracking accumulated pause time as its own field —
+  // every place that already computes elapsed/duration as `X -
+  // board.startTime` (the live clock above, gameDuration and the score
+  // timeline's per-event offsets in confirmFinishGame below) stays correct
+  // for free once startTime absorbs the gap, with nothing else to update.
+  // `silent` skips the toast — used by handleCloseSettings below, which
+  // shows its own (red, this-is-a-side-effect) toast for its implicit
+  // resume instead of this plain green pause/resume one.
+  function handleTogglePause(silent = false) {
+    if (!silent) showWarning(board.paused ? 'Game resumed.' : 'Game paused.', 'var(--forest-green)');
+    setBoard(prev => {
+      if (prev.paused) {
+        const pausedMs = Date.now() - prev.pausedAt;
+        return { ...prev, paused: false, pausedAt: null, startTime: prev.startTime + pausedMs };
+      }
+      return { ...prev, paused: true, pausedAt: Date.now() };
+    });
+  }
+
+  // Settings is the only place Pause is reachable, so leaving it paused —
+  // whichever way that happens, the Close button or clicking the overlay
+  // (BoardSettingsModal calls this same onClose for both) — would leave the
+  // clock silently frozen on the board with no way back in except opening
+  // Settings again. Auto-resuming on close means that state can never
+  // actually happen: the only way to have the game paused is to currently
+  // be looking at Settings. Surfaced as a heads-up toast (same showWarning
+  // used elsewhere in this file) rather than a blocking confirmation, since
+  // it's not something worth an extra click to approve — just worth
+  // knowing happened.
+  function handleCloseSettings() {
+    if (board.paused) {
+      handleTogglePause(true);
+      showWarning('Game resumed.');
+    }
+    setShowSettings(false);
   }
 
   function handleExitToHub() {
@@ -875,9 +976,13 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, onE
     // Farm win: a single winner who was NOT leading when Final Scoring was first pressed
     const autoFarmWin    = finalWinners.length === 1 && !leadersAtFinish.includes(finalWinners[0]);
 
-    // Set endTime and calculate duration
+    // Set endTime and calculate duration — resuming normally folds a
+    // pause's duration into board.startTime already (see
+    // handleTogglePause), so this is only ever non-zero for the edge case
+    // of finishing the game while still mid-pause (never resumed).
     const endTime = Date.now();
-    const gameDuration = endTime - board.startTime;
+    const stillPausedMs = board.paused ? (endTime - board.pausedAt) : 0;
+    const gameDuration = endTime - board.startTime - stillPausedMs;
 
     // Score timeline: every scoring move with its elapsed-time offset from game start,
     // truncated at moveIndex so undone moves are excluded. inFinalScoring rides along so
@@ -1111,7 +1216,9 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, onE
           onSaveMeeples={handleSaveMeeples}
           onSaveExpansions={handleSaveExpansions}
           onResetGame={handleReset}
-          onClose={() => setShowSettings(false)}
+          paused={board.paused}
+          onTogglePause={handleTogglePause}
+          onClose={handleCloseSettings}
         />
       )}
       {playerRemovalModal}
@@ -1181,6 +1288,22 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, onE
         </div>
       )}
 
+      {tourStep !== null && (
+        <BoardTourModal
+          step={tourStep}
+          onNext={advanceTour}
+          onBack={backTour}
+          onClose={closeTour}
+          targetRef={[boardImageRef, playersBoxRef, scoringControlsRef, scoreLogRef, finishBtnRef][tourStep]}
+        />
+      )}
+
+      {/* tour-inert: while the tour is open, only the one spotlighted
+          section below should be clickable — kept as its own wrapper,
+          separate from board-ui's just below, so the "?"/back-to-hub
+          buttons up here go inert without needing board-ui to know about
+          them (mirrors Profile.jsx's two-separate-wrapper approach). */}
+      <div className={tourStep !== null ? 'tour-inert' : ''}>
       <div className="section-title" style={{ flexWrap: 'wrap', rowGap: '0.5rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           {session?.realm && onExitToHub && (
@@ -1197,9 +1320,9 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, onE
           <h2 style={{ margin: 0, fontSize: 'clamp(0.85rem, 3vw, 1.55rem)' }}>score board</h2>
           <button
               type="button"
-              title="How it works"
-              onClick={() => setShowHowTo(true)}
-              style={{ background: 'none', border: '1px solid var(--warm-gold)', borderRadius: '50%', width: 'clamp(1.15rem, 4vw, 1.5rem)', height: 'clamp(1.15rem, 4vw, 1.5rem)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'var(--cursor-pointer)', fontFamily: 'Cinzel, serif', fontSize: 'clamp(0.62rem, 2vw, 0.8rem)', fontWeight: 700, color: 'var(--earth-brown)', padding: 0, flexShrink: 0 }}
+              title={tourStep !== null ? 'Tour in progress' : 'About your score board'}
+              onClick={startTour}
+              style={{ background: 'none', border: `1px solid ${tourStep !== null ? 'var(--forest-green)' : 'var(--warm-gold)'}`, borderRadius: '50%', width: 'clamp(1.15rem, 4vw, 1.5rem)', height: 'clamp(1.15rem, 4vw, 1.5rem)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'var(--cursor-pointer)', fontFamily: 'Cinzel, serif', fontSize: 'clamp(0.62rem, 2vw, 0.8rem)', fontWeight: 700, color: tourStep !== null ? 'var(--forest-green)' : 'var(--earth-brown)', padding: 0, flexShrink: 0 }}
             >
               ?
             </button>
@@ -1207,10 +1330,15 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, onE
         <div className="section-title-line" />
         <span className="game-count" style={{ fontSize: 'clamp(0.55rem, 2vw, 0.72rem)' }}>{session?.realm?.name}</span>
       </div>
+      </div>
 
+      {/* tour-inert: only the one spotlighted section below is clickable
+          while the tour is open — see the matching wrapper above
+          section-title for why this is a second, separate wrapper. */}
+      <div className={tourStep !== null ? 'tour-inert' : ''}>
       <div className="board-ui">
         {/* Score log */}
-        <div className="tile-card board-log">
+        <div className={`tile-card board-log${tourStep === 3 ? ' tour-highlight' : ''}`} ref={scoreLogRef}>
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '0.3rem', borderBottom: '1px solid var(--warm-gold)', paddingBottom: '0.5rem', marginBottom: '0.6rem' }}>
             {/* cqw, not vw — .board-log (see index.css) is the container this
                 sizes off of. Its own narrow grid column is what actually
@@ -1220,14 +1348,18 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, onE
             <div className="tile-card-header" style={{ border: 'none', padding: 0, margin: 0, whiteSpace: 'nowrap', fontSize: 'clamp(0.44rem, 8cqw, 0.78rem)' }}>Score Log</div>
             {/* Stadium-style game clock — a black recessed LED housing in a
                 brass bezel (echoing the app's warm-gold tile borders), sized
-                small to sit inline with the Score Log title. */}
+                small to sit inline with the Score Log title. `elapsed`
+                itself already just stops advancing while paused (see its
+                own computation above) — no separate paused styling here,
+                since Settings auto-resumes on close (see onClose below),
+                so the board is never actually visible with a paused,
+                silently-frozen clock in the first place. */}
             <div className="game-clock">
               <div className="game-clock-housing">
                 <span className="game-clock-digits">{elapsed}</span>
               </div>
             </div>
           </div>
-          {showHowTo && <HowToModal onClose={() => setShowHowTo(false)} />}
           {log.length === 0 ? (
             <p style={{ fontFamily: 'Crimson Text, serif', fontStyle: 'italic', color: 'var(--stone-gray)', fontSize: 'clamp(0.75rem, 2vw, 0.9rem)', margin: 0 }}>
               No moves yet.
@@ -1296,9 +1428,18 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, onE
             </button>
             <button
               type="button"
-              className="btn btn-sm"
+              ref={finishBtnRef}
+              // board-tour-finish-btn: strips box-shadow out of .btn's own
+              // transition (see index.css, same fix as .pregame-begin-btn)
+              // — without it, closing the tour on this exact step reverts
+              // the class list straight from tour-highlight's huge spotlight
+              // shadow back to this button's normal one, and .btn's own
+              // transition animates that change, reading as a stray glow/
+              // flash on Final Scoring right as "Got it!" is clicked.
+              className={`btn btn-sm board-tour-finish-btn${tourStep === 4 ? ' tour-highlight' : ''}`}
               style={{ flex: '1 1 100%', justifyContent: 'center' }}
               onClick={() => {
+                if (tourStep !== null) return; // Guided tour is purely a walkthrough — nothing scores while it's open.
                 if (finishStep === 0) {
                   confirmInitialScoring();
                 } else {
@@ -1312,9 +1453,13 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, onE
         </div>
 
         {/* Board image */}
-        <div className="board-canvas tile-card">
+        <div className={`board-canvas tile-card${tourStep === 0 ? ' tour-highlight' : ''}`} ref={boardImageRef}>
           <div className="board-image">
-            <img src={boardImg} alt="Score board" className="board-image-bg" />
+            <img
+              src={boardImg}
+              alt="Score board"
+              className="board-image-bg"
+            />
             {players.map((p, pi) => {
               const pos    = board.positions[p] || 0;
               const coord  = BOARD_PATH[pos] || { x: 0, y: 0 };
@@ -1342,7 +1487,7 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, onE
         {/* Player controls */}
         <div className="board-controls">
           {/* Meeple Selector */}
-          <div className="tile-card" style={{ marginBottom: '1rem', padding: '0.8rem' }}>
+          <div className={`tile-card${tourStep === 1 ? ' tour-highlight' : ''}`} ref={playersBoxRef} style={{ marginBottom: '1rem', padding: '0.8rem' }}>
             <div style={{ fontSize: '0.7rem', fontFamily: 'Cinzel, serif', letterSpacing: '0.1em', color: 'var(--stone-gray)', marginBottom: '0.6rem' }}>
               PLAYERS
             </div>
@@ -1409,7 +1554,7 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, onE
           </div>
 
           {/* Shared Scoring Controls */}
-          <div className="tile-card">
+          <div className={`tile-card${tourStep === 2 ? ' tour-highlight' : ''}`} ref={scoringControlsRef}>
             <div style={{ fontSize: '0.7rem', fontFamily: 'Cinzel, serif', letterSpacing: '0.1em', color: 'var(--stone-gray)', marginBottom: '0.4rem' }}>
               POINTS TO ADD
             </div>
@@ -1583,21 +1728,27 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, onE
           </div>
         </div>
       </div>
+      </div>
 
       {/* Ready-to-award hint: shown once a type/good or a player is highlighted, or once points are
-          entered, prompting the next click. Only for the first 10 scores — after that, players know the flow. */}
-      {!warning && board.moveIndex < 9 && (selectedType || selectedGoods.size > 0 || selectedPlayer || (Number(Object.values(input)[0]) || 0) > 0) && (
+          entered, prompting the next click. Only for the first 10 scores — after that, players know the flow.
+          Hidden entirely during the guided tour — see the tourStep guards on commitToPlayer/selectType/
+          selectGood/updatePoints just above, which is what keeps this state from ever actually changing
+          mid-tour in the first place; this is just belt-and-suspenders for whatever was already showing
+          the moment the tour was opened. */}
+      {tourStep === null && !warning && board.moveIndex < 9 && (selectedType || selectedGoods.size > 0 || selectedPlayer || (Number(Object.values(input)[0]) || 0) > 0) && (
         <div style={{
           position: 'fixed',
           bottom: '2rem',
           right: '2rem',
           background: 'var(--charcoal)',
           color: 'var(--parchment)',
-          padding: '0.75rem 1.3rem',
+          padding: 'clamp(0.5rem, 2.4vw, 0.75rem) clamp(0.8rem, 3.5vw, 1.3rem)',
           borderRadius: 'var(--radius-tile)',
           borderLeft: '4px solid var(--forest-green)',
           fontFamily: "'Crimson Text', serif",
-          fontSize: '1rem',
+          fontSize: 'clamp(0.8rem, 2.6vw, 1rem)',
+          maxWidth: 'calc(100vw - 2rem)',
           boxShadow: '0 4px 18px rgba(0,0,0,0.4)',
           zIndex: 20001,
           animation: 'toastIn 0.3s ease',
@@ -1614,19 +1765,20 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, onE
         </div>
       )}
 
-      {/* Warning Toast */}
-      {warning && (
+      {/* Warning Toast — also hidden during the guided tour (see the ready-to-award hint's comment above). */}
+      {tourStep === null && warning && (
         <div style={{
           position: 'fixed',
           bottom: '2rem',
           right: '2rem',
           background: 'var(--charcoal)',
           color: 'var(--parchment)',
-          padding: '0.75rem 1.3rem',
+          padding: 'clamp(0.5rem, 2.4vw, 0.75rem) clamp(0.8rem, 3.5vw, 1.3rem)',
           borderRadius: 'var(--radius-tile)',
-          borderLeft: '4px solid #C44040',
+          borderLeft: `4px solid ${warningColor}`,
           fontFamily: "'Crimson Text', serif",
-          fontSize: '1rem',
+          fontSize: 'clamp(0.8rem, 2.6vw, 1rem)',
+          maxWidth: 'calc(100vw - 2rem)',
           boxShadow: '0 4px 18px rgba(0,0,0,0.4)',
           zIndex: 20001,
           animation: 'toastIn 0.3s ease, toastOut 0.3s ease 2.2s forwards',

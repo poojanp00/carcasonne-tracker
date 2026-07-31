@@ -7,9 +7,10 @@ const GAP = 18;    // clearance between the card and the target's edge
 // currently points at, arrow always pointing up at it — instead of a
 // generic fixed screen position, or flipping above the target when it's
 // low on screen (that read as floating free of the container it was
-// supposed to belong to). Returns `{ style, arrowLeft }`, both `null` when
-// there's no target to track so the caller can fall back to its own
-// default docking.
+// supposed to belong to, as a general behavior — see `placement` below for
+// the one deliberate exception). Returns `{ style, arrowLeft }`, both
+// `null` when there's no target to track so the caller can fall back to
+// its own default docking.
 //
 // The card's top is clamped to the visible viewport (vh - card height -
 // MARGIN) rather than always sitting exactly at the target's bottom edge
@@ -25,7 +26,15 @@ const GAP = 18;    // clearance between the card and the target's edge
 // scroll/resize listeners — the target moves during the page's own
 // smooth-scroll-into-view, and a rAF loop tracks that (and window resizes)
 // for free at negligible cost while a single modal is on screen.
-export function useTourCardPosition(targetRef, cardRef, active) {
+//
+// `placement: 'above'` is an explicit per-caller opt-in, not a general
+// low-on-screen flip (see above) — the Board tour's last stop targets the
+// Final Scoring button, and docking below it (the default) meant the card
+// could cover the very button it's describing on a short viewport. The
+// caller is expected to also flip its arrow to point down in this case
+// (see BoardTourModal's tour-card-arrow-down class) since the card is now
+// above its target instead of below it.
+export function useTourCardPosition(targetRef, cardRef, active, placement = 'below') {
   const [state, setState] = useState({ style: null, arrowLeft: null });
   const frameRef = useRef(null);
 
@@ -47,7 +56,9 @@ export function useTourCardPosition(targetRef, cardRef, active) {
       const vw = window.innerWidth;
       const vh = window.innerHeight;
 
-      const top = Math.min(t.bottom + GAP, Math.max(MARGIN, vh - c.height - MARGIN));
+      const top = placement === 'above'
+        ? Math.max(MARGIN, t.top - GAP - c.height)
+        : Math.min(t.bottom + GAP, Math.max(MARGIN, vh - c.height - MARGIN));
 
       const idealLeft = t.left + t.width / 2 - c.width / 2;
       const maxLeft = Math.max(MARGIN, vw - c.width - MARGIN);
@@ -61,7 +72,7 @@ export function useTourCardPosition(targetRef, cardRef, active) {
     };
     frameRef.current = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frameRef.current);
-  }, [active, targetRef, cardRef]);
+  }, [active, targetRef, cardRef, placement]);
 
   return state;
 }

@@ -13,9 +13,12 @@ import { getExpansions } from '../data/storage';
 import { DEMO_GAMES, DEMO_REALMS, DEMO_USER_ID, DEMO_USER_NAME } from '../data/demoData';
 import ValInfo from './ValInfo';
 import Lightbox from './Lightbox';
+import ArtPickerGrid from './ArtPickerGrid';
 import { GearIcon, TrashIcon } from './icons';
 import { ProfileHowToModal } from './HowToGuide';
-import { RankUpRankBar } from './RankUpModal';
+import { CHESTS } from '../data/chests';
+import { SPINES } from '../data/spines';
+import { DEFAULT_EXPANSIONS, GUEST_ALLOWED_MINIS } from '../data/expansions';
 
 // The 5 base color meeples, no fun/reskinned ones — a fresh account with
 // no favorite meeple yet (nothing played) gets one of these assigned
@@ -87,6 +90,7 @@ function PointsBar({ breakdown }) {
 
   return (
     <div style={{ margin: '0.35rem 0 0.7rem' }}>
+      <span className="stat-label" style={{ marginBottom: '0.5rem' }}>Points Breakdown</span>
       <div ref={barsRef} style={{ position: 'relative' }} onMouseLeave={() => setTooltip(null)}>
         <div className="points-bar" style={{ display: 'flex', height: '18px', borderRadius: '6px', overflow: 'hidden' }}>
           {types.map(t => (
@@ -126,7 +130,7 @@ function PointsBar({ breakdown }) {
       <button
         type="button"
         onClick={() => setShowTable(v => !v)}
-        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', background: 'none', border: 'none', cursor: 'var(--cursor-pointer)', padding: '0.3rem 0 0', color: 'var(--stone-gray)', fontSize: '0.65rem', fontFamily: 'Cinzel, serif', opacity: 0.6 }}
+        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', background: 'none', border: 'none', cursor: 'var(--cursor-pointer)', padding: '0.65rem 0 0', color: 'var(--stone-gray)', fontSize: '0.65rem', fontFamily: 'Cinzel, serif', opacity: 0.6 }}
         aria-label={showTable ? 'Hide points breakdown table' : 'Show points breakdown table'}
       >
         {showTable ? '▲' : '▼'}
@@ -177,12 +181,33 @@ const sectionHeaderStyle = { borderBottom: '1px solid var(--warm-gold)', padding
 // other page here.
 // Renders bare (no outer card wrapper) — the caller (ProfileHero's flip-card
 // back face) already supplies its own card chrome.
-function AllMilestonesQuarterCard({ account }) {
+function AllMilestonesQuarterCard({ account, displayName, tierCount, currentRank }) {
   const started = visibleAccountMilestones(account);
   return (
     <>
-      <div className="milestone-card-header">
+      {/* Moved here from the card's front (see ProfileHero) — name/rank read
+          better as a header for the rank ladder they sit right above than
+          buried in the front's stat grid. Reuses .milestone-card-header
+          itself (same font size/color as "Milestones" below, plus its own
+          underline) rather than a one-off style, so the two headers on
+          this face read as a matched pair. */}
+      <div className="milestone-card-header" style={{ justifyContent: 'space-between', borderBottom: '1px solid var(--warm-gold)', paddingBottom: '0.4rem', marginBottom: '0.6rem' }}>
+        <span className="milestone-card-name">{displayName || 'Adventurer'}</span>
+        <span className="milestone-card-name">{rankTitle(currentRank)}</span>
+      </div>
+      {/* key={tierCount} forces a fresh mount whenever tierCount changes
+          (e.g. the guest tour's demoActive swap from the real account to
+          DEMO_GAMES) — RankQuarterBar's own fill bars have a width
+          transition (for RankUpModal's separate star-driven celebration),
+          which would otherwise visibly animate from the old % to the new
+          one on this prop change alone, even with no explicit rank-up
+          animation component in the tree anymore. */}
+      <RankQuarterBar key={tierCount} tierCount={tierCount} currentRank={currentRank} />
+      <div className="milestone-card-header" style={{ justifyContent: 'space-between', borderBottom: '1px solid var(--warm-gold)', paddingBottom: '0.4rem', marginTop: '0.8rem' }}>
         <span className="milestone-card-name">Milestones</span>
+        <span className="milestone-card-name" style={{ color: 'var(--warm-gold)' }}>
+          {tierCount} ★
+        </span>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem', marginTop: '0.3rem' }}>
         {started.map(cat => {
@@ -257,7 +282,7 @@ function TrophyCabinet({ account }) {
 // is owned by the parent (see Profile's heroFlipped/handleHeroFlip) rather
 // than locally, so the guided tour can drive it in lockstep with its own
 // step — this component just renders whatever `flipped` it's given.
-function ProfileHero({ account, userId, displayName, title, tierCount, totalTiers, onOpenSettings, heroRef, highlighted = false, flipped, rotation = 0, onFlip, demoActive = false, realTierCount = 0 }) {
+function ProfileHero({ account, userId, displayName, title, tierCount, totalTiers, onOpenSettings, heroRef, highlighted = false, flipped, rotation = 0, onFlip }) {
   const { stats, favMeeple, favMeepleCount, playingSince, totalPlaytime } = account;
   // No games played yet means no real favorite meeple — assigned one
   // (see pickDefaultMeeple) instead of showing an empty hero card.
@@ -301,23 +326,6 @@ function ProfileHero({ account, userId, displayName, title, tierCount, totalTier
             </div>
           </div>
 
-          {/* While the guided tour's demo data is active, replay the same
-              rank-up celebration reveal RankUpModal uses for a real rank-up
-              — mounting fresh (see the demoActive branch swap) each time the
-              tour (re)starts, so the ladder climbs from the guest's real
-              rank up through the demo's, one rank at a time, instead of
-              jumping straight to the end. */}
-          {demoActive ? (
-            <RankUpRankBar
-              beforeRank={getCurrentRank(realTierCount)}
-              afterRank={currentRank}
-              beforeTierCount={realTierCount}
-              tierCount={tierCount}
-            />
-          ) : (
-            <RankQuarterBar tierCount={tierCount} currentRank={currentRank} />
-          )}
-
           <div className="profile-hero-stats">
             {primaryStats.map(([label, value]) => (
               <div key={label} className="profile-stat">
@@ -329,7 +337,7 @@ function ProfileHero({ account, userId, displayName, title, tierCount, totalTier
         </div>
 
         <div className="player-card p2 profile-hero player-card-back" onClick={onFlip}>
-          <AllMilestonesQuarterCard account={account} />
+          <AllMilestonesQuarterCard account={account} displayName={displayName} tierCount={tierCount} currentRank={currentRank} />
         </div>
       </div>
     </div>
@@ -357,7 +365,7 @@ function CareerHighlights({ account, onNavigateToGame }) {
             </GameLinkValue>
           </div>
           <div className="stat-row">
-            <span className="stat-label">Largest Single Feature</span>
+            <span className="stat-label">Largest Feature</span>
             <GameLinkValue game={biggestPlay?.game} onNavigateToGame={onNavigateToGame}>
               {biggestPlay ? `${biggestPlay.amount} pts · ${TYPE_LABELS[biggestPlay.type] ?? biggestPlay.type}` : '—'}
             </GameLinkValue>
@@ -403,7 +411,10 @@ function CareerHighlights({ account, onNavigateToGame }) {
   );
 }
 
-export default function Profile({ games: realGames, realms: realRealms, userId: realUserId, displayName: realDisplayName, isGuest = false, tourShown = false, onTourShown = null, autoStartTour = false, onAutoStartTourConsumed = null, onTourComplete = null, storedMetaRank = 0, onGuestMetaRankAchieved = null, onChangeDisplayName, onDeleteAccount, onSignOut }) {
+export default function Profile({ games: realGames, realms: realRealms, userId: realUserId, displayName: realDisplayName, isGuest = false, tourShown = false, onTourShown = null, autoStartTour = false, onAutoStartTourConsumed = null, onTourComplete = null, storedMetaRank = 0, onGuestMetaRankAchieved = null, onChangeDisplayName, onDeleteAccount, onSignOut, ownedExpansions = [], onToggleOwned = null, unlockedChestIndices = null, unlockedLogbookIndices = null }) {
+  const unlockedChestIdx = unlockedChestIndices || new Set([0]);
+  const unlockedLogbookIdx = unlockedLogbookIndices || new Set([0]);
+  const [editCollection, setEditCollection] = useState(false);
   const [selectedGame, setSelectedGame] = useState(null);
 
   // Guided tour opened from the "?" button: null = closed, 0-3 = which
@@ -564,13 +575,6 @@ export default function Profile({ games: realGames, realms: realRealms, userId: 
   const computedRank  = getCurrentRank(tierCount);
   const displayedRank = computedRank; // always the live rank — no never-regress floor
 
-  // Real (never demo-swapped) tier count — the guided tour's rank reveal
-  // (see ProfileHero below) animates up FROM this, so a guest who's really
-  // at rank 1 watches the bar climb through every rank the demo data jumps
-  // them to, instead of the whole ladder just appearing already-filled.
-  const realAccount   = useMemo(() => calcAccountStats(realGames, realRealms, realUserId), [realGames, realRealms, realUserId]);
-  const realTierCount = useMemo(() => countUnlockedTiers(realAccount), [realAccount]);
-
   // Guest-only rank persistence (localStorage) — real accounts are handled
   // entirely server-side now (migrations/server_side_progress.sql), but a
   // guest has no auth user_id/user_progress row for any trigger to update,
@@ -586,6 +590,9 @@ export default function Profile({ games: realGames, realms: realRealms, userId: 
   const [renameError,  setRenameError]  = useState('');
   const [deleteStep,   setDeleteStep]   = useState(0); // 0=hidden, 1=first confirm, 2=final confirm
   const [deleting,     setDeleting]     = useState(false);
+  // Danger Zone starts collapsed — Delete Account only becomes visible (let
+  // alone clickable) once deliberately opened.
+  const [dangerZoneOpen, setDangerZoneOpen] = useState(false);
   const [deleteError,  setDeleteError]  = useState('');
 
   const openGameLightbox = (game) => setSelectedGame(game);
@@ -720,6 +727,7 @@ export default function Profile({ games: realGames, realms: realRealms, userId: 
           games={games}
           onNavigate={setSelectedGame}
           onClose={() => setSelectedGame(null)}
+          realmName={realms.find(r => r.id === selectedGame.realmId)?.name}
         />
       )}
 
@@ -781,28 +789,35 @@ export default function Profile({ games: realGames, realms: realRealms, userId: 
               <div className="settings-section-header">Account &amp; Data</div>
               <div className="settings-row">
                 <span className="settings-row-label">Backup Data</span>
-                <button type="button" className="settings-edit-btn" onClick={handleExportJson}>Export JSON</button>
+                <button type="button" className="settings-edit-btn" onClick={handleExportJson}>Export</button>
               </div>
               <div className="settings-row">
-                <span className="settings-row-label">Log out of your account</span>
-                <button type="button" className="settings-edit-btn" onClick={onSignOut}>Log Out</button>
+                <span className="settings-row-label">Log Out of Account</span>
+                <button type="button" className="settings-edit-btn" onClick={onSignOut}>Sign Out</button>
               </div>
             </div>
 
             <div className="settings-section settings-danger">
-              <div className="settings-section-header">Danger Zone</div>
-              <div className="settings-row">
-                <span className="settings-row-label" style={{ color: 'var(--stone-gray)', fontSize: '0.85rem' }}>
-                  Permanently delete your account and all data
-                </span>
-                <button
-                  type="button"
-                  className="settings-delete-btn"
-                  onClick={() => { setSettingsView(null); setDeleteStep(1); setDeleteError(''); }}
-                >
-                  <TrashIcon /> Delete Account
+              <div className="settings-section-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span>Danger Zone</span>
+                <button type="button" className="settings-edit-btn" onClick={() => setDangerZoneOpen(v => !v)}>
+                  {dangerZoneOpen ? 'Close' : 'Open'}
                 </button>
               </div>
+              {dangerZoneOpen && (
+                <div className="settings-row">
+                  <span className="settings-row-label" style={{ color: 'var(--stone-gray)', fontSize: '0.85rem' }}>
+                    Permanently delete account and all data.
+                  </span>
+                  <button
+                    type="button"
+                    className="settings-delete-btn"
+                    onClick={() => { setSettingsView(null); setDeleteStep(1); setDeleteError(''); }}
+                  >
+                    <TrashIcon /> Delete Account
+                  </button>
+                </div>
+              )}
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1.4rem' }}>
@@ -893,8 +908,10 @@ export default function Profile({ games: realGames, realms: realRealms, userId: 
           something real to point at for a brand new account too. */}
       <div className={tourStep !== null ? 'tour-inert' : ''}>
         <div className="me-hero-grid" style={{ marginBottom: '1.2rem' }}>
-          <ProfileHero heroRef={heroRef} highlighted={tourStep === 0 || tourStep === 1} account={account} userId={userId} displayName={displayName} title={`Rank ${displayedRank} ${rankTitle(displayedRank)}`} tierCount={tierCount} totalTiers={getTotalTiers()} onOpenSettings={isGuest ? null : openSettings} flipped={heroFlipped} rotation={heroRotation} onFlip={handleHeroFlip} demoActive={demoActive} realTierCount={realTierCount} />
-          <div ref={careerHighlightsRef} className={`player-card-flip${careerFlipped ? ' flipped' : ''}${(tourStep === 2 || tourStep === 3) ? ' tour-highlight' : ''}`}>
+          <div className="me-hero-char">
+            <ProfileHero heroRef={heroRef} highlighted={tourStep === 0 || tourStep === 1} account={account} userId={userId} displayName={displayName} title={`Rank ${displayedRank} ${rankTitle(displayedRank)}`} tierCount={tierCount} totalTiers={getTotalTiers()} onOpenSettings={isGuest ? null : openSettings} flipped={heroFlipped} rotation={heroRotation} onFlip={handleHeroFlip} />
+          </div>
+          <div ref={careerHighlightsRef} className={`me-hero-highlights player-card-flip${careerFlipped ? ' flipped' : ''}${(tourStep === 2 || tourStep === 3) ? ' tour-highlight' : ''}`}>
             {/* rotation drives the transform directly (see ProfileHero's
                 matching comment) so repeated keyboard presses spin the card
                 through full turns instead of snapping between faces. */}
@@ -907,6 +924,138 @@ export default function Profile({ games: realGames, realms: realRealms, userId: 
               </div>
             </div>
           </div>
+
+          {/* Gallery — read-only showcase of every chest/logbook the account
+              has unlocked, using the exact same picker grid as the
+              create-realm chest/book step (see PreGameSetup.jsx) for visual
+              consistency. onSelect is a no-op — there's no "current realm"
+              on this page to assign a pick to, just what's been unlocked.
+              Spans both rows of the left column (see .me-hero-gallery) —
+              tall is expected here, it's however many rows of chests/
+              logbooks it takes to show everything unlocked so far. */}
+          <div className="me-hero-gallery tile-card">
+            <div className="tile-card-header" style={sectionHeaderStyle}>Gallery</div>
+            <div className="chest-logbook-columns">
+              <div className="chest-logbook-col">
+                <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.6rem' }}>
+                  Chests
+                </label>
+                <ArtPickerGrid
+                  items={CHESTS}
+                  rowClassName="chest-picker-row"
+                  pickClassName="chest-pick"
+                  altPrefix="Chest"
+                  selectedIndex={null}
+                  onSelect={() => {}}
+                  hideIndex={i => isGuest && i >= 1 && i <= 5}
+                  isGuestBlocked={i => isGuest && i !== 0}
+                  isLocked={i => !isGuest && !unlockedChestIdx.has(i)}
+                  guestTip="Sign in to unlock more chests."
+                />
+              </div>
+              <div className="chest-logbook-col">
+                <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.6rem' }}>
+                  Logbooks
+                </label>
+                <ArtPickerGrid
+                  items={SPINES}
+                  rowClassName="logbook-picker-row"
+                  pickClassName="logbook-pick"
+                  altPrefix="Logbook"
+                  selectedIndex={null}
+                  onSelect={() => {}}
+                  hideIndex={i => isGuest && i >= 1 && i <= 5}
+                  isGuestBlocked={i => isGuest && i !== 0}
+                  isLocked={i => !isGuest && !unlockedLogbookIdx.has(i)}
+                  guestTip="Sign in to unlock more logbooks."
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Collection — the expansion-ownership editor that used to live in
+            PreGameSetup.jsx's "Edit" mode (now removed there — see its own
+            comment) since toggling what you own doesn't belong to any one
+            game setup. Default view is a plain read-only list of what's
+            owned; Edit swaps in the same full toggleable grid. */}
+        <div className="tile-card" style={{ marginBottom: '1.2rem' }}>
+          <div className="tile-card-header" style={sectionHeaderStyle}>Collection</div>
+          {editCollection ? (() => {
+            const itemState = (exp) => {
+              if (isGuest && !(exp.type === 'mini' && GUEST_ALLOWED_MINIS.has(exp.name))) {
+                return { editable: false, tip: 'Sign in to use expansions.' };
+              }
+              if (!exp.complete) return { editable: false, tip: 'Under development. Please check back later.' };
+              return { editable: true };
+            };
+            const renderEditGroup = (label, exps) => exps.length === 0 ? null : (
+              <div style={{ marginBottom: '1rem' }}>
+                <div style={{ fontSize: 'clamp(0.55rem, 2vw, 0.8rem)', fontFamily: 'Cinzel, serif', fontWeight: 600, letterSpacing: '0.06em', color: 'var(--earth-brown)', marginBottom: '0.6rem' }}>
+                  {label}
+                </div>
+                <div className="expansion-chips">
+                  {exps.map(exp => {
+                    const { editable, tip } = itemState(exp);
+                    const chip = (
+                      <button
+                        key={exp.name}
+                        type="button"
+                        className={`expansion-chip ${ownedExpansions.includes(exp.name) ? 'selected' : ''}${editable ? '' : ' settings-dev'}`}
+                        onClick={editable ? (e) => { onToggleOwned?.(exp.name); e.currentTarget.blur(); } : undefined}
+                        style={editable ? undefined : { opacity: 0.55, cursor: 'var(--cursor-arrow)' }}
+                      >
+                        {exp.name}
+                      </button>
+                    );
+                    return editable ? chip : <ValInfo key={exp.name} tip={tip}>{chip}</ValInfo>;
+                  })}
+                </div>
+              </div>
+            );
+            return (
+              <>
+                {renderEditGroup('Full Expansions', DEFAULT_EXPANSIONS.filter(e => e.type === 'full'))}
+                {renderEditGroup('Mini Expansions', DEFAULT_EXPANSIONS.filter(e => e.type === 'mini'))}
+              </>
+            );
+          })() : ownedExpansions.length === 0 ? (
+            <p className="section-intro">No expansions owned — base game only.</p>
+          ) : (() => {
+            const categoryOf = Object.fromEntries(DEFAULT_EXPANSIONS.map(e => [e.name, e.category]));
+            const full = ownedExpansions.filter(n => categoryOf[n] === 'major');
+            const mini = ownedExpansions.filter(n => categoryOf[n] === 'mini' || categoryOf[n] === 'base_mini');
+            const renderGroup = (label, names) => names.length === 0 ? null : (
+              <div style={{ marginBottom: '1rem' }}>
+                <div style={{ fontSize: 'clamp(0.55rem, 2vw, 0.8rem)', fontFamily: 'Cinzel, serif', fontWeight: 600, letterSpacing: '0.06em', color: 'var(--earth-brown)', marginBottom: '0.6rem' }}>
+                  {label}
+                </div>
+                <div className="expansion-chips">
+                  {names.map(name => (
+                    <span key={name} className="expansion-chip display-only">{name}</span>
+                  ))}
+                </div>
+              </div>
+            );
+            return (
+              <>
+                {renderGroup('Full Expansions', full)}
+                {renderGroup('Mini Expansions', mini)}
+              </>
+            );
+          })()}
+          {onToggleOwned && (
+            <div style={{ marginTop: '0.8rem', paddingTop: '0.8rem', borderTop: '1px solid rgba(201,163,74,0.2)', display: 'flex', alignItems: 'center', justifyContent: editCollection ? 'space-between' : 'flex-end', gap: '0.8rem' }}>
+              {editCollection && (
+                <p className="section-intro" style={{ fontSize: 'clamp(0.6rem, 2vw, 0.85rem)', margin: 0 }}>
+                  Tap an expansion to add or remove it from your collection.
+                </p>
+              )}
+              <button type="button" className="settings-edit-btn" onClick={() => setEditCollection(v => !v)} style={{ flexShrink: 0 }}>
+                {editCollection ? 'Done' : 'Edit'}
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>

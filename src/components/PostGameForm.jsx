@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from 'react';
-import ValInfo from './ValInfo';
 import MemberProgressModal from './MemberProgressModal';
 import PointBreakdownChart from './PointBreakdownChart';
 import ScoreTimelineChart from './ScoreTimelineChart';
@@ -7,13 +6,9 @@ import { transformMaxFeaturesToUI } from '../utils/achievements';
 import { getMeepleColor, getToday, formatDurationHMS, formatDateDigital } from '../utils/formatters';
 import { computeWinners } from '../utils/scoring';
 import { chestFor } from '../data/chests';
-import { rankTitle, RANK_TITLES } from '../utils/metaRank';
 import { STATISTICS_CONFIG } from '../constants';
-import pigImg    from '../../images/icons/pig.png';
-import cImg      from '../../images/icons/C.png';
-import goldImg   from '../../images/icons/gold.png';
-import silverImg from '../../images/icons/silver.png';
-import bronzeImg from '../../images/icons/bronze.png';
+import scrollCapTop    from '../../images/icons/scroll-cap-top.png';
+import scrollCapBottom from '../../images/icons/scroll-cap-bottom.png';
 
 // Dynamically load all meeple PNGs (root + fun/)
 const MEEPLE_MODULES = import.meta.glob('../../images/meeples/*.png',     { eager: true, import: 'default' });
@@ -23,19 +18,6 @@ const MEEPLE_IMGS = {
   ...Object.fromEntries(Object.entries(FUN_MODULES).map(([path, img]) => [`fun/${path.split('/').pop()}`, img])),
 };
 const FALLBACK_MEEPLE = Object.values(MEEPLE_IMGS)[0];
-
-// Fits the longest possible rank title ("Realmkeeper") so every standings
-// row's rank badge — and so the whole row, alongside the name/score columns'
-// own fixed widths — lands at the same width regardless of this game's
-// actual (usually shorter) titles.
-const RANK_BADGE_MIN_CH = Math.max(...RANK_TITLES.map(t => t.length));
-
-// 1st/2nd/3rd place medals — indexed by row position (sortedPlayers is
-// already in score order), shown to the left of the standings box. Fixed
-// MEDAL_SIZE reserved for every row (even 4th place and below, via an empty
-// placeholder) so every box's left edge still lines up in one column.
-const PLACE_MEDALS = [goldImg, silverImg, bronzeImg];
-const MEDAL_SIZE = 40;
 
 // Longer player names get a smaller font instead of being truncated with an ellipsis.
 // Takes a character count (the longest name in the list) so every row can share one size.
@@ -156,33 +138,23 @@ export default function GameLogForm({ session, ownedExpansions, onSubmit, onCanc
         {realm && <span className="game-count">{realm.name}</span>}
       </div>
 
-      {/* Info bar: date (left) · clutch/farm stickers (centered) · duration
-          (right) — mirrors the logbook lightbox's info bar (see Lightbox.jsx):
+      {/* Info bar: date (left) · realm name (centered) · duration (right) —
+          mirrors the logbook lightbox's info bar (see Lightbox.jsx);
           expansions live in their own box near the bottom, below the score
           timeline, instead of crowding this line. Date and duration share
           the same LED stadium-clock look (.game-clock-digits--record) and
           the same fixed width, so the middle segment's flex: 1 auto-centers
-          the stickers in the true middle of the bar, not just "whatever
-          space is left" — no pipe divider needed between date/duration and
-          the stickers now that they're in their own segment instead of
-          crammed into one group. */}
-      <div style={{ marginBottom: '1.2rem', background: 'var(--aged-paper)', border: 'var(--border-tile)', borderRadius: 'var(--radius-tile)', padding: '0.45rem 1rem', display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'center' }}>
+          the realm name in the true middle of the bar. The clutch/farm win
+          stickers that used to live in this middle segment now sit next to
+          the "Score Timeline" title instead (see ScoreTimelineChart.jsx). */}
+      <div style={{ marginBottom: '1.2rem', background: 'var(--aged-paper)', border: 'var(--border-tile)', borderRadius: 'var(--radius-tile)', padding: '0.45rem 1rem', display: 'flex', flexWrap: 'nowrap', gap: '1rem', alignItems: 'center' }}>
         <div className="game-clock">
           <div className="game-clock-housing">
             <span className="game-clock-digits game-clock-digits--record">{formatDateDigital(date)}</span>
           </div>
         </div>
-        <div style={{ flex: '1 1 auto', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: '0.75rem' }}>
-          {isClutch && (
-            <ValInfo tip="Clutch win" placement="above">
-              <img src={cImg} alt="clutch" style={{ height: 20, width: 'auto', opacity: 0.85, display: 'block' }} />
-            </ValInfo>
-          )}
-          {autoFarmWin && (
-            <ValInfo tip="Farm win" placement="above">
-              <img src={pigImg} alt="farm win" style={{ height: 16, width: 'auto', opacity: 0.85, display: 'block' }} />
-            </ValInfo>
-          )}
+        <div style={{ flex: '1 1 auto', minWidth: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          {realm && <h2 style={{ margin: 0, color: 'var(--earth-brown)', textAlign: 'center', fontSize: 'clamp(0.4rem, 3.4vw, 1.3rem)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>{realm.name}</h2>}
         </div>
         <div className="game-clock">
           <div className="game-clock-housing">
@@ -191,95 +163,67 @@ export default function GameLogForm({ session, ownedExpansions, onSubmit, onCanc
         </div>
       </div>
 
-      <div className="tile-card" style={{ marginBottom: '1.4rem', borderTop: '4px solid var(--warm-gold)' }}>
-        <div className="chart-header" style={{ margin: '0 0 1rem', textAlign: 'left' }}>Standings</div>
+      <div style={{ maxWidth: '480px', margin: '0 auto 0.5rem' }}>
+        <div className="standings-scroll-top">
+          <img src={scrollCapTop} alt="" className="standings-scroll-cap" />
+          <div className="chart-header standings-scroll-title">Standings</div>
+        </div>
+        <div className="standings-scroll-body">
         {/* Player cards with final scores and ranking */}
         <div className="postgame-scores-grid">
-          {sortedPlayers.map((name, i) => {
+          {sortedPlayers.map((name) => {
             const color    = getMeepleColor(meeples[name]);
             const progress = progressByName[name.toLowerCase()] ?? null;
             return (
-              <div key={name} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                {PLACE_MEDALS[i] ? (
-                  <img src={PLACE_MEDALS[i]} alt={`${i + 1} place`} style={{ height: MEDAL_SIZE, width: 'auto', flexShrink: 0 }} />
-                ) : (
-                  <span style={{ flexShrink: 0, width: MEDAL_SIZE }} />
-                )}
-                <div className="postgame-player-card" style={{ borderLeft: `3px solid ${color}` }}>
-                  <div style={{ display: 'flex', flexWrap: 'nowrap', alignItems: 'center', gap: '0.5rem' }}>
-                    <img src={MEEPLE_IMGS[meeples[name]] || FALLBACK_MEEPLE} alt={name} style={{ height: 26, width: 'auto', flexShrink: 0 }} />
-                    {/* Name — every row shares one font size and width (both set by
-                        the longest name) so scores line up directly to the right of
-                        the longest name across every row */}
-                    <span style={{
-                      fontFamily: 'Cinzel, serif',
-                      color,
-                      fontWeight: 600,
-                      fontSize: nameFontSize(maxNameLen),
-                      flex: '0 0 auto',
-                      width: `${maxNameLen}ch`,
-                      whiteSpace: 'nowrap',
-                    }}>
-                      {name}
-                    </span>
-                    {/* Score — a bit of breathing room after the name, now that the
-                        box is content-sized rather than stretched edge-to-edge (see
-                        .postgame-scores-grid). Headline-record medal chips now live
-                        on the score timeline instead of here (see ScoreTimelineChart.jsx). */}
-                    <span style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      flexShrink: 0,
-                      marginLeft: '1.5rem',
-                      alignSelf: 'stretch',
-                    }}>
-                      <div className="game-clock">
-                        <div className="game-clock-housing">
-                          <span className="game-clock-digits game-clock-digits--score">{finalScores[name] ?? 0}</span>
-                        </div>
+              <div
+                key={name}
+                className={`postgame-player-card${progress != null ? ' postgame-player-card--clickable' : ''}`}
+                style={{ borderLeft: `3px solid ${color}`, cursor: progress != null ? 'var(--cursor-pointer)' : 'var(--cursor-arrow)' }}
+                onClick={progress != null ? () => setShowProgressFor(name) : undefined}
+              >
+                <div style={{ display: 'flex', flexWrap: 'nowrap', alignItems: 'center', gap: '0.5rem' }}>
+                  <img src={MEEPLE_IMGS[meeples[name]] || FALLBACK_MEEPLE} alt={name} style={{ height: 'clamp(18px, 5vw, 26px)', width: 'auto', flexShrink: 0 }} />
+                  {/* Name — every row shares one font size and width (both set by
+                      the longest name) so scores line up directly to the right of
+                      the longest name across every row */}
+                  <span style={{
+                    fontFamily: 'Cinzel, serif',
+                    color,
+                    fontWeight: 600,
+                    fontSize: nameFontSize(maxNameLen),
+                    flex: '0 0 auto',
+                    width: `${maxNameLen}ch`,
+                    whiteSpace: 'nowrap',
+                  }}>
+                    {name}
+                  </span>
+                  {/* Score — a bit of breathing room after the name, now that the
+                      box is content-sized rather than stretched edge-to-edge (see
+                      .postgame-scores-grid). Headline-record medal chips now live
+                      on the score timeline instead of here (see ScoreTimelineChart.jsx).
+                      The rank badge that used to sit to the right of this card is
+                      gone — the whole card is the click target now (see onClick
+                      above), only when this player actually has a rank to show. */}
+                  <span style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    flexShrink: 0,
+                    marginLeft: '1.5rem',
+                    alignSelf: 'stretch',
+                  }}>
+                    <div className="game-clock">
+                      <div className="game-clock-housing">
+                        <span className="game-clock-digits game-clock-digits--score">{finalScores[name] ?? 0}</span>
                       </div>
-                    </span>
-                  </div>
+                    </div>
+                  </span>
                 </div>
-                {/* Rank now sits outside the parchment box, to its right — same
-                    box-button look used everywhere else (.player-card-rank-badge,
-                    see PlayerCard.jsx) rather than crowded in between name and
-                    score. Reserves the same slot whether or not this player has a
-                    rank (minWidth fits the longest possible title) — so a row
-                    without one doesn't shift its box out of line with the rest. */}
-                {progress != null ? (
-                  <button
-                    type="button"
-                    className="player-card-rank-badge"
-                    style={{ flexShrink: 0, minWidth: `${RANK_BADGE_MIN_CH}ch`, textAlign: 'center' }}
-                    onClick={() => setShowProgressFor(name)}
-                  >
-                    {rankTitle(progress.rank)}
-                  </button>
-                ) : (
-                  // Same class (not just a bare span with a matching
-                  // minWidth) plus an explicit display: inline-block — a
-                  // plain <span> is display: inline by default, and
-                  // min-width has NO effect on inline elements at all (it's
-                  // not just a font-size/ch mismatch, the old placeholder
-                  // was silently collapsing to its own zero-width empty
-                  // content), while the real badge is a <button>
-                  // (inline-block by default) where min-width genuinely
-                  // applies. Forcing inline-block here is what actually
-                  // reserves an identical box, independent of content.
-                  // visibility: hidden (not display: none) keeps that box
-                  // in flow while showing nothing.
-                  <span
-                    aria-hidden="true"
-                    className="player-card-rank-badge"
-                    style={{ display: 'inline-block', flexShrink: 0, minWidth: `${RANK_BADGE_MIN_CH}ch`, textAlign: 'center', visibility: 'hidden' }}
-                  />
-                )}
               </div>
             );
           })}
         </div>
-
+        </div>
+        <img src={scrollCapBottom} alt="" className="standings-scroll-cap" />
       </div>
 
       {showProgressFor != null && progressByName[showProgressFor.toLowerCase()] != null && (
@@ -299,7 +243,7 @@ export default function GameLogForm({ session, ownedExpansions, onSubmit, onCanc
       {/* Score swing timeline */}
       {scoreTimeline.length > 0 && (
         <div style={{ marginTop: '1.4rem' }}>
-          <ScoreTimelineChart timeline={scoreTimeline} players={players} duration={gameDuration} achievements={uiAchievements} />
+          <ScoreTimelineChart timeline={scoreTimeline} players={players} duration={gameDuration} achievements={uiAchievements} isClutch={isClutch} farmWin={autoFarmWin} />
         </div>
       )}
 
