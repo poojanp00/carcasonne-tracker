@@ -37,6 +37,18 @@ export default function GameLogForm({ session, ownedExpansions, onSubmit, onCanc
   const [showProgressFor, setShowProgressFor] = useState(null); // player name, or null
   const hasAutoSubmitted = useRef(false);
 
+  // App.jsx's handleFinishGame already calls window.scrollTo(0, 0) when it
+  // swaps Board out for this form, but that fires in the same synchronous
+  // handler that flips session.finalScores — before this component actually
+  // exists in the DOM. A signed-in account never notices: the auto-submit
+  // effect right below fires almost immediately and navigates away again.
+  // A guest skips that auto-submit and actually sits on this page, which is
+  // where a pre-mount scroll reset is most likely to not stick on mobile.
+  // Scrolling again here, after mount, is what actually guarantees it.
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
   // Auto-submit for logged-in users
   useEffect(() => {
     if (!isGuest && !hasAutoSubmitted.current) {

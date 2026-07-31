@@ -13,22 +13,30 @@ const PAGE_SIZE = 12;
 export default function ArtPickerGrid({
   items, rowClassName, pickClassName, altPrefix,
   selectedIndex, onSelect, isLocked, isGuestBlocked, guestTip, hideIndex,
+  fill = false, paginate = true,
 }) {
   const visible = items
     .map((img, i) => ({ img, i }))
     .filter(({ i }) => !hideIndex?.(i));
 
-  const pageCount = Math.max(1, Math.ceil(visible.length / PAGE_SIZE));
+  // Profile.jsx's Gallery (paginate=false) is a showcase of everything
+  // unlocked so far, not a picker mid-flow — the whole point is seeing it
+  // all at once, so it skips paging (and the padding-to-full-page math
+  // below) entirely and just renders every visible item.
+  const pageCount = paginate ? Math.max(1, Math.ceil(visible.length / PAGE_SIZE)) : 1;
   // Lands on whichever page already holds the current selection (if any),
   // so switching art doesn't require first hunting for what's picked —
   // only computed once at mount, same as the picker's own selection.
   const [page, setPage] = useState(() => {
+    if (!paginate) return 0;
     const pos = visible.findIndex(({ i }) => i === selectedIndex);
     return pos > 0 ? Math.floor(pos / PAGE_SIZE) : 0;
   });
   const clampedPage = Math.min(page, pageCount - 1);
-  const paginated = pageCount > 1;
-  const pageItems = visible.slice(clampedPage * PAGE_SIZE, clampedPage * PAGE_SIZE + PAGE_SIZE);
+  const paginated = paginate && pageCount > 1;
+  const pageItems = paginate
+    ? visible.slice(clampedPage * PAGE_SIZE, clampedPage * PAGE_SIZE + PAGE_SIZE)
+    : visible;
   // Padded out to a full PAGE_SIZE with invisible slots whenever there's
   // more than one page — a shorter final page (e.g. 18 items -> 12 + 6)
   // would otherwise only fill 2 rows instead of 3, pulling the pager
@@ -47,8 +55,16 @@ export default function ArtPickerGrid({
     // — centered within THIS box — lands centered under the tiles
     // themselves (the 2nd/3rd column gap), not the middle of extra empty
     // space to their right.
-    <div style={{ width: 'fit-content' }}>
-      <div className={rowClassName}>
+    //
+    // `fill` inverts this (Profile.jsx's Gallery, a much narrower column
+    // than PreGameSetup's full-width picker): the wrapper stretches to
+    // 100%, and the row switches from a fixed 4-column grid to
+    // auto-fill — tiles stay evenly spaced and stretch to fill whatever
+    // width is actually available, and the column count itself grows or
+    // shrinks with it, instead of a fixed 4-per-row squeezing down or
+    // leaving dead space at odd container widths.
+    <div style={fill ? { width: '100%' } : { width: 'fit-content' }}>
+      <div className={rowClassName} style={fill ? { gridTemplateColumns: 'repeat(auto-fill, minmax(84px, 1fr))' } : undefined}>
         {slots.map((entry, slotIndex) => {
           if (!entry) return <span key={`pad-${slotIndex}`} className={pickClassName} style={{ visibility: 'hidden', border: 'none', boxShadow: 'none' }} />;
           const { img, i } = entry;

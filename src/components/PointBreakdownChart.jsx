@@ -112,6 +112,33 @@ export default function PointBreakdownChart({ players, showLegend = false, title
           </div>
         )}
 
+        {/* Column titles for the standings box (RealmBook's Cover page,
+            winsByPlayer set). Widths below are `rem`/px, never `em`/`ch` —
+            those are relative to each ELEMENT's own font-size, and the
+            title row's font-size doesn't match the value row's (e.g. Wins'
+            number is much larger, the rank badge much smaller), so an
+            em/ch width shared between the two came out a different pixel
+            width in each row and the columns drifted out of alignment.
+            Rank/Wins/Player titles are centered within that same
+            fixed-width box the value row uses, so they sit over the column
+            as a whole regardless of how the value itself is aligned inside
+            it. Points centers over the bar only — the trailing empty span
+            below reserves the same minWidth as the row's own total-number
+            column (see the row's flex:1 bar + minWidth:'28px' number), so
+            Points' own flex:1 box lines up with just the bar instead of
+            also swallowing that number's width. */}
+        {winsByPlayer && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.4rem' }}>
+            <span style={{ fontFamily: 'Cinzel, serif', fontSize: '0.65rem', color: 'var(--stone-gray)', minWidth: '2.2rem', textAlign: 'left', flexShrink: 0 }}>Wins</span>
+            <span style={{ fontFamily: 'Cinzel, serif', fontSize: '0.65rem', color: 'var(--stone-gray)', width: 'clamp(64px, 18vw, 150px)', minWidth: 0, textAlign: 'left', flexShrink: 0 }}>Player</span>
+            {rankByPlayer && (
+              <span style={{ fontFamily: 'Cinzel, serif', fontSize: '0.65rem', color: 'var(--stone-gray)', flexShrink: 0, width: '4.5rem', textAlign: 'center' }}>Rank</span>
+            )}
+            <span style={{ fontFamily: 'Cinzel, serif', fontSize: '0.65rem', color: 'var(--stone-gray)', flex: 1, textAlign: 'center' }}>Points</span>
+            <span style={{ minWidth: '28px', flexShrink: 0 }} />
+          </div>
+        )}
+
         <div
           ref={barsRef}
           style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1.2rem', position: 'relative' }}
@@ -123,7 +150,7 @@ export default function PointBreakdownChart({ players, showLegend = false, title
             return (
               <div key={player.name} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                 {winsByPlayer && (
-                  <span style={{ fontFamily: 'Cinzel, serif', fontSize: 'clamp(1rem, 3vw, 1.3rem)', color: 'var(--forest-green)', fontWeight: 600, minWidth: '1.5em', textAlign: 'left', flexShrink: 0 }}>
+                  <span style={{ fontFamily: 'Cinzel, serif', fontSize: 'clamp(1rem, 3vw, 1.3rem)', color: 'var(--forest-green)', fontWeight: 600, minWidth: '2.2rem', textAlign: 'left', flexShrink: 0 }}>
                     {winsByPlayer[player.name] ?? ''}
                   </span>
                 )}
@@ -134,21 +161,19 @@ export default function PointBreakdownChart({ players, showLegend = false, title
                 <span style={{ fontFamily: 'Cinzel, serif', fontSize: winsByPlayer ? 'clamp(1rem, 3vw, 1.3rem)' : 'clamp(0.6rem, 1.8vw, 0.78rem)', color: winsByPlayer ? 'var(--charcoal)' : 'var(--stone-gray)', width: winsByPlayer ? 'clamp(64px, 18vw, 150px)' : 'clamp(48px, 12vw, 80px)', minWidth: 0, textAlign: winsByPlayer ? 'left' : 'right', flexShrink: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {player.name}
                 </span>
-                {/* Fixed-width slot (kept even when this player has no rank
-                    yet, via `visibility: hidden` rather than omitting the
-                    span) — moved here from the Roster/Fellowship page's
-                    PlayerCard, only ever set (rankByPlayer) when this chart
-                    is used as Overview's standings box. Reserving the slot
-                    unconditionally keeps every row's bar starting at the
-                    same x regardless of whether that particular player has
-                    a fetched rank (real for a linked member only, same rule
-                    PlayerCard used to apply). */}
+                {/* Fixed-width slot — moved here from the Roster/Fellowship
+                    page's PlayerCard, only ever set (rankByPlayer) when this
+                    chart is used as Overview's standings box. rankByPlayer
+                    is only populated for a linked member (see RealmBook's
+                    progressByName) — an unlinked/guest player, or one whose
+                    progress hasn't loaded yet, falls back to rank 1
+                    (Wanderer) instead of leaving the slot blank. */}
                 {rankByPlayer && (
                   <span
                     className="player-card-rank-badge"
-                    style={{ flexShrink: 0, width: '11.5ch', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', visibility: rankByPlayer[player.name] != null ? 'visible' : 'hidden' }}
+                    style={{ flexShrink: 0, width: '4.5rem', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis' }}
                   >
-                    {rankByPlayer[player.name] != null ? rankTitle(rankByPlayer[player.name]) : ' '}
+                    {rankTitle(rankByPlayer[player.name] ?? 1)}
                   </span>
                 )}
                 <div style={{ flex: 1, height: barHeight }}>

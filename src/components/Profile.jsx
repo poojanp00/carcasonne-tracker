@@ -10,7 +10,7 @@ import { ACHIEVEMENT_DISPLAY_ORDER, ACHIEVEMENT_BADGE, ACHIEVEMENT_LABEL_OVERRID
 
 import { formatAchievementName } from '../utils/achievements';
 import { getExpansions } from '../data/storage';
-import { DEMO_GAMES, DEMO_REALMS, DEMO_USER_ID, DEMO_USER_NAME } from '../data/demoData';
+import { DEMO_GAMES, DEMO_REALMS, DEMO_USER_ID, DEMO_USER_NAME, DEMO_UNLOCKED_CHEST_INDICES, DEMO_UNLOCKED_LOGBOOK_INDICES } from '../data/demoData';
 import ValInfo from './ValInfo';
 import Lightbox from './Lightbox';
 import ArtPickerGrid from './ArtPickerGrid';
@@ -168,6 +168,10 @@ function PointsBar({ breakdown }) {
 }
 
 const sectionHeaderStyle = { borderBottom: '1px solid var(--warm-gold)', paddingBottom: '0.5rem', marginBottom: '1rem' };
+// Sub-section labels one level below a tile-card-header — Collection's
+// "Full Expansions"/"Mini Expansions" groups and Gallery's "Chests"/
+// "Logbooks" columns, so both read as the same kind of label.
+const subheadingStyle = { fontSize: 'clamp(0.55rem, 2vw, 0.8rem)', fontFamily: 'Cinzel, serif', fontWeight: 600, letterSpacing: '0.06em', color: 'var(--earth-brown)', marginBottom: '0.6rem' };
 
 // "All Milestones" carousel slide — every category has exactly 4 tiers, so
 // instead of a bar scaled to real point thresholds (where an early tier's
@@ -300,7 +304,7 @@ function ProfileHero({ account, userId, displayName, title, tierCount, totalTier
   ];
 
   return (
-    <div ref={heroRef} className={`player-card-flip${flipped ? ' flipped' : ''}${highlighted ? ' tour-highlight' : ''}`} style={{ marginBottom: '1.2rem' }}>
+    <div ref={heroRef} className={`player-card-flip${flipped ? ' flipped' : ''}${highlighted ? ' tour-highlight' : ''}`}>
       {/* rotation (not just the flipped on/off class) drives the actual
           transform here — repeated ArrowRight/ArrowLeft/Enter presses (see
           Profile's keyboard shortcut) keep accumulating past a single
@@ -412,8 +416,6 @@ function CareerHighlights({ account, onNavigateToGame }) {
 }
 
 export default function Profile({ games: realGames, realms: realRealms, userId: realUserId, displayName: realDisplayName, isGuest = false, tourShown = false, onTourShown = null, autoStartTour = false, onAutoStartTourConsumed = null, onTourComplete = null, storedMetaRank = 0, onGuestMetaRankAchieved = null, onChangeDisplayName, onDeleteAccount, onSignOut, ownedExpansions = [], onToggleOwned = null, unlockedChestIndices = null, unlockedLogbookIndices = null }) {
-  const unlockedChestIdx = unlockedChestIndices || new Set([0]);
-  const unlockedLogbookIdx = unlockedLogbookIndices || new Set([0]);
   const [editCollection, setEditCollection] = useState(false);
   const [selectedGame, setSelectedGame] = useState(null);
 
@@ -429,6 +431,8 @@ export default function Profile({ games: realGames, realms: realRealms, userId: 
   const [chainedFromRealms, setChainedFromRealms] = useState(false);
   const heroRef = useRef(null);
   const careerHighlightsRef = useRef(null);
+  const galleryRef = useRef(null);
+  const collectionRef = useRef(null);
   // Hero/Career Highlights flip-cards — same click-to-flip as a Fellowship
   // PlayerCard when browsed freely, but *driven* by the tour (below) rather
   // than independently toggled while the tour is open, so each step can show
@@ -447,7 +451,7 @@ export default function Profile({ games: realGames, realms: realRealms, userId: 
   // highlights flip-cards (see ProfileHero/the CareerHighlights flip below),
   // so those tour steps just re-spotlight the same physical card as the
   // step before them rather than a separate element.
-  const tourRefs = [heroRef, heroRef, careerHighlightsRef, careerHighlightsRef];
+  const tourRefs = [heroRef, heroRef, careerHighlightsRef, careerHighlightsRef, galleryRef, collectionRef];
   // The popup docks beside whichever section the current step spotlights.
   const tourTargetRef = tourStep !== null ? tourRefs[tourStep] : null;
   // Demo data only stands in for a guest's own account while their tour is
@@ -462,6 +466,29 @@ export default function Profile({ games: realGames, realms: realRealms, userId: 
   const realms = demoActive ? DEMO_REALMS : realRealms;
   const userId = demoActive ? DEMO_USER_ID : realUserId;
   const displayName = demoActive ? DEMO_USER_NAME : realDisplayName;
+  // Same demoActive swap as games/realms/userId/displayName above — a
+  // guest's own real unlock set is just item 1 (index 0), which would make
+  // the Gallery tour step look empty. See DEMO_UNLOCKED_CHEST_INDICES'
+  // comment in demoData.js.
+  const unlockedChestIdx = demoActive ? DEMO_UNLOCKED_CHEST_INDICES : (unlockedChestIndices || new Set([0]));
+  const unlockedLogbookIdx = demoActive ? DEMO_UNLOCKED_LOGBOOK_INDICES : (unlockedLogbookIndices || new Set([0]));
+  // Gallery items — catalog order (001, 002, 003…), same order the
+  // create-realm chest/book picker (PreGameSetup.jsx) shows them in, not
+  // the order they happened to be unlocked in. Capped at the farthest
+  // unlocked item rather than the whole catalog — a signed-in account deep
+  // into the list doesn't need every still-locked item all the way to the
+  // end previewed. Anything not yet unlocked WITHIN that range still shows
+  // as a silhouette (isLocked, below) so a gap reads as "still to find,"
+  // not just missing.
+  //
+  // Both columns share ONE farthest point — whichever of chest/logbook is
+  // further along — rather than each capping independently. A chest stuck
+  // at 007 while logbooks have reached 009 still shows chest silhouettes
+  // for 008/009, instead of that column just stopping two items short and
+  // visually mismatching the logbook column's length.
+  const galleryFarthest = Math.max(-1, ...unlockedChestIdx, ...unlockedLogbookIdx);
+  const galleryChests = Array.from({ length: galleryFarthest + 1 }, (_, i) => CHESTS[i]);
+  const galleryLogbooks = Array.from({ length: galleryFarthest + 1 }, (_, i) => SPINES[i]);
   const account = useMemo(() => calcAccountStats(games, realms, userId), [games, realms, userId]);
   const startTour = () => setTourStep(0);
   // Auto-opens the tour the *first* time a guest reaches this tab this
@@ -504,6 +531,26 @@ export default function Profile({ games: realGames, realms: realRealms, userId: 
       heroRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
   }, [tourStep]);
+  // Tour steps 1 (Milestones, hero's back face) and 3 (Trophy Cabinet,
+  // Career Highlights' back face) each flip a card between two differently
+  // -sized faces as part of the SAME transition that also scrolls — the
+  // flip itself only actually happens once the rotation effect below fires
+  // (a render AFTER the tourStep update this scroll runs inside of) and its
+  // own resulting re-render commits. Scrolling synchronously, right here,
+  // measures the stale PRE-flip layout — most visibly when the card
+  // ABOVE/BEFORE the scroll target is the one shrinking (e.g. milestones'
+  // tall back face collapsing back to the short front face while advancing
+  // to Career Highlights), which throws the scroll off by however many
+  // pixels that shrink is, landing well past the intended target. Deferring
+  // two animation frames reliably lands after that cascading re-render has
+  // committed and actually reflowed.
+  const scrollToRef = (ref, block) => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        ref.current?.scrollIntoView({ behavior: 'smooth', block });
+      });
+    });
+  };
   // Closing a game link opened mid-tour (see CareerHighlights) is owned up
   // here, not inside the Lightbox — without clearing it on every tour
   // transition, it'd visually disappear (Lightbox unmounts when the tour
@@ -513,16 +560,32 @@ export default function Profile({ games: realGames, realms: realRealms, userId: 
     setSelectedGame(null);
     setTourStep(prev => {
       if (prev === 0) {
-        heroRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        // 'start', not 'center' — same reasoning as Career Highlights below:
+        // keeps the (possibly tall) Milestones back face's own top on
+        // screen instead of centering it and pushing that top off-screen.
+        scrollToRef(heroRef, 'start');
         return 1;
       }
       if (prev === 1) {
-        careerHighlightsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        // 'start', not 'center' — centering this tall card can push its own
+        // title above the viewport while the tour popup (docked below it)
+        // still has room, so the card looks like it scrolled "past" itself.
+        // Pinning its top to the viewport's top keeps the title on screen
+        // and leaves the popup sitting near the bottom instead.
+        scrollToRef(careerHighlightsRef, 'start');
         return 2;
       }
       if (prev === 2) {
-        careerHighlightsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        scrollToRef(careerHighlightsRef, 'start');
         return 3;
+      }
+      if (prev === 3) {
+        scrollToRef(galleryRef, 'start');
+        return 4;
+      }
+      if (prev === 4) {
+        scrollToRef(collectionRef, 'center');
+        return 5;
       }
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return null;
@@ -531,9 +594,11 @@ export default function Profile({ games: realGames, realms: realRealms, userId: 
   const backTour = () => {
     setSelectedGame(null);
     setTourStep(prev => {
-      if (prev === 1) { heroRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }); return 0; }
-      if (prev === 2) { heroRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }); return 1; }
-      if (prev === 3) { careerHighlightsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }); return 2; }
+      if (prev === 1) { scrollToRef(heroRef, 'center'); return 0; }
+      if (prev === 2) { scrollToRef(heroRef, 'start'); return 1; }
+      if (prev === 3) { scrollToRef(careerHighlightsRef, 'start'); return 2; }
+      if (prev === 4) { scrollToRef(careerHighlightsRef, 'start'); return 3; }
+      if (prev === 5) { scrollToRef(galleryRef, 'start'); return 4; }
       return prev;
     });
   };
@@ -547,7 +612,10 @@ export default function Profile({ games: realGames, realms: realRealms, userId: 
   // shows Career Highlights' back (Trophy Cabinet) — every other step, and
   // the tour being closed entirely (tourStep back to null, via closeTour or
   // advanceTour finishing), resets both cards to their fronts rather than
-  // leaving one stuck flipped once the tour's no longer pointing at it.
+  // leaving one stuck flipped once the tour's no longer pointing at it. So
+  // leaving step 3 (Next, or clicking the card itself — see handleCareerFlip
+  // below) both flips Trophy Cabinet back to Career Highlights' front AND
+  // advances to step 4 (Gallery) in the same click.
   useEffect(() => {
     setHeroRotation(tourStep === 1 ? 1 : 0);
     setCareerRotation(tourStep === 3 ? 1 : 0);
@@ -731,7 +799,13 @@ export default function Profile({ games: realGames, realms: realRealms, userId: 
         />
       )}
 
-      {tourStep !== null && (
+      {/* Hidden while a game's Lightbox is open on top (selectedGame) —
+          same as the Realms/logbook tour (see RealmsTab.jsx) — so its close
+          button stays reachable instead of sitting under the tour card,
+          and the popup's own fixed-position tracking isn't fighting
+          whatever scroll gesture the Lightbox needs on a phone. Reappears
+          automatically once the Lightbox closes and tourStep is still set. */}
+      {tourStep !== null && !selectedGame && (
         <ProfileHowToModal step={tourStep} onNext={advanceTour} onBack={backTour} onClose={closeTour} targetRef={tourTargetRef} />
       )}
 
@@ -908,6 +982,17 @@ export default function Profile({ games: realGames, realms: realRealms, userId: 
           something real to point at for a brand new account too. */}
       <div className={tourStep !== null ? 'tour-inert' : ''}>
         <div className="me-hero-grid" style={{ marginBottom: '1.2rem' }}>
+          {/* Left/right are independent flex columns, not grid rows — each
+              stacks its own two children at their own natural height. A
+              shared grid-template-areas layout (the old approach) ties
+              row-tracks together across BOTH columns, so a short Gallery
+              (now just the unlocked art — see below) next to a tall Career
+              Highlights left a huge dead gap before Collection, since
+              Gallery's row-track was still stretched to match the left
+              column's total height. Flex columns don't share tracks, so
+              Collection now sits directly under however tall Gallery's
+              real content happens to be. */}
+          <div className="me-hero-left">
           <div className="me-hero-char">
             <ProfileHero heroRef={heroRef} highlighted={tourStep === 0 || tourStep === 1} account={account} userId={userId} displayName={displayName} title={`Rank ${displayedRank} ${rankTitle(displayedRank)}`} tierCount={tierCount} totalTiers={getTotalTiers()} onOpenSettings={isGuest ? null : openSettings} flipped={heroFlipped} rotation={heroRotation} onFlip={handleHeroFlip} />
           </div>
@@ -924,62 +1009,61 @@ export default function Profile({ games: realGames, realms: realRealms, userId: 
               </div>
             </div>
           </div>
+          </div>
 
+          <div className="me-hero-right">
           {/* Gallery — read-only showcase of every chest/logbook the account
               has unlocked, using the exact same picker grid as the
               create-realm chest/book step (see PreGameSetup.jsx) for visual
-              consistency. onSelect is a no-op — there's no "current realm"
+              consistency — same catalog order, too (see galleryChests/
+              galleryLogbooks above), not the order each was actually
+              unlocked in. onSelect is a no-op — there's no "current realm"
               on this page to assign a pick to, just what's been unlocked.
-              Spans both rows of the left column (see .me-hero-gallery) —
-              tall is expected here, it's however many rows of chests/
-              logbooks it takes to show everything unlocked so far. */}
-          <div className="me-hero-gallery tile-card">
+              `fill` lets the picker grid's own row stretch/reflow to this
+              column's actual width instead of PreGameSetup's fixed
+              4-per-row (see ArtPickerGrid's `fill` prop). */}
+          <div ref={galleryRef} className={`me-hero-gallery tile-card${tourStep === 4 ? ' tour-highlight' : ''}`}>
             <div className="tile-card-header" style={sectionHeaderStyle}>Gallery</div>
             <div className="chest-logbook-columns">
               <div className="chest-logbook-col">
-                <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.6rem' }}>
-                  Chests
-                </label>
+                <div style={subheadingStyle}>Chests</div>
                 <ArtPickerGrid
-                  items={CHESTS}
+                  items={galleryChests}
                   rowClassName="chest-picker-row"
                   pickClassName="chest-pick"
                   altPrefix="Chest"
                   selectedIndex={null}
                   onSelect={() => {}}
-                  hideIndex={i => isGuest && i >= 1 && i <= 5}
-                  isGuestBlocked={i => isGuest && i !== 0}
-                  isLocked={i => !isGuest && !unlockedChestIdx.has(i)}
-                  guestTip="Sign in to unlock more chests."
+                  isLocked={i => !unlockedChestIdx.has(i)}
+                  fill
+                  paginate={false}
                 />
               </div>
               <div className="chest-logbook-col">
-                <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.6rem' }}>
-                  Logbooks
-                </label>
+                <div style={subheadingStyle}>Logbooks</div>
                 <ArtPickerGrid
-                  items={SPINES}
+                  items={galleryLogbooks}
                   rowClassName="logbook-picker-row"
                   pickClassName="logbook-pick"
                   altPrefix="Logbook"
                   selectedIndex={null}
                   onSelect={() => {}}
-                  hideIndex={i => isGuest && i >= 1 && i <= 5}
-                  isGuestBlocked={i => isGuest && i !== 0}
-                  isLocked={i => !isGuest && !unlockedLogbookIdx.has(i)}
-                  guestTip="Sign in to unlock more logbooks."
+                  isLocked={i => !unlockedLogbookIdx.has(i)}
+                  fill
+                  paginate={false}
                 />
               </div>
             </div>
           </div>
-        </div>
 
         {/* Collection — the expansion-ownership editor that used to live in
             PreGameSetup.jsx's "Edit" mode (now removed there — see its own
             comment) since toggling what you own doesn't belong to any one
             game setup. Default view is a plain read-only list of what's
-            owned; Edit swaps in the same full toggleable grid. */}
-        <div className="tile-card" style={{ marginBottom: '1.2rem' }}>
+            owned; Edit swaps in the same full toggleable grid. Sits in the
+            same right-hand flex column as Gallery, directly under it — not
+            a full-width box below the whole grid. */}
+        <div ref={collectionRef} className={`me-hero-collection tile-card${tourStep === 5 ? ' tour-highlight' : ''}`}>
           <div className="tile-card-header" style={sectionHeaderStyle}>Collection</div>
           {editCollection ? (() => {
             const itemState = (exp) => {
@@ -991,7 +1075,7 @@ export default function Profile({ games: realGames, realms: realRealms, userId: 
             };
             const renderEditGroup = (label, exps) => exps.length === 0 ? null : (
               <div style={{ marginBottom: '1rem' }}>
-                <div style={{ fontSize: 'clamp(0.55rem, 2vw, 0.8rem)', fontFamily: 'Cinzel, serif', fontWeight: 600, letterSpacing: '0.06em', color: 'var(--earth-brown)', marginBottom: '0.6rem' }}>
+                <div style={subheadingStyle}>
                   {label}
                 </div>
                 <div className="expansion-chips">
@@ -1027,7 +1111,7 @@ export default function Profile({ games: realGames, realms: realRealms, userId: 
             const mini = ownedExpansions.filter(n => categoryOf[n] === 'mini' || categoryOf[n] === 'base_mini');
             const renderGroup = (label, names) => names.length === 0 ? null : (
               <div style={{ marginBottom: '1rem' }}>
-                <div style={{ fontSize: 'clamp(0.55rem, 2vw, 0.8rem)', fontFamily: 'Cinzel, serif', fontWeight: 600, letterSpacing: '0.06em', color: 'var(--earth-brown)', marginBottom: '0.6rem' }}>
+                <div style={subheadingStyle}>
                   {label}
                 </div>
                 <div className="expansion-chips">
@@ -1056,6 +1140,8 @@ export default function Profile({ games: realGames, realms: realRealms, userId: 
               </button>
             </div>
           )}
+        </div>
+          </div>
         </div>
       </div>
     </div>

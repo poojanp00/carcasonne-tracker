@@ -974,34 +974,58 @@ input[type="search"], input[type="number"] {
 .player-card-flip.flipped .player-card-front { pointer-events: none; }
 
 /* ── Me page hero card ── */
-/* Wide screens: character card and Career Highlights stacked in the left
-   column, Gallery spanning both their rows in a tall right column (see
-   Profile.jsx — .me-hero-char/.me-hero-highlights/.me-hero-gallery assign
-   each child to its area). Narrow screens: a single column, ordered by
-   the area list below (char, then highlights, then gallery) regardless of
-   each element's actual position in the DOM/JSX — grid-template-areas is
-   what lets the wide 2-column arrangement and the narrow stacking order
-   both come from CSS alone, with no reordering needed in the markup. */
+/* Wide screens: two independent columns — character card + Career
+   Highlights stacked on the left (.me-hero-left), Gallery + Collection
+   stacked on the right (.me-hero-right) — each a plain flex column with its
+   own natural height, not grid rows shared across both columns. Sharing
+   row-tracks (the old grid-template-areas approach) meant a short column
+   next to a tall one left dead space before its own next item started,
+   since its row-track was stretched to match the OTHER column's height;
+   independent flex columns don't have that problem — Collection always
+   sits directly under however tall Gallery's real content is. Narrow
+   screens: the two columns stack full-width instead, left column entirely
+   above the right (char, highlights, gallery, collection, in that DOM
+   order) — no reordering needed since that's already each side's actual
+   markup order. */
 .me-hero-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  grid-template-areas:
-    "char      gallery"
-    "highlights gallery";
-  gap: 0.5rem 2rem;
+  /* row-gap only actually shows once the media query below drops this to a
+     single column and .me-hero-left/.me-hero-right stack as two grid rows
+     — matches each column's own internal flex `gap` (1rem) so the seam
+     between Highlights and Gallery reads the same as every other gap on
+     the page, not a missing/zero one. On wide screens there's only ever
+     one row here, so row-gap has nothing to do. */
+  gap: 1rem 2rem;
   align-items: start;
 }
-.me-hero-char       { grid-area: char; }
-.me-hero-highlights { grid-area: highlights; }
-.me-hero-gallery    { grid-area: gallery; }
+.me-hero-left,
+.me-hero-right {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 0;
+}
+/* Explicit width: 100% — flex column children stretch to the cross axis by
+   default, so this is normally redundant, but the flip-card's own
+   perspective/transform-style: preserve-3d (see .player-card-flip) puts it
+   in its own 3D rendering context, and at least one browser has been seen
+   sizing a preserve-3d subtree off its front face's natural content width
+   instead of the flex column's width — this pins it explicitly so that
+   can't happen. */
+.me-hero-highlights { width: 100%; }
 @media (max-width: 900px) {
   .me-hero-grid {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-areas:
-      "char"
-      "highlights"
-      "gallery";
   }
+}
+
+/* Profile's Gallery (ArtPickerGrid `fill` mode) renders inside a much wider
+   column than PreGameSetup's picker — bigger tiles read as a showcase
+   instead of the create-realm flow's compact default. */
+.me-hero-gallery .chest-pick,
+.me-hero-gallery .logbook-pick {
+  max-width: 140px;
 }
 
 /* ── Account milestone tiers (Me page) ── */
