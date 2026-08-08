@@ -4,6 +4,8 @@ import { ACHIEVEMENT_BADGE, ACHIEVEMENT_LABEL_OVERRIDE } from './GameHighlights'
 import { formatAchievementName } from '../utils/achievements';
 import { LIVE_PLAY_ONLY_RECORD_TYPES, MONASTERY_RECORD_TYPES, MONASTERY_LIKE_MAX } from '../constants';
 import ValInfo from './ValInfo';
+import { useTapTooltip } from '../hooks/useTapTooltip';
+import { EyeIcon, EyeOffIcon } from './icons';
 import cImg   from '../../images/icons/C.png';
 import pigImg from '../../images/icons/pig.png';
 
@@ -37,77 +39,129 @@ const GOODS_TYPES = ['wine', 'grain', 'cloth'];
 // math rather than CSS. On a full-width desktop chart this lands right back
 // at the original 52px (unchanged look); on a narrow phone-width chart it
 // scales down instead of staying fixed and spilling off the right edge.
-const BADGE_SIZE_MAX = 52;
-const BADGE_SIZE_MIN = 22;
+const BADGE_SIZE_MAX = 44;
+const BADGE_SIZE_MIN = 18;
 function badgeSizeFor(containerWidth) {
   if (!containerWidth) return BADGE_SIZE_MAX;
   return Math.max(BADGE_SIZE_MIN, Math.min(BADGE_SIZE_MAX, containerWidth * 0.075));
 }
 
+// Shared between layoutCallouts (sizing the box) and AchievementMarker
+// (rendering into it) so the two can never drift apart — same label text,
+// same font-size math either place.
+function achievementLabelFor(key) {
+  return ACHIEVEMENT_LABEL_OVERRIDE[key] || formatAchievementName(key);
+}
+function calloutFontSizes(size) {
+  // Sized against BADGE_SIZE_MAX rather than the badge icon's own (now
+  // smaller) size — badges shrank, but the callout text reads better
+  // bigger, not smaller along with them.
+  return {
+    label: Math.max(11,   Math.min(14, size * (14 / BADGE_SIZE_MAX))),
+    name:  Math.max(9.5,  Math.min(12, size * (12 / BADGE_SIZE_MAX))),
+  };
+}
+// Rough average glyph width for these two fonts/weights at a given
+// font-size — not exact per-character metrics, just enough to size a box
+// that actually fits its own text instead of a single fixed width shared by
+// every badge regardless of how long its label/player name is (a uniform
+// box either clipped long labels like "Master Merchant" or left short ones
+// like "Longest Road" swimming in empty space).
+const LABEL_CHAR_W = 0.56; // Crimson Text italic
+const NAME_CHAR_W  = 0.72; // Cinzel bold, all-caps — wider per letter
+function calloutBoxSizeFor(b, size) {
+  const { label: fLabel, name: fName } = calloutFontSizes(size);
+  const line1 = `${achievementLabelFor(b.key)} · ${b.amount}`;
+  const line2 = String(b.player);
+  const textW = Math.max(line1.length * fLabel * LABEL_CHAR_W, line2.length * fName * NAME_CHAR_W);
+  const boxW = Math.round(Math.max(78, Math.min(170, textW + 22)));
+  const boxH = Math.round(Math.max(34, Math.min(46, size * (46 / BADGE_SIZE_MAX))));
+  return { boxW, boxH };
+}
+
 // Achievement marker — the record badge sits directly on the line at the
-// point it was earned, with a permanent speech-bubble callout (no more
-// hover/tap to reveal it) naming the record and its holder right on the
-// chart. `leading` (computed by the caller, see ScoreTimelineChart's
-// badges.map below) picks which way the bubble points: up-left when this
-// badge's player is the highest-scoring line at that moment — there's
-// nothing above the leader's own line, so a bubble going up-left almost
-// never crosses another player's line — and down-right otherwise, since a
-// trailing line more often has empty chart below it than above.
+// point it was earned; hovering (desktop) or tapping (mobile) it reveals a
+// speech-bubble callout naming the record and its holder, via the same
+// hover/tap/auto-close/one-at-a-time behavior ValInfo uses elsewhere in the
+// app (see useTapTooltip) — badges stay quiet on the chart until asked
+// about, rather than all their callouts permanently cluttering it at once.
+// `leading` (computed by the caller, see ScoreTimelineChart's badges.map
+// below) picks which way the bubble points: up-left when this badge's
+// player is the highest-scoring line at that moment — there's nothing above
+// the leader's own line, so a bubble going up-left almost never crosses
+// another player's line — and down-right otherwise, since a trailing line
+// more often has empty chart below it than above.
 function AchievementMarker({ cx, cy, img, badgeKey, player, amount, size, leading, bx, by, boxW, boxH }) {
+  const { visible, open, onMouseEnter, onMouseLeave, triggerRef } = useTapTooltip();
   if (cx == null || cy == null || !img) return null;
   const r = size / 2;
-  const label = ACHIEVEMENT_LABEL_OVERRIDE[badgeKey] || formatAchievementName(badgeKey);
+  const label = achievementLabelFor(badgeKey);
+  const { label: labelFontSize, name: nameFontSize } = calloutFontSizes(size);
 
-  // Tail: a small triangle from the box's near corner to a point on the
-  // badge's own edge, so it visibly reads as "pointing back at the badge"
-  // rather than just two shapes floating near each other — even once
-  // layoutCallouts (below) has pushed the box further away to clear a
-  // cluster of other badges, the tail still traces straight back to it.
+  // Tail: a smoothly curved sliver (two quadratic Béziers meeting at the
+  // tip), not a straight-edged triangle — reads as one continuous line
+  // flowing out of the bubble rather than a separate shape butted against
+  // it. Its two base points sit well inside the bubble's own rounded-rect
+  // edge (not just AT it), and the bubble <rect> below is drawn AFTER this
+  // path in the same SVG coordinate space — so the rect's opaque fill
+  // cleanly covers the tail's base with no cross-renderer seam (the old
+  // version mixed an SVG polygon with a CSS-bordered HTML div, which is
+  // exactly where that seam came from), leaving only the curved part
+  // outside the bubble visible.
   const tailTip = leading
-    ? [cx - r * 0.65, cy - r * 0.65]
-    : [cx + r * 0.65, cy + r * 0.65];
-  const tailBase = leading
-    ? [[bx + boxW - 10, by + boxH], [bx + boxW, by + boxH - 10]]
-    : [[bx, by + 10], [bx + 10, by]];
+    ? [cx - r * 0.6, cy - r * 0.6]
+    : [cx + r * 0.6, cy + r * 0.6];
+  const inset = 14;
+  const baseA = leading ? [bx + boxW - inset, by + boxH] : [bx, by + inset];
+  const baseB = leading ? [bx + boxW, by + boxH - inset] : [bx + inset, by];
+  const ctrlA = [(baseA[0] + tailTip[0]) / 2, (baseA[1] + tailTip[1]) / 2];
+  const ctrlB = [(baseB[0] + tailTip[0]) / 2, (baseB[1] + tailTip[1]) / 2];
+  const tailPath = `M ${baseA[0]} ${baseA[1]} Q ${ctrlA[0]} ${ctrlA[1]} ${tailTip[0]} ${tailTip[1]} Q ${ctrlB[0]} ${ctrlB[1]} ${baseB[0]} ${baseB[1]} Z`;
 
   return (
-    <g>
+    <g
+      ref={triggerRef}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+      onClick={e => { e.stopPropagation(); open(); }}
+      style={{ cursor: 'var(--cursor-pointer)' }}
+    >
+      {/* Invisible, larger-than-the-art hit target — the badge image
+          itself can be as small as 18px on a shrunken chart, too small to
+          reliably hover or tap otherwise. */}
+      <circle cx={cx} cy={cy} r={Math.max(r, 18)} fill="transparent" />
       <image href={img} x={cx - r} y={cy - r} width={size} height={size} />
-      <polygon
-        points={`${tailBase[0][0]},${tailBase[0][1]} ${tailBase[1][0]},${tailBase[1][1]} ${tailTip[0]},${tailTip[1]}`}
-        fill="var(--parchment)"
-        stroke="var(--earth-brown)"
-        strokeWidth="1"
-      />
-      <foreignObject x={bx} y={by} width={boxW} height={boxH} style={{ overflow: 'visible' }}>
-        <div style={{
-          width: boxW,
-          height: boxH,
-          boxSizing: 'border-box',
-          background: 'var(--parchment)',
-          color: 'var(--charcoal)',
-          border: '1px solid var(--earth-brown)',
-          borderRadius: '6px',
-          padding: '0.2rem 0.4rem',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
-          fontFamily: 'Crimson Text, serif',
-          lineHeight: 1.2,
-          textAlign: 'center',
-          whiteSpace: 'nowrap',
-          overflow: 'hidden',
-        }}>
-          <span style={{ fontStyle: 'italic', fontSize: Math.max(8, Math.min(11, size * 0.19)) }}>
-            {label} · {amount}
-          </span>
-          <span style={{ fontFamily: 'Cinzel, serif', fontWeight: 600, fontSize: Math.max(7, Math.min(9.5, size * 0.16)) }}>
-            {player}
-          </span>
-        </div>
-      </foreignObject>
+      {visible && (
+        <g style={{ filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.28))' }}>
+          <path d={tailPath} fill="var(--parchment)" stroke="var(--earth-brown)" strokeWidth="1" strokeLinejoin="round" />
+          <rect x={bx} y={by} width={boxW} height={boxH} rx="6" ry="6" fill="var(--parchment)" stroke="var(--earth-brown)" strokeWidth="1" />
+          <foreignObject x={bx} y={by} width={boxW} height={boxH} style={{ overflow: 'visible', pointerEvents: 'none' }}>
+            <div style={{
+              width: boxW,
+              height: boxH,
+              boxSizing: 'border-box',
+              color: 'var(--charcoal)',
+              padding: '0.2rem 0.4rem',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontFamily: 'Crimson Text, serif',
+              lineHeight: 1.2,
+              textAlign: 'center',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+            }}>
+              <span style={{ fontStyle: 'italic', fontSize: labelFontSize }}>
+                {label} · {amount}
+              </span>
+              <span style={{ fontFamily: 'Cinzel, serif', fontWeight: 600, fontSize: nameFontSize }}>
+                {player}
+              </span>
+            </div>
+          </foreignObject>
+        </g>
+      )}
     </g>
   );
 }
@@ -119,56 +173,62 @@ function AchievementMarker({ cx, cy, img, badgeKey, player, amount, size, leadin
 // shrunken chart instead of leaving oversized gaps between now-smaller icons.
 function minBadgeGapFor(size) { return size - 14; }
 
-// Simple left-to-right sweep: badges close together in time can land at
-// (almost) the same x, which without this would stack them fully on top of
-// each other. Sorted by pixel x, then each one only ever gets pushed later
-// (never earlier) just far enough to clear the one before it — stable, and
-// keeps every badge as close as possible to its real, chronologically
-// correct position.
+// Badges close together in time can land at (almost) the same pixel spot,
+// which without this would stack them fully on top of each other. Used to
+// push the later one rightward in X to clear the earlier one — but that
+// visibly detaches a badge from the moment it actually happened, landing it
+// further along the timeline than the real event (worse the more crowded a
+// game's ending is, which is exactly when this triggers most). Vertical
+// spacing instead keeps every badge's true x/time position always — only cy
+// moves, just far enough to clear the minimum gap, nudged toward whichever
+// side it's already leaning (or down, if dead level) so a cluster fans out
+// instead of collapsing. Checks every already-placed badge, not just the
+// one immediately before it in sort order — a tight cluster of 3+ needs
+// every pair kept apart, not just consecutive ones.
 function spreadBadges(positioned, minGap) {
   const sorted = [...positioned].sort((a, b) => a.cx - b.cx);
-  for (let i = 1; i < sorted.length; i++) {
-    const minCx = sorted[i - 1].cx + minGap;
-    if (sorted[i].cx < minCx) sorted[i] = { ...sorted[i], cx: minCx };
+  const placed = [];
+  for (const b of sorted) {
+    let cur = b;
+    for (const p of placed) {
+      const dx = cur.cx - p.cx;
+      const dy = cur.cy - p.cy;
+      if (Math.hypot(dx, dy) < minGap) {
+        const needed = Math.sqrt(Math.max(0, minGap * minGap - dx * dx));
+        const dir = dy >= 0 ? 1 : -1;
+        cur = { ...cur, cy: p.cy + dir * needed };
+      }
+    }
+    placed.push(cur);
   }
-  return sorted;
+  return placed;
 }
 
-// Callout boxes are a lot bigger than the badge icons themselves, so a
-// cluster of badges close together in time — several records earned near
-// the same moment late in a game is common — used to land every one of
-// their callouts at (nearly) the same up-left/down-right offset, stacking
-// them directly on top of each other regardless of spreadBadges above
-// (that only keeps the small ICONS apart). This walks badges left to
-// right and, for each one, keeps nudging its box further out along its
-// own direction (leading: up-left, trailing: down-right) until it clears
-// every box already placed — a cascading staircase instead of a pile.
-// Capped at 24 pushes/~340px so one badly clustered game can't push a box
-// arbitrarily far off-screen; overflow: visible (see the chart below)
-// already tolerates some spill past the plotted area.
-function layoutCallouts(positioned, size) {
-  const boxW = Math.round(Math.max(66, Math.min(112, size * 2.1)));
-  const boxH = Math.round(Math.max(30, Math.min(40, size * 0.72)));
+// Positions each badge's callout box relative to its own icon (up-left or
+// down-right, per `leading` — see AchievementMarker) and pins it inside the
+// chart's actual plotted-area bounds (`plot`, from recharts' `offset`) so
+// it can't climb above the plot into the title/toggle-button row, or run
+// off the left/right edge. Only ever one (rarely two, mid-hover-transition)
+// of these is actually visible at a time now that callouts are hover/tap
+// reveals rather than all shown permanently — so unlike the badge icons
+// themselves (see spreadBadges, which DOES need to de-overlap a whole
+// crowded row at once), a callout box has nothing else on screen it needs
+// to dodge.
+function layoutCallouts(positioned, size, plot) {
   const gap = 5;
   const r = size / 2;
-  const stepX = 16, stepY = 12;
-  const placed = [];
-  const overlaps = (x, y) => placed.some(p =>
-    x < p.bx + p.boxW && x + boxW > p.bx && y < p.by + p.boxH && y + boxH > p.by
-  );
-  return [...positioned].sort((a, b) => a.cx - b.cx).map(b => {
-    const dir = b.leading ? -1 : 1;
+  // Same small spill tolerance the rest of this file allows elsewhere —
+  // a clamped box reads as "slightly past the edge", not flush-cut.
+  const slack = 8;
+  const minY = plot ? plot.top - slack : -Infinity;
+  const minX = plot ? plot.left - slack : -Infinity;
+  return positioned.map(b => {
+    const { boxW, boxH } = calloutBoxSizeFor(b, size);
     let bx = b.leading ? b.cx - r - gap - boxW : b.cx + r + gap;
     let by = b.leading ? b.cy - r - gap - boxH : b.cy + r + gap;
-    let n = 0;
-    while (overlaps(bx, by) && n < 24) {
-      bx += dir * stepX;
-      by += dir * stepY;
-      n++;
-    }
-    const box = { ...b, bx, by, boxW, boxH };
-    placed.push(box);
-    return box;
+    by = Math.max(by, minY);
+    bx = Math.min(Math.max(bx, minX), plot ? plot.left + plot.width + slack - boxW : Infinity);
+    return { ...b, bx, by, boxW, boxH };
   });
 }
 
@@ -176,12 +236,12 @@ function layoutCallouts(positioned, size) {
 // (xAxisMap/yAxisMap) — needed (rather than one ReferenceDot per badge) so
 // their real pixel x positions are all known together, up front, for
 // spreadBadges/layoutCallouts to de-overlap before anything paints.
-function AchievementBadgeLayer({ badges, xAxisMap, yAxisMap, size }) {
+function AchievementBadgeLayer({ badges, xAxisMap, yAxisMap, offset, size }) {
   const xScale = Object.values(xAxisMap || {})[0]?.scale;
   const yScale = Object.values(yAxisMap || {})[0]?.scale;
   if (!xScale || !yScale) return null;
   const positioned = spreadBadges(badges.map(b => ({ ...b, cx: xScale(b.t), cy: yScale(b.value) })), minBadgeGapFor(size));
-  const withCallouts = layoutCallouts(positioned, size);
+  const withCallouts = layoutCallouts(positioned, size, offset);
   return (
     <g>
       {withCallouts.map(b => (
@@ -240,6 +300,14 @@ export default function ScoreTimelineChart({ timeline, players, duration = 0, ac
   // used once we know there's real content to measure.
   const containerRef = useRef(null);
   const [containerWidth, setContainerWidth] = useState(0);
+  // Record-badge icons can clutter a busy chart, so they start hidden —
+  // this toggle just reveals/hides the badge layer as a whole (the lines/
+  // scores underneath are unaffected); each individual badge's callout is
+  // then its own hover/tap reveal on top of that (see AchievementMarker).
+  // Local to this chart instance, not persisted: PostGameForm and Lightbox
+  // both render this same component, so the control shows up in both
+  // places for free, each starting fresh at "hidden".
+  const [showBadges, setShowBadges] = useState(false);
   useEffect(() => {
     if (!containerRef.current) return;
     const el = containerRef.current;
@@ -395,6 +463,18 @@ export default function ScoreTimelineChart({ timeline, players, duration = 0, ac
             <img src={pigImg} alt="farm win" style={{ height: 14, width: 'auto', opacity: 0.85, display: 'block' }} />
           </ValInfo>
         )}
+        {badges.length > 0 && (
+          <button
+            type="button"
+            className="settings-edit-btn"
+            style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
+            title={showBadges ? 'Hide record badges' : 'Show record badges'}
+            onClick={() => setShowBadges(v => !v)}
+          >
+            {showBadges ? <EyeOffIcon /> : <EyeIcon />}
+            {showBadges ? 'Hide Badges' : 'Show Badges'}
+          </button>
+        )}
       </div>
       <ResponsiveContainer width="100%" height={260}>
         {/* overflow: visible — a badge earned right at the very end of the
@@ -448,7 +528,7 @@ export default function ScoreTimelineChart({ timeline, players, duration = 0, ac
               label={<EndLabel lastIndex={rows.length - 1} name={name} color={PLAYER_COLORS[i % PLAYER_COLORS.length]} dy={labelDy[name] || 0} fontSize={labelFontSize} />}
             />
           ))}
-          {badges.length > 0 && <Customized component={(props) => <AchievementBadgeLayer {...props} badges={badges} size={badgeSize} />} />}
+          {showBadges && badges.length > 0 && <Customized component={(props) => <AchievementBadgeLayer {...props} badges={badges} size={badgeSize} />} />}
         </LineChart>
       </ResponsiveContainer>
     </>

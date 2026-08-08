@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { GearIcon, PauseIcon, PlayIcon } from './icons';
+import { GearIcon, PauseIcon, PlayIcon, SoundOnIcon, SoundOffIcon } from './icons';
 import { MAX_GAME_PLAYERS } from '../constants';
 import { DEFAULT_EXPANSIONS } from '../data/expansions';
 
@@ -43,6 +43,8 @@ export default function BoardSettingsModal({
   onResetGame,
   paused,
   onTogglePause,
+  muted,
+  onToggleMute,
   onClose,
 }) {
   const [expandedRow, setExpandedRow] = useState(null); // null | 'players' | 'meeples' | 'expansions'
@@ -128,6 +130,23 @@ export default function BoardSettingsModal({
                 >
                   {paused ? <PlayIcon /> : <PauseIcon />}
                   {paused ? 'Resume' : 'Pause'}
+                </button>
+              </span>
+            </div>
+          </div>
+
+          <div className="settings-item">
+            <div className="settings-row">
+              <span className="settings-row-label">Sound</span>
+              <span className="settings-row-control">
+                <button
+                  type="button"
+                  className="settings-edit-btn"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
+                  onClick={() => onToggleMute()}
+                >
+                  {muted ? <SoundOffIcon /> : <SoundOnIcon />}
+                  {muted ? 'Unmute' : 'Mute'}
                 </button>
               </span>
             </div>

@@ -1461,7 +1461,13 @@ input[type="search"], input[type="number"] {
      content is taller than the viewport so the top stays scrollable. */
   margin: auto;
   position: relative;
-  overflow: hidden;
+  /* Was overflow: hidden (for a since-removed edge-to-edge lightbox photo —
+     .lightbox-photo below is now unused). Left visible so a score-timeline
+     achievement callout (see ScoreTimelineChart.jsx/.chart-container) that
+     spills past the chart's own card near the logbook's right edge paints
+     over the page instead of getting clipped by this box. .lightbox-meta's
+     own padding keeps everything else safely clear of this edge. */
+  overflow: visible;
   animation: lbSlideUp 0.3s ease forwards;
 }
 @keyframes lbSlideUp {
@@ -2910,6 +2916,20 @@ input[type="file"] { display: none; }
 
 @media (max-width: 640px) {
   .profile-hero-stats { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* RealmBook's Overview stat grid — same .profile-stat boxes, just 4 across
+   instead of ProfileHero's 3, so it needs its own narrow-screen step-down
+   (repeat(4,1fr) is set inline on the grid itself, which would otherwise
+   always beat .profile-hero-stats's own 640px rule above regardless of
+   width — an inline style wins over any stylesheet rule, media query or
+   not). Two steps instead of one straight to 2 columns: 4 squeezed onto a
+   mid-width tablet screen already gets tight before the phone breakpoint. */
+@media (max-width: 640px) {
+  .realm-stats-grid { grid-template-columns: repeat(2, 1fr) !important; }
+}
+@media (min-width: 641px) and (max-width: 860px) {
+  .realm-stats-grid { grid-template-columns: repeat(3, 1fr) !important; }
 }
 
 /* ── Rank-up / milestone celebration modal (RankUpModal.jsx) ── */

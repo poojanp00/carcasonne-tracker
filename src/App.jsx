@@ -612,8 +612,22 @@ export default function App() {
       if (ownRow) {
         syncArtUnlocksToRank(ownRow.rank);
       }
+      // Before/after progress both included (not just the after state) —
+      // lets the Standings screen animate each player's progress bars
+      // filling from where they stood before this game to where they stand
+      // now when their card is clicked (see PostGameForm/
+      // MemberProgressModal), instead of only ever showing a static
+      // snapshot. Same before-state (lastCelebrated*) the celebration
+      // modal itself already reads from `rows` above — no extra fetch.
       setPostGameProgress(Object.fromEntries(
-        rows.map(r => [r.name.toLowerCase(), { rank: r.rank, categoryProgress: r.categoryProgress }])
+        rows.map(r => [r.name.toLowerCase(), {
+          rank: r.rank,
+          tierCount: r.tierCount,
+          categoryProgress: r.categoryProgress,
+          beforeRank: r.lastCelebratedRank,
+          beforeTierCount: r.lastCelebratedTierCount,
+          beforeCategoryProgress: r.lastCelebratedCategoryProgress,
+        }])
       ));
 
       // Controller's own entry first (if any), then everyone else.
@@ -710,7 +724,22 @@ export default function App() {
   const handleInviteAccept = useCallback(async (realmId) => {
     await acceptInvite(realmId);
     showToast('Realm added to your account.');
-  }, [acceptInvite, showToast]);
+    // Accepting can suddenly bring a whole other account's game history
+    // under this one (server-side, respond_to_realm_invite already
+    // recomputes user_progress the moment it accepts — see
+    // server_side_progress.sql) — without this, that jump would just sit
+    // unnoticed until the next full app load's own checkAndCelebrate
+    // mount-effect finally caught up to it. Mirrors that same mount-effect
+    // (fetch → cache → celebrate-if-ahead → resync art) so a milestone
+    // crossed purely by joining shows up right away instead of waiting on
+    // some later, unrelated game to finish.
+    if (isGuest || !userId) return;
+    const row = await getUserProgress(userId);
+    if (!row) return;
+    setSelfProgress(row);
+    checkAndCelebrate(row);
+    syncArtUnlocksToRank(row.rank);
+  }, [acceptInvite, showToast, isGuest, userId, checkAndCelebrate, syncArtUnlocksToRank]);
 
   const handleInviteDecline = useCallback(
     (realmId) => declineInvite(realmId),
@@ -957,7 +986,6 @@ export default function App() {
                           currentRealm={null}
                           onExitToHub={exitPreGameToHub}
                           onRealmCreate={handleRealmCreate}
-                          onExportGroup={isGuest ? null : handleExportGroup}
                           startAtRealmCreation={true}
                           isGuest={isGuest}
                           selfName={displayName}
@@ -976,7 +1004,6 @@ export default function App() {
                         currentRealm={session?.realm || null}
                         onExitToHub={exitPreGameToHub}
                         onRealmCreate={handleRealmCreate}
-                        onExportGroup={isGuest ? null : handleExportGroup}
                         isGuest={isGuest}
                         selfName={displayName}
                         unlockedChestIndices={unlockedChestIndices}
@@ -995,7 +1022,6 @@ export default function App() {
                       currentRealm={null}
                       onExitToHub={exitPreGameToHub}
                       onRealmCreate={handleRealmCreate}
-                      onExportGroup={isGuest ? null : handleExportGroup}
                       startAtRealmCreation={true}
                       isGuest={isGuest}
                       selfName={displayName}
@@ -1012,6 +1038,7 @@ export default function App() {
                       onDeleteRealm={handleRealmDelete}
                       onLeaveRealm={handleRealmLeave}
                       onUpdateRealm={appOperations.updateRealm}
+                      onExportGroup={isGuest ? null : handleExportGroup}
                       unlockedChestIndices={unlockedChestIndices}
                       unlockedLogbookIndices={unlockedLogbookIndices}
                       isGuest={isGuest}

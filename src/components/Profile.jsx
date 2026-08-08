@@ -1,10 +1,9 @@
 import { useMemo, useState, useEffect, useRef } from 'react';
 import { SCORE_TYPE_ORDER, SCORE_TYPE_COLORS } from '../constants';
 import { calcAccountStats } from '../utils/stats';
-import { METRIC_UNITS, categoryTierState, visibleAccountMilestones } from '../data/accountMilestones';
+import { categoryTierState, tierStateForProgress, visibleAccountMilestones } from '../data/accountMilestones';
 import { getCurrentRank, countUnlockedTiers, rankTitle, getTotalTiers } from '../utils/metaRank';
-import QuarterTierBar from './QuarterTierBar';
-import RankQuarterBar from './RankQuarterBar';
+import MilestonesCardBody from './MilestonesCardBody';
 import { MEEPLE_IMGS, TYPE_LABELS } from './StatWidgets';
 import { ACHIEVEMENT_DISPLAY_ORDER, ACHIEVEMENT_BADGE, ACHIEVEMENT_LABEL_OVERRIDE } from './GameHighlights';
 
@@ -184,59 +183,31 @@ const subheadingStyle = { fontSize: 'clamp(0.55rem, 2vw, 0.8rem)', fontFamily: '
 // wrap onto a second line rather than needing to fit on one, unlike every
 // other page here.
 // Renders bare (no outer card wrapper) — the caller (ProfileHero's flip-card
-// back face) already supplies its own card chrome.
+// back face) already supplies its own card chrome. Every bar animates from
+// a fresh zero every time this mounts (beforeRank 1 / beforeTierCount 0 /
+// each row's own beforeBar at zero progress) rather than snapping straight
+// to the account's real standing — ProfileHero passes a `key` tied to its
+// own flip-rotation count (see below), so flipping the card to this face
+// remounts it and replays that fill from 0 each time, same choreography
+// MemberProgressModal uses for a before→after diff, just always starting
+// from nothing here since there's no real "before" moment to diff against.
 function AllMilestonesQuarterCard({ account, displayName, tierCount, currentRank }) {
   const started = visibleAccountMilestones(account);
+  const rows = started.map(cat => ({
+    category: cat,
+    beforeBar: tierStateForProgress(cat, 0),
+    afterBar: categoryTierState(cat, account),
+  }));
   return (
-    <>
-      {/* Moved here from the card's front (see ProfileHero) — name/rank read
-          better as a header for the rank ladder they sit right above than
-          buried in the front's stat grid. Reuses .milestone-card-header
-          itself (same font size/color as "Milestones" below, plus its own
-          underline) rather than a one-off style, so the two headers on
-          this face read as a matched pair. */}
-      <div className="milestone-card-header" style={{ justifyContent: 'space-between', borderBottom: '1px solid var(--warm-gold)', paddingBottom: '0.4rem', marginBottom: '0.6rem' }}>
-        <span className="milestone-card-name">{displayName || 'Adventurer'}</span>
-        <span className="milestone-card-name">{rankTitle(currentRank)}</span>
-      </div>
-      {/* key={tierCount} forces a fresh mount whenever tierCount changes
-          (e.g. the guest tour's demoActive swap from the real account to
-          DEMO_GAMES) — RankQuarterBar's own fill bars have a width
-          transition (for RankUpModal's separate star-driven celebration),
-          which would otherwise visibly animate from the old % to the new
-          one on this prop change alone, even with no explicit rank-up
-          animation component in the tree anymore. */}
-      <RankQuarterBar key={tierCount} tierCount={tierCount} currentRank={currentRank} />
-      <div className="milestone-card-header" style={{ justifyContent: 'space-between', borderBottom: '1px solid var(--warm-gold)', paddingBottom: '0.4rem', marginTop: '0.8rem' }}>
-        <span className="milestone-card-name">Milestones</span>
-        <span className="milestone-card-name" style={{ color: 'var(--warm-gold)' }}>
-          {tierCount} ★
-        </span>
-      </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem', marginTop: '0.3rem' }}>
-        {started.map(cat => {
-          const { progress, currentTier, nextTier, remaining, reached, maxed } = categoryTierState(cat, account);
-          const unit = METRIC_UNITS[cat.metric] ?? 'pts';
-          const pips = '★'.repeat(reached.length) + '☆'.repeat(Math.max(0, cat.tiers.length - reached.length));
-          return (
-            <div key={cat.id}>
-              <div style={{ marginBottom: '0.1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.6rem' }}>
-                <span className="rankup-category-label">
-                  {cat.label}
-                  <span className="rankup-category-progress">
-                    ({progress.toLocaleString()} {unit})
-                  </span>
-                </span>
-                <span className="rankup-tier-stars" aria-label={`${reached.length} of ${cat.tiers.length} tiers unlocked`}>
-                  {pips}
-                </span>
-              </div>
-              <QuarterTierBar tiers={cat.tiers} progress={progress} unit={unit} currentTier={currentTier} nextTier={nextTier} remaining={remaining} maxed={maxed} />
-            </div>
-          );
-        })}
-      </div>
-    </>
+    <MilestonesCardBody
+      displayName={displayName || 'Adventurer'}
+      rank={currentRank}
+      tierCount={tierCount}
+      beforeRank={1}
+      beforeTierCount={0}
+      rows={rows}
+      animate
+    />
   );
 }
 
@@ -341,7 +312,12 @@ function ProfileHero({ account, userId, displayName, title, tierCount, totalTier
         </div>
 
         <div className="player-card p2 profile-hero player-card-back" onClick={onFlip}>
-          <AllMilestonesQuarterCard account={account} displayName={displayName} tierCount={tierCount} currentRank={currentRank} />
+          {/* key={rotation} forces a fresh mount every time the card is
+              flipped (either direction) — see AllMilestonesQuarterCard's own
+              comment — so its bars always restart their 0→current fill
+              rather than an already-settled instance just sitting there
+              statically after the first flip. */}
+          <AllMilestonesQuarterCard key={rotation} account={account} displayName={displayName} tierCount={tierCount} currentRank={currentRank} />
         </div>
       </div>
     </div>

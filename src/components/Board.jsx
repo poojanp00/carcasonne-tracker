@@ -172,6 +172,10 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, onE
   const [confirmReset,         setConfirmReset]         = useState(false); // Reset board confirmation
   const [confirmExit,          setConfirmExit]          = useState(false); // Back-to-hub confirmation
   const [showSettings,          setShowSettings]          = useState(false); // In-game settings modal (players/meeples/expansions)
+  // Score sound effects — every game starts muted (sound is opt-in, not
+  // opt-out); this is plain component state, not persisted, so a fresh
+  // mount (a new game, or a refresh mid-game) always lands muted again.
+  const [muted, setMuted] = useState(true);
   const [pendingPlayerRemoval,  setPendingPlayerRemoval]  = useState(null); // player name awaiting removal confirm (has recorded points)
   // Expansion names awaiting a keep/remove-points choice, queued one at a
   // time — the settings modal's Save button can turn off several
@@ -660,7 +664,7 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, onE
     }
 
     addPoints(player, delta, type);
-    if (Number(delta) > 0) playScoreSound(type); // no sound on a negative correction
+    if (Number(delta) > 0 && !muted) playScoreSound(type); // no sound on a negative correction
     zeroInput();
     setSelectedType(null);
     setSelectedPlayer(null);
@@ -701,7 +705,7 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, onE
       const player = selectedPlayer;
       setSelectedPlayer(null);
       addMove(player, `goods_${good}`, 0, `${GOODS_LABELS[good]} Token`);
-      playScoreSound('goods');
+      if (!muted) playScoreSound('goods');
       return;
     }
     setSelectedType(null);
@@ -719,7 +723,7 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, onE
     if (selectedGoods.size > 0) {
       selectedGoods.forEach(good => {
         addMove(player, `goods_${good}`, 0, `${GOODS_LABELS[good]} Token`);
-        playScoreSound('goods');
+        if (!muted) playScoreSound('goods');
       });
       setSelectedGoods(new Set());
       return;
@@ -1218,6 +1222,8 @@ export default function Board({ userId, isGuest, session, onFinish, onReset, onE
           onResetGame={handleReset}
           paused={board.paused}
           onTogglePause={handleTogglePause}
+          muted={muted}
+          onToggleMute={() => setMuted(m => !m)}
           onClose={handleCloseSettings}
         />
       )}

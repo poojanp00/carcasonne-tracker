@@ -15,11 +15,13 @@ export default function RealmSettingsModal({ realm, realms = [], unlockedChestIn
   // state yet.
   const unlockedChestIdx = unlockedChestIndices || new Set([0]);
   const unlockedLogbookIdx = unlockedLogbookIndices || new Set([0]);
-  const [view,           setView]           = useState('menu'); // 'menu' | 'rename' | 'chest' | 'logbook'
+  const [view,           setView]           = useState('menu'); // 'menu' | 'rename' | 'chest' | 'logbook' | 'players'
   const [nameInput,      setNameInput]      = useState(realm.name);
   const [nameError,      setNameError]      = useState('');
   const [chestPick,      setChestPick]      = useState(realm.chest ?? 0);
   const [spinePick,      setSpinePick]      = useState(realm.spine ?? 0);
+  const [newPlayerName,  setNewPlayerName]  = useState('');
+  const [playerError,    setPlayerError]    = useState('');
   const [confirmDelete,  setConfirmDelete]  = useState(false);
   const [confirmLeave,   setConfirmLeave]   = useState(false);
   // Danger Zone starts collapsed — Delete/Leave only becomes visible (let
@@ -52,6 +54,26 @@ export default function RealmSettingsModal({ realm, realms = [], unlockedChestIn
   const openLogbookPicker = () => { setSpinePick(realm.spine ?? 0); setView('logbook'); };
   const handleSaveLogbook = () => { onUpdateRealm?.(realm.id, { spine: spinePick }); setView('menu'); };
 
+  // Add-player — no upper bound on a realm's roster (only a single game's
+  // active roster is capped, see PreGameSetup.jsx's Players step). Stays on
+  // this view after a successful add (just clears the input) rather than
+  // returning to the menu, so adding several players in a row doesn't mean
+  // re-opening this view each time.
+  const openAddPlayer = () => { setNewPlayerName(''); setPlayerError(''); setView('players'); };
+  const handleAddPlayer = (e) => {
+    e.preventDefault();
+    const trimmed = newPlayerName.trim();
+    if (!trimmed) { setPlayerError('Enter a player name.'); return; }
+    const existing = realm.players || [];
+    if (existing.some(p => p.name.toLowerCase() === trimmed.toLowerCase())) {
+      setPlayerError('A player with this name already exists.');
+      return;
+    }
+    onUpdateRealm?.(realm.id, { players: [...existing, { name: trimmed, userId: null, status: 'uninvited' }] });
+    setNewPlayerName('');
+    setPlayerError('');
+  };
+
   return (
     <>
       {view === 'menu' && (
@@ -83,6 +105,13 @@ export default function RealmSettingsModal({ realm, realms = [], unlockedChestIn
                   <span className="settings-row-control">
                     <img src={spineFor(realm)} alt="" style={{ height: '44px', width: 'auto' }} draggable={false} />
                     <button type="button" className="settings-edit-btn" onClick={openLogbookPicker}>Change</button>
+                  </span>
+                </div>
+                <div className="settings-row">
+                  <span className="settings-row-label">Players</span>
+                  <span className="settings-row-control">
+                    <span className="settings-row-value">{(realm.players || []).length}</span>
+                    <button type="button" className="settings-edit-btn" onClick={openAddPlayer}>Add</button>
                   </span>
                 </div>
               </div>
@@ -153,6 +182,44 @@ export default function RealmSettingsModal({ realm, realms = [], unlockedChestIn
               <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'flex-end' }}>
                 <button type="button" className="btn btn-ghost btn-sm" onClick={() => setView('menu')}>Cancel</button>
                 <button type="submit" className="btn btn-sm">Save</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Add player */}
+      {view === 'players' && (
+        <div className="realm-modal-overlay" onClick={onClose}>
+          <div className="realm-modal tile-card" onClick={e => e.stopPropagation()}>
+            <h3 style={{ marginBottom: '0.5rem' }}>Add Player</h3>
+            {(realm.players || []).length > 0 && (
+              <div className="expansion-chips" style={{ marginBottom: '1rem' }}>
+                {(realm.players || []).map(p => (
+                  <span key={p.name} className="expansion-chip display-only">{p.name}</span>
+                ))}
+              </div>
+            )}
+            <form onSubmit={handleAddPlayer}>
+              <div className="form-group" style={{ marginBottom: '0.6rem' }}>
+                <label className="form-label">Player Name</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={newPlayerName}
+                  onChange={e => { setNewPlayerName(e.target.value); setPlayerError(''); }}
+                  maxLength={20}
+                  autoFocus
+                  placeholder="e.g. Alex"
+                  style={{ width: '100%' }}
+                />
+              </div>
+              {playerError && (
+                <p style={{ color: 'var(--deep-red)', fontSize: '0.85rem', marginBottom: '0.8rem' }}>{playerError}</p>
+              )}
+              <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'flex-end' }}>
+                <button type="button" className="btn btn-ghost btn-sm" onClick={() => setView('menu')}>Done</button>
+                <button type="submit" className="btn btn-sm">+ Add</button>
               </div>
             </form>
           </div>

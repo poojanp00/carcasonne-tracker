@@ -117,7 +117,9 @@ export default function RankQuarterBar({ tierCount, currentRank, remaining: rema
                   width: `${frac * 100}%`,
                   height: '100%',
                   background: 'repeating-linear-gradient(90deg, var(--warm-gold) 0 8px, rgba(43,27,10,0.30) 8px 10px)',
-                  transition: 'width 0.4s steps(8, end)',
+                  // Kept in sync with RankUpModal.jsx's BAR_TRANSITION_MS —
+                  // see that constant's comment.
+                  transition: 'width 0.18s steps(8, end)',
                 }} />
               </div>
             );

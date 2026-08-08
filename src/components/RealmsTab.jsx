@@ -54,7 +54,7 @@ function BookStepper({ page, onJump }) {
 // so a tour that's mid-loop needs its "on/off" to survive that boundary.
 export default function RealmsTab({
   realms = [], games = [], onPlayRealm, onCreateRealm, onDeleteGame,
-  onDeleteRealm, onLeaveRealm, onUpdateRealm, unlockedChestIndices = null, unlockedLogbookIndices = null, isGuest = false,
+  onDeleteRealm, onLeaveRealm, onUpdateRealm, onExportGroup = null, unlockedChestIndices = null, unlockedLogbookIndices = null, isGuest = false,
   openGame = null,
   onOpenGameClear, resetSignal = 0, tourActive = false, onTourActiveChange = null,
   tourVisitedChest = false, tourVisitedBook = false, tourVisitedProfile = false,
@@ -362,6 +362,8 @@ export default function RealmsTab({
             selectedGame={selectedGame}
             onSelectGame={setSelectedGame}
             onDeleteGame={onDeleteGame}
+            onExportGroup={onExportGroup}
+            isGuest={isGuest}
             tourActive={tourActive}
             chartRef={overviewChartRef}
             rosterRef={rosterRef}
