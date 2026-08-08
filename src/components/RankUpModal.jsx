@@ -110,12 +110,23 @@ function Reel({ items, rowHeight = 46, holdMs = 380, className = '', rowStyle, a
 // Staggered so the milestones stage reads as one thing happening after
 // another, not everything moving at once: the tier-name Reel (see call
 // site) scrolls first, then the total-milestones count a beat later.
-const TIER_HOLD_MS  = 380;
-// Gap between each checkpoint in a multi-tier jump — long enough for the
-// quarter bar's own 0.4s width transition to actually finish before the
-// next quarter starts filling, so two quarters are never visibly animating
-// at once.
-const STEP_MS = 420;
+// Trimmed down from the original 380 — fine for a single tier crossing, but
+// a bar animating from scratch (Profile's hero card back, or a big
+// before→after jump) can walk through a dozen-plus steps, and each one
+// paying the full original hold/step cost made that climb to the real rank
+// feel sluggish. Still deliberate, just brisker.
+const TIER_HOLD_MS  = 180;
+// Gap between each checkpoint in a multi-tier jump — MUST stay >=
+// BAR_TRANSITION_MS below (a 20ms buffer past it, same margin the original
+// 420/400 pairing had): each newly-revealed box's fill fraction is computed
+// against whatever tierCount the step schedule has already reached, so if
+// this fires faster than the bar's own width transition finishes, a box
+// can get revealed already fully (or over-)filled instead of visibly
+// animating up to it — the box's own reveal is deliberately delayed by
+// exactly BAR_TRANSITION_MS (see the displayedRank effects below) so it
+// only ever appears once the previous one has visibly finished, and that
+// delay has to actually elapse before the NEXT step moves the data past it.
+const STEP_MS = 200;
 // Breathing room between one milestone row fully settling and the next one
 // starting — without this the cascade reads as one continuous blur instead
 // of a series of distinct beats.
@@ -275,8 +286,12 @@ function buildProgressSteps(beforeBar, afterBar, tiers) {
 
 // QuarterTierBar/RankQuarterBar's own width transition (see those files) —
 // how much longer after the LAST step fires before the bar has actually
-// finished visually filling, used to time onSettled below.
-const BAR_TRANSITION_MS = 400;
+// finished visually filling, used to time onSettled below. Kept in sync
+// with those two files' own CSS `transition: width ...` duration — must
+// match exactly, or the JS step schedule and the bar's actual visual fill
+// drift apart (a step firing before the previous one's animation is done,
+// or a pause after it already finished).
+const BAR_TRANSITION_MS = 180;
 
 // Smoothly counts from `from` to `to` over durationMs, reporting every
 // intermediate (rounded) value via onChange on each animation frame — an
@@ -313,7 +328,7 @@ function useRollingCounter(from, to, durationMs, active, onChange) {
 // tier-by-tier fill, so a caller can show a matching gray "current
 // progress" figure that scrolls continuously up to the final total instead
 // of just showing it immediately or jumping between tier thresholds.
-function RankUpCategoryBar({ diff, active = true, onSettled, onProgressChange, onTiersReachedChange }) {
+export function RankUpCategoryBar({ diff, active = true, onSettled, onProgressChange, onTiersReachedChange }) {
   const steps = buildProgressSteps(diff.beforeBar, diff.afterBar, diff.category.tiers);
   const [stepIndex, setStepIndex] = useState(0);
   const totalDurationMs = TIER_HOLD_MS + Math.max(0, steps.length - 2) * STEP_MS + BAR_TRANSITION_MS;

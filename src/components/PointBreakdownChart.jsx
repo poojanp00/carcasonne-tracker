@@ -32,7 +32,7 @@ SCORE_GROUPS.forEach(g => g.types.forEach(t => { TYPE_TO_GROUP[t] = g; }));
  * @param {boolean}   footerAlways - Show the footer outright instead of tucking it behind the dropdown
  * @param {boolean}   bare         - Render without the card box, directly on the page background
  */
-export default function PointBreakdownChart({ players, showLegend = false, title = 'Complete Points Breakdown', winsByPlayer = null, rankByPlayer = null, footer = null, footerAlways = false, bare = false }) {
+export default function PointBreakdownChart({ players, showLegend = false, title = 'Complete Points Breakdown', winsByPlayer = null, rankByPlayer = null, statusByPlayer = null, onInvite = null, footer = null, footerAlways = false, bare = false }) {
   const [tooltip, setTooltip] = useState(null);
   const [showTable, setShowTable] = useState(false);
   const [combined, setCombined] = useState(false);
@@ -167,14 +167,36 @@ export default function PointBreakdownChart({ players, showLegend = false, title
                     is only populated for a linked member (see RealmBook's
                     progressByName) — an unlinked/guest player, or one whose
                     progress hasn't loaded yet, falls back to rank 1
-                    (Wanderer) instead of leaving the slot blank. */}
+                    (Wanderer) instead of leaving the slot blank. A player
+                    who hasn't joined at all (statusByPlayer, also
+                    RealmBook-only) gets an Invite button in this same slot
+                    instead of the Wanderer badge — this standings box is
+                    the one place that shows every player's rank at once, so
+                    it's the natural home for inviting whoever's missing. */}
                 {rankByPlayer && (
-                  <span
-                    className="player-card-rank-badge"
-                    style={{ flexShrink: 0, width: '4.5rem', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis' }}
-                  >
-                    {rankTitle(rankByPlayer[player.name] ?? 1)}
-                  </span>
+                  onInvite && statusByPlayer?.[player.name] === 'uninvited' ? (
+                    // Same .player-card-rank-badge look as every other
+                    // player's rank pill in this row — just a <button>
+                    // instead of a <span> so it's clickable, reading as "an
+                    // empty rank slot you can fill" rather than a
+                    // differently-styled control dropped into the row.
+                    <button
+                      type="button"
+                      className="player-card-rank-badge"
+                      style={{ flexShrink: 0, width: '4.5rem', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', cursor: 'var(--cursor-pointer)' }}
+                      title="Invite an account to link to this player"
+                      onClick={() => onInvite(player.name)}
+                    >
+                      Invite
+                    </button>
+                  ) : (
+                    <span
+                      className="player-card-rank-badge"
+                      style={{ flexShrink: 0, width: '4.5rem', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                    >
+                      {rankTitle(rankByPlayer[player.name] ?? 1)}
+                    </span>
+                  )
                 )}
                 <div style={{ flex: 1, height: barHeight }}>
                   <div style={{ width: `${(total / maxTotal) * 100}%`, height: barHeight, borderRadius: '6px', overflow: 'hidden', display: 'flex' }}>

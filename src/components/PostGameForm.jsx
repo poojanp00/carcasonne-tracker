@@ -240,9 +240,18 @@ export default function GameLogForm({ session, ownedExpansions, onSubmit, onCanc
 
       {showProgressFor != null && progressByName[showProgressFor.toLowerCase()] != null && (
         <MemberProgressModal
+          // Forces a fresh mount every time a card is clicked — including
+          // clicking the SAME player again after closing — so the before→
+          // after fill animation actually replays each time rather than
+          // reusing an already-settled instance.
+          key={showProgressFor}
           name={showProgressFor}
           rank={progressByName[showProgressFor.toLowerCase()].rank}
+          tierCount={progressByName[showProgressFor.toLowerCase()].tierCount}
           categoryProgress={progressByName[showProgressFor.toLowerCase()].categoryProgress}
+          beforeRank={progressByName[showProgressFor.toLowerCase()].beforeRank}
+          beforeTierCount={progressByName[showProgressFor.toLowerCase()].beforeTierCount}
+          beforeCategoryProgress={progressByName[showProgressFor.toLowerCase()].beforeCategoryProgress}
           onClose={() => setShowProgressFor(null)}
         />
       )}

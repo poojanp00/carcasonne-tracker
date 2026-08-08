@@ -14,7 +14,9 @@
  * merged-into-Players Meeple Selection step, neither of which exist anymore.)
  *
  * Business Rules:
- * - Max 6 players per game (standard Carcassonne limit)
+ * - Max 6 active players per game (standard Carcassonne limit) — a realm's
+ *   roster itself can be larger; the Players step lets the user pick which
+ *   6 (or fewer) are playing when the roster exceeds that
  * - Each player must have unique meeple (no duplicates)
  * - Mystery meeples don't count toward uniqueness validation
  * - Expansion choices filtered to user's owned collection
@@ -99,7 +101,7 @@ function PregameStepper({ step, onJump }) {
   );
 }
 
-export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeples, defaultExpansions, realms = [], currentRealm = null, onExitToHub, onRealmCreate, onExportGroup = null, startAtRealmCreation = false, isGuest = false, selfName = '', unlockedChestIndices = null, unlockedLogbookIndices = null, tourActive = false }) {
+export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeples, defaultExpansions, realms = [], currentRealm = null, onExitToHub, onRealmCreate, startAtRealmCreation = false, isGuest = false, selfName = '', unlockedChestIndices = null, unlockedLogbookIndices = null, tourActive = false }) {
   // Which CHESTS/SPINES index is actually claimed via each independent
   // art-unlock track (see utils/artUnlocks.js) — defaults to just index 0
   // (item 1's guaranteed rank-1 grant) if the caller hasn't loaded real
@@ -264,25 +266,8 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
     if (!unlockedLogbookIdx.has(spineIndex)) setSpineIndex(randomUnlockedIndex(unlockedLogbookIdx));
   }, [isGuest, unlockedLogbookIdx, spineIndex]);
 
-  // Export Group (step 0) — invite another account to this realm
-  const [showExport,   setShowExport]   = useState(false);
-  const [inviteEmail,  setInviteEmail]  = useState('');
-  const [invitePlayer, setInvitePlayer] = useState(null);
-  const [inviteBusy,   setInviteBusy]   = useState(false);
-  const [inviteSent,   setInviteSent]   = useState(false);
-  const [inviteError,  setInviteError]  = useState('');
-  // Players invited during this mount — overlays their status as 'pending'
-  // until the realms refetch on next load catches up. (The component remounts
-  // when the selected realm changes, so this never leaks across groups.)
-  const [sentInvites,  setSentInvites]  = useState([]);
-
-  // Membership now rides on currentRealm.players ({ name, userId, status }),
-  // so no separate members fetch is needed.
-  const playerStatus = (p) =>
-    p.status === 'uninvited' && sentInvites.includes(p.name) ? 'pending' : p.status;
-
-  // Emails of the linked accounts, shown as hover tooltips on the status
-  // labels. Looked up at read time — emails aren't stored on the realm.
+  // Emails of the linked accounts, shown as a hover tooltip on the rank
+  // badge below. Looked up at read time — emails aren't stored on the realm.
   const [memberEmails, setMemberEmails] = useState({});
   useEffect(() => {
     if (isGuest || !currentRealm?.id) { setMemberEmails({}); return; }
@@ -292,9 +277,11 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
   }, [isGuest, currentRealm?.id]);
 
   // Linked co-members' current rank, shown as a title (e.g. "Steward") next
-  // to their name on the meeple-selection step — same fetch shape as
-  // RealmBook's Fellowship page, just keyed by name here since that's what
-  // the meeple picker iterates over.
+  // to their name on the meeple-selection step. Inviting an account (and
+  // the plain Owner/Member/Pending/Uninvited status text this used to show
+  // while a rank hadn't loaded yet) has moved to the realm book's Overview
+  // page instead (RealmBook.jsx) — this page only ever shows a rank, once
+  // loaded, and nothing at all before that or for anyone not yet joined.
   const [memberRanks, setMemberRanks] = useState({});
   useEffect(() => {
     if (isGuest || !currentRealm?.id) { setMemberRanks({}); return; }
@@ -310,36 +297,40 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
     return () => { stale = true; };
   }, [isGuest, currentRealm?.id, currentRealm?.players]);
 
-  const openExport = (playerName) => {
-    setInviteEmail('');
-    setInvitePlayer(playerName);
-    setInviteSent(false);
-    setInviteError('');
-    setShowExport(true);
-  };
+  // Full realm roster (may exceed MAX_GAME_PLAYERS — realms have no player
+  // cap, only a single game's active roster does).
+  const rosterNames = realm?.players ? realm.players.map(p => p.name) : playerNames.filter(n => n.trim());
+  const needsPlayerPicker = rosterNames.length > MAX_GAME_PLAYERS;
 
-  const handleSendInvite = async (e) => {
-    e.preventDefault();
-    if (!invitePlayer) return;
-    setInviteBusy(true);
-    setInviteError('');
-    try {
-      await onExportGroup(currentRealm.id, inviteEmail.trim(), invitePlayer);
-      setInviteSent(true);
-      // Reflect the newly reserved player immediately
-      setSentInvites(prev => [...prev, invitePlayer]);
-    } catch (err) {
-      setInviteError(err?.message || 'Failed to send invite.');
-    } finally {
-      setInviteBusy(false);
-    }
-  };
+  // Which of the roster is actually playing this game — defaults to the
+  // first MAX_GAME_PLAYERS roster members, but editable via the Players
+  // step's "Edit" toggle whenever the roster exceeds that (see
+  // playersEditOpen below). Below the cap every roster member always plays,
+  // same as before this picker existed.
+  const [activeSelection, setActiveSelection] = useState(() => rosterNames.slice(0, MAX_GAME_PLAYERS));
+  const [playersEditOpen, setPlayersEditOpen] = useState(false);
+  // Keeps the selection valid if the roster itself changes underneath this
+  // mount (e.g. a player added mid-flow via another tab) — drops names no
+  // longer in the roster, falling back to the default slice if that leaves
+  // fewer than 2 selected. Keyed on the joined names (not the array
+  // reference, which is new every render) so this doesn't loop.
+  useEffect(() => {
+    setActiveSelection(prev => {
+      const filtered = prev.filter(n => rosterNames.includes(n));
+      return filtered.length >= 2 ? filtered : rosterNames.slice(0, MAX_GAME_PLAYERS);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rosterNames.join('|')]);
 
-  // Limit active players to game maximum and ensure they exist
-  const activePlayers = (realm?.players ? realm.players.map(p => p.name) : playerNames.filter(n => n.trim())).slice(0, MAX_GAME_PLAYERS);
+  // Limit active players to game maximum and ensure they exist. Kept in
+  // roster order (not toggle-click order) so the meeple-picker rows below
+  // stay stable regardless of which order chips were toggled in.
+  const activePlayers = (needsPlayerPicker ? rosterNames.filter(n => activeSelection.includes(n)) : rosterNames).slice(0, MAX_GAME_PLAYERS);
 
   const syncCount = (n) => {
-    const clamped = Math.max(2, Math.min(6, n));
+    // Realm rosters have no upper bound (only a single game's active
+    // roster is capped, at MAX_GAME_PLAYERS — see the Players step).
+    const clamped = Math.max(2, n);
     setPlayerCount(clamped);
     setPlayerNames(prev => {
       const updated = [...prev];
@@ -476,6 +467,41 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
     
     return initialMeeples;
   });
+
+  // Keeps `meeples` in sync when the active-player selection changes after
+  // mount (toggling players in/out via the Players step's Edit picker) —
+  // the initializer above only ever runs once, so a player toggled in later
+  // needs an entry assigned here, and one toggled out needs its stale entry
+  // dropped (otherwise it could satisfy the uniqueness check for a meeple
+  // nobody currently showing actually holds). Same assignment logic as the
+  // initializer. Keyed on the joined names, not the array reference (new
+  // every render), so this only fires on an actual membership change.
+  useEffect(() => {
+    setMeeples(prev => {
+      const updated = { ...prev };
+      let changed = false;
+      activePlayers.forEach((p, i) => {
+        if (updated[p]) return;
+        changed = true;
+        let selectedMeeple = defaultMeeples?.[p] ||
+          MEEPLES.find(m => !Object.values(updated).includes(m.key))?.key ||
+          MEEPLES[i]?.key ||
+          MEEPLES[0]?.key ||
+          'poojan.png';
+        if (selectedMeeple === 'mystery.png') {
+          const availableFunMeeples = FUN_MEEPLES.filter(fm => !Object.values(updated).includes(fm.key));
+          const pool = availableFunMeeples.length > 0 ? availableFunMeeples : FUN_MEEPLES;
+          selectedMeeple = pool[Math.floor(Math.random() * pool.length)].key;
+        }
+        updated[p] = selectedMeeple;
+      });
+      Object.keys(updated).forEach(name => {
+        if (!activePlayers.includes(name)) { changed = true; delete updated[name]; }
+      });
+      return changed ? updated : prev;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activePlayers.join('|')]);
 
   /**
    * EXPANSION SELECTION STATE
@@ -744,52 +770,36 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
             <div className="meeple-picker-grid">
               {activePlayers.map((name, i) => {
                 const playerObj = currentRealm.players?.find(p => p.name === name);
-                const status = playerObj ? playerStatus(playerObj) : null;
+                const status = playerObj?.status;
                 return (
                   <div key={name} className="meeple-picker-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '0.6rem' }}>
-                    {/* width: 100% so this row's right edge — where the
-                        status/Invite badge lands via marginLeft: auto —
-                        lines up with the meeple chips row below rather than
-                        just hugging its own (narrower) content width. */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', width: '100%' }}>
                       <span className="meeple-picker-name" style={{ minWidth: 0, flex: '0 1 auto' }}>
                         {name}
                       </span>
-                      {/* Right side: the player's link status — or an Invite
-                          action while the slot is unclaimed (any member) —
-                          sits right after the name, pushed flush to the
-                          row's right edge via marginLeft: auto. */}
-                      {!isGuest && playerObj && (
-                        status === 'uninvited' && onExportGroup ? (
-                          <button
-                            type="button"
-                            className="btn btn-ghost btn-sm"
-                            style={{ marginLeft: 'auto' }}
-                            title="Share this realm with another account as this player"
-                            onClick={() => openExport(name)}
-                          >
-                            ↑ Invite
-                          </button>
-                        ) : (
-                          <span
-                            title={playerObj.userId ? memberEmails[playerObj.userId] : undefined}
-                            style={{
-                              fontFamily: 'Crimson Text, serif',
-                              fontStyle: 'italic',
-                              fontSize: '0.78rem',
-                              color: 'var(--stone-gray)',
-                              marginLeft: 'auto',
-                            }}
-                          >
-                            {/* An actual member (owner/member) shows their rank
-                                instead of that role word, once it's loaded —
-                                pending/uninvited slots have no rank to show,
-                                so those keep the plain status text. */}
-                            {(status === 'owner' || status === 'member') && memberRanks[name]
-                              ? rankTitle(memberRanks[name])
-                              : { owner: 'Owner', member: 'Member', pending: 'Pending', uninvited: 'Uninvited' }[status] || 'Uninvited'}
-                          </span>
-                        )
+                      {/* Just the rank, once it's actually loaded — no
+                          placeholder/status word shown before then (that
+                          used to flash "Owner"/"Member" in this same spot
+                          for a moment before the async rank fetch
+                          resolved, then visibly jump once it did). Nothing
+                          at all for a player who hasn't joined yet —
+                          inviting them has moved to the realm book's
+                          Overview page (RealmBook.jsx), which already shows
+                          everyone's rank (defaulting an unlinked player to
+                          Wanderer) and is a better home for it than this
+                          per-game picker. */}
+                      {!isGuest && playerObj && (status === 'owner' || status === 'member') && memberRanks[name] && (
+                        <span
+                          title={playerObj.userId ? memberEmails[playerObj.userId] : undefined}
+                          style={{
+                            fontFamily: 'Crimson Text, serif',
+                            fontStyle: 'italic',
+                            fontSize: '0.78rem',
+                            color: 'var(--stone-gray)',
+                          }}
+                        >
+                          {rankTitle(memberRanks[name])}
+                        </span>
                       )}
                     </div>
                     <div className="meeple-options">
@@ -817,6 +827,44 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
                 );
               })}
             </div>
+
+            {/* This realm's roster has no cap, but a single game does — once
+                it exceeds MAX_GAME_PLAYERS, an Edit toggle (same pattern as
+                BoardSettingsModal's in-game Players row) lets the user pick
+                which players are actually in this game. Below the cap,
+                everyone plays and this row doesn't show at all. */}
+            {needsPlayerPicker && (
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1.2rem' }}>
+                <button type="button" className="settings-edit-btn" onClick={() => setPlayersEditOpen(v => !v)}>
+                  {playersEditOpen ? 'Close' : 'Edit'}
+                </button>
+              </div>
+            )}
+            {needsPlayerPicker && playersEditOpen && (
+              <div className="settings-expand" style={{ marginTop: '0.8rem' }}>
+                <p className="section-intro" style={{ fontSize: '0.82rem', marginBottom: '0.8rem' }}>
+                  Tap a name to add or remove them from this game (2–{MAX_GAME_PLAYERS} players).
+                </p>
+                <div className="expansion-chips">
+                  {rosterNames.map(name => {
+                    const active = activeSelection.includes(name);
+                    const disabled = (!active && activeSelection.length >= MAX_GAME_PLAYERS) || (active && activeSelection.length <= 2);
+                    return (
+                      <button
+                        key={name}
+                        type="button"
+                        className={`expansion-chip ${active ? 'selected' : ''}`}
+                        disabled={disabled}
+                        style={disabled ? { opacity: 0.45, cursor: 'var(--cursor-arrow)' } : undefined}
+                        onClick={() => setActiveSelection(prev => active ? prev.filter(n => n !== name) : [...prev, name])}
+                      >
+                        {name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -831,60 +879,6 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
             <button type="button" className="btn" onClick={handleNextStep}>Next: Expansions →</button>
           )}
         </div>
-
-        {/* Invite modal — share the group with another account, linked to the
-            player whose row the Invite button was clicked on */}
-        {showExport && currentRealm && (
-          <div className="realm-modal-overlay" onClick={() => setShowExport(false)}>
-            <div className="realm-modal tile-card" onClick={e => e.stopPropagation()} style={{ maxWidth: '440px' }}>
-              <h3 style={{ color: 'var(--earth-brown)', marginBottom: '0.8rem' }}>
-                {inviteSent ? 'Invite sent!' : <>Invite {invitePlayer} to join {currentRealm.name}?</>}
-              </h3>
-              {inviteSent ? (
-                <>
-                  <p style={{ fontFamily: 'Crimson Text, serif', fontSize: '0.95rem', color: 'var(--charcoal)', margin: '0 0 1.2rem' }}>
-                    They'll be asked to join <strong>{currentRealm.name}</strong> as{' '}
-                    <strong>{invitePlayer}</strong> next time they open the app.
-                  </p>
-                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                    <button type="button" className="btn btn-sm" onClick={() => setShowExport(false)}>Done</button>
-                  </div>
-                </>
-              ) : (
-                <form onSubmit={handleSendInvite}>
-                  <p style={{ fontFamily: 'Crimson Text, serif', fontStyle: 'italic', fontSize: '0.88rem', color: 'var(--stone-gray)', margin: '0 0 1rem' }}>
-                    Their account will be linked to the player and realm.
-                  </p>
-                  <div className="form-group">
-                    <label className="form-label" htmlFor="export-email">Account email</label>
-                    <input
-                      id="export-email"
-                      className="form-input"
-                      type="email"
-                      value={inviteEmail}
-                      onChange={e => { setInviteEmail(e.target.value); setInviteError(''); }}
-                      required
-                      autoFocus
-                    />
-                  </div>
-                  {inviteError && (
-                    <p style={{ color: 'var(--deep-red)', fontStyle: 'italic', fontSize: '0.88rem', margin: '0 0 0.6rem' }}>
-                      {inviteError}
-                    </p>
-                  )}
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.7rem' }}>
-                    <button type="button" className="btn btn-ghost btn-sm" disabled={inviteBusy} onClick={() => setShowExport(false)}>
-                      Cancel
-                    </button>
-                    <button type="submit" className="btn btn-sm" disabled={inviteBusy}>
-                      {inviteBusy ? 'Please wait...' : 'Send Invite'}
-                    </button>
-                  </div>
-                </form>
-              )}
-            </div>
-          </div>
-        )}
       </div>
     );
   }
@@ -958,7 +952,6 @@ export default function PreGame({ realm, ownedExpansions, onStart, defaultMeeple
                     type="button"
                     className="btn btn-ghost btn-sm"
                     onClick={() => syncCount(playerCount + 1)}
-                    disabled={playerCount >= 6}
                     style={{ width: '2.2rem', justifyContent: 'center' }}
                   >+</button>
                 </div>

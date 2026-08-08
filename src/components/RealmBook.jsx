@@ -5,15 +5,12 @@ import { getRealmMemberProgress } from '../data/storage';
 import PlayerCard, { PLAYER_COLOR_CLASSES } from './PlayerCard';
 import PointBreakdownChart from './PointBreakdownChart';
 import Lightbox from './Lightbox';
-import StatInfo from './StatInfo';
 import ValInfo from './ValInfo';
 import crownImg from '../../images/icons/crown.png';
 import { formatDate } from '../utils/formatters';
 
 const GAMES_PER_PAGE = 25;
 const FIRST_LOG_PAGE = 2; // 0 overview, 1 fellowship, 2.. game log
-
-const sectionHeaderStyle = { borderBottom: '1px solid var(--warm-gold)', paddingBottom: '0.5rem', marginBottom: '1rem' };
 
 function formatDuration(ms) {
   if (!(ms > 0)) return '—';
@@ -33,46 +30,53 @@ function formatEstablished(realm) {
   return isNaN(d) ? '—' : d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 }
 
-function OverviewPage({ realm, realmGames, standings, onOpenGame, progressByName }) {
+function OverviewPage({ realm, realmGames, standings, onOpenGame, progressByName, statusByPlayer, onInvite }) {
   const gs = useMemo(() => calcGroupStats(realmGames), [realmGames]);
   const records = useMemo(
     () => calcPlayerRecords(realmGames, (realm.players || []).map(p => p.name)),
     [realmGames, realm]
   );
 
-  const { favFull, favFullCount, favMini, favMiniCount } = useMemo(() => {
+  const { favFull, favFullCount } = useMemo(() => {
     const EXP_TYPE = Object.fromEntries(DEFAULT_EXPANSIONS.map(e => [e.name, e.type]));
-    const full = {}, mini = {};
+    const full = {};
     for (const g of realmGames)
       for (const exp of g.expansions || []) {
         if (EXP_TYPE[exp] === 'full') full[exp] = (full[exp] || 0) + 1;
-        else if (EXP_TYPE[exp] === 'mini') mini[exp] = (mini[exp] || 0) + 1;
       }
     const fullSorted = Object.entries(full).sort((a, b) => b[1] - a[1]);
-    const miniSorted = Object.entries(mini).sort((a, b) => b[1] - a[1]);
     return {
       favFull: fullSorted[0]?.[0] ?? '—',
       favFullCount: fullSorted[0]?.[1] ?? null,
-      favMini: miniSorted[0]?.[0] ?? '—',
-      favMiniCount: miniSorted[0]?.[1] ?? null,
     };
   }, [realmGames]);
 
-  const statRow = ([label, val, gameObj, info]) => (
-    <div key={label} className="stat-row" style={{ margin: 0 }}>
-      <span className="stat-label">
-        {label}
-        {info && <StatInfo>{info}</StatInfo>}
-      </span>
-      {gameObj
-        ? <button type="button" className="stat-value" onClick={() => onOpenGame(gameObj)} style={{ background: 'none', border: 'none', padding: 0, cursor: 'var(--cursor-pointer)', color: 'var(--charcoal)', textDecoration: 'underline dotted' }}>{val}</button>
-        : <span className="stat-value">{val}</span>
-      }
-    </div>
-  );
-  const durationVal = (text, gameObj) => gameObj
-    ? <button type="button" onClick={() => onOpenGame(gameObj)} style={{ background: 'none', border: 'none', padding: 0, cursor: 'var(--cursor-pointer)', fontFamily: 'Cinzel, serif', fontWeight: 600, color: 'var(--charcoal)', textDecoration: 'underline dotted', fontSize: 'inherit' }}>{text}</button>
-    : text;
+  // One "character card" stat box — same .profile-stat/.profile-stat-value/
+  // .profile-stat-label look ProfileHero's own stat grid uses (Profile.jsx),
+  // reused here so the two read as one consistent visual language rather
+  // than this page inventing its own. A stat tied to a specific game
+  // (gameObj) renders its value as a button that opens that game, same
+  // click-to-navigate behavior the old list-row version had.
+  const statBox = (label, value, gameObj, tip, valueStyle) => {
+    const valueEl = gameObj ? (
+      <button
+        type="button"
+        className="profile-stat-value"
+        onClick={() => onOpenGame(gameObj)}
+        style={{ background: 'none', border: 'none', padding: 0, cursor: 'var(--cursor-pointer)', textDecoration: 'underline dotted', fontFamily: 'inherit', ...valueStyle }}
+      >
+        {value}
+      </button>
+    ) : (
+      <span className="profile-stat-value" style={valueStyle}>{value}</span>
+    );
+    return (
+      <div key={label} className="profile-stat">
+        {tip ? <ValInfo tip={tip}>{valueEl}</ValInfo> : valueEl}
+        <span className="profile-stat-label">{label}</span>
+      </div>
+    );
+  };
 
   const championNames = realmGames.length > 0 && standings.sorted[0] ? [...standings.leaders].join(' & ') : null;
 
@@ -91,73 +95,46 @@ function OverviewPage({ realm, realmGames, standings, onOpenGame, progressByName
       bare
       winsByPlayer={Object.fromEntries(standings.sorted.map(ps => [ps.name, records[ps.name.toLowerCase()]?.w || 0]))}
       rankByPlayer={Object.fromEntries(standings.sorted.map(ps => [ps.name, progressByName[ps.name.toLowerCase()]?.rank ?? null]))}
+      statusByPlayer={statusByPlayer}
+      onInvite={onInvite}
       />
+      {/* Realm Chronicle + Realm Highlights, merged into one 12-box grid —
+          same .profile-stat "character card" look ProfileHero's own stat
+          grid uses (Profile.jsx), rather than this page's old two separate
+          label/value list cards. */}
       <div style={{ marginTop: '1.2rem', borderTop: '1px solid rgba(201,163,74,0.35)', paddingTop: '1.2rem' }}>
-        <div className="book-overview-grid">
-        <div className="tile-card stat-rows-narrow">
-          <div className="tile-card-header" style={sectionHeaderStyle}>Realm Chronicle</div>
-          <div className="stat-row" style={{ margin: 0 }}>
-            <span className="stat-label">Games Played</span>
-            <span className="stat-value">{realmGames.length}</span>
-          </div>
-          <div className="stat-row" style={{ margin: 0 }}>
-            <span className="stat-label">Players</span>
-            <span className="stat-value">{(realm.players || []).length}</span>
-          </div>
-          <div className="stat-row" style={{ margin: 0 }}>
-            <span className="stat-label">Established</span>
-            <span className="stat-value">{formatEstablished(realm)}</span>
-          </div>
-          <div className="stat-row" style={{ margin: 0 }}>
-            <span className="stat-label">Current Champion</span>
-            {championNames ? (
-              <span className="stat-value" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+        <div className="profile-hero-stats realm-stats-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
+          {statBox('Games Played', realmGames.length)}
+          {statBox('Established', formatEstablished(realm))}
+          {statBox(
+            'Current Champion',
+            championNames ? (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
                 <img src={crownImg} alt="" style={{ height: '18px', width: 'auto' }} draggable={false} />
                 {championNames}
               </span>
-            ) : (
-              <span className="stat-value">—</span>
-            )}
-          </div>
-          <div style={{ marginTop: '0.8rem' }}>
-            <span className="stat-label">Favorite Expansion</span>
-            <div style={{ paddingLeft: '0.8rem', marginTop: '0.15rem', display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
-              {[['Full', favFull, favFullCount], ['Mini', favMini, favMiniCount]].map(([label, val, count]) => (
-                <div key={label} className="stat-row" style={{ margin: 0 }}>
-                  <span className="stat-label" style={{ color: 'var(--stone-gray)' }}>{label}</span>
-                  <ValInfo tip={count !== null ? `Played in ${count} ${count === 1 ? 'game' : 'games'}` : null}>
-                    <span className="stat-value" style={{ fontSize: 'clamp(0.72rem, 1.8vw, 0.92rem)', fontWeight: 500 }}>{val}</span>
-                  </ValInfo>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-        <div className="tile-card stat-rows-narrow">
-          <div className="tile-card-header" style={sectionHeaderStyle}>Realm Highlights</div>
-          {[
-            ['Highest Combined Score', gs.highestPoints > 0 ? gs.highestPoints : '—', gs.highestPointsObj, null],
-            ['Closest Finish', gs.closestFinishObj ? `+${gs.closestFinishMargin}` : '—', gs.closestFinishObj, 'Smallest winning margin in the realm.'],
-          ].map(statRow)}
-          <div className="stat-row" style={{ margin: 0 }}>
-            <span className="stat-label">Longest / Shortest Game</span>
-            <span className="stat-value">
-              {durationVal(formatDuration(gs.longestGame), gs.longestGameObj)}
-              {' / '}
-              {durationVal(formatDuration(gs.shortestGame), gs.shortestGameObj)}
+            ) : '—'
+          )}
+          {statBox('Highest Combined Score', gs.highestPoints > 0 ? gs.highestPoints : '—', gs.highestPointsObj)}
+          {statBox('Closest Finish', gs.closestFinishObj ? `+${gs.closestFinishMargin}` : '—', gs.closestFinishObj, 'Smallest winning margin in the realm.')}
+          <div className="profile-stat">
+            <span className="profile-stat-value" style={{ display: 'inline-flex', alignItems: 'baseline', gap: '0.3rem', fontSize: 'clamp(0.85rem, 2.2vw, 1.1rem)' }}>
+              {gs.longestGameObj ? (
+                <button type="button" onClick={() => onOpenGame(gs.longestGameObj)} style={{ background: 'none', border: 'none', padding: 0, cursor: 'var(--cursor-pointer)', font: 'inherit', color: 'inherit', textDecoration: 'underline dotted' }}>
+                  {formatDuration(gs.longestGame)}
+                </button>
+              ) : formatDuration(gs.longestGame)}
+              /
+              {gs.shortestGameObj ? (
+                <button type="button" onClick={() => onOpenGame(gs.shortestGameObj)} style={{ background: 'none', border: 'none', padding: 0, cursor: 'var(--cursor-pointer)', font: 'inherit', color: 'inherit', textDecoration: 'underline dotted' }}>
+                  {formatDuration(gs.shortestGame)}
+                </button>
+              ) : formatDuration(gs.shortestGame)}
             </span>
+            <span className="profile-stat-label">Longest / Shortest</span>
           </div>
-          {[
-            ['Farm Wins', gs.farmWins, null, 'Games won in final scoring stage.'],
-            ['Clutch Games', gs.clutchGames, null, 'Games where winning margin was less than 7%.'],
-          ].map(statRow)}
-          <div className="stat-row" style={{ margin: 0 }}>
-            <span className="stat-label">Most Active Day</span>
-            <ValInfo tip={gs.mostActiveDay ? `${gs.mostActiveDayCount} ${gs.mostActiveDayCount === 1 ? 'game' : 'games'} played` : null}>
-              <span className="stat-value">{gs.mostActiveDay ? formatDate(gs.mostActiveDay) : '—'}</span>
-            </ValInfo>
-          </div>
-        </div>
+          {statBox('Most Active Day', gs.mostActiveDay ? formatDate(gs.mostActiveDay) : '—', null, gs.mostActiveDay ? `${gs.mostActiveDayCount} ${gs.mostActiveDayCount === 1 ? 'game' : 'games'} played` : null)}
+          {statBox('Favorite Expansion', favFull, null, favFullCount !== null ? `Played in ${favFullCount} ${favFullCount === 1 ? 'game' : 'games'}` : null, { fontSize: 'clamp(0.72rem, 1.8vw, 0.92rem)' })}
         </div>
       </div>
     </div>
@@ -256,8 +233,59 @@ function GameLogPage({ pageGames, onSelectGame, gamelogRef }) {
 // (rename/chest/logbook/delete/leave) live in RealmSettingsModal, opened
 // from the realm's hub card — this component has no edit affordance of its
 // own, so every page's Back button behaves identically.
-export default function RealmBook({ realm, games, page, onPageChange, selectedGame, onSelectGame, onDeleteGame, tourActive = false, chartRef, rosterRef, gamelogRef, tourHighlight = null, onExitToRealms = null }) {
+export default function RealmBook({ realm, games, page, onPageChange, selectedGame, onSelectGame, onDeleteGame, onExportGroup = null, isGuest = false, tourActive = false, chartRef, rosterRef, gamelogRef, tourHighlight = null, onExitToRealms = null }) {
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+
+  // Invite an account to link to an uninvited player — surfaced from the
+  // Overview page's standings box (see PointBreakdownChart's Invite button,
+  // shown in the rank-badge slot for anyone not yet joined; that box
+  // already shows every player's rank at once, defaulting an unlinked one
+  // to Wanderer, so it's the natural home for this rather than the
+  // per-game meeple picker it used to live on — see PreGameSetup.jsx).
+  const [showExport,   setShowExport]   = useState(false);
+  const [inviteEmail,  setInviteEmail]  = useState('');
+  const [invitePlayer, setInvitePlayer] = useState(null);
+  const [inviteBusy,   setInviteBusy]   = useState(false);
+  const [inviteSent,   setInviteSent]   = useState(false);
+  const [inviteError,  setInviteError]  = useState('');
+  // Players invited during this mount — overlays their status as 'pending'
+  // until the realms refetch on next load catches up. (This component
+  // remounts when the selected realm changes, so this never leaks across
+  // realms.)
+  const [sentInvites,  setSentInvites]  = useState([]);
+
+  const statusByPlayer = useMemo(() => {
+    const map = {};
+    for (const p of (realm.players || [])) {
+      map[p.name] = p.status === 'uninvited' && sentInvites.includes(p.name) ? 'pending' : p.status;
+    }
+    return map;
+  }, [realm.players, sentInvites]);
+
+  const openExport = (playerName) => {
+    setInviteEmail('');
+    setInvitePlayer(playerName);
+    setInviteSent(false);
+    setInviteError('');
+    setShowExport(true);
+  };
+
+  const handleSendInvite = async (e) => {
+    e.preventDefault();
+    if (!invitePlayer) return;
+    setInviteBusy(true);
+    setInviteError('');
+    try {
+      await onExportGroup(realm.id, inviteEmail.trim(), invitePlayer);
+      setInviteSent(true);
+      // Reflect the newly reserved player immediately
+      setSentInvites(prev => [...prev, invitePlayer]);
+    } catch (err) {
+      setInviteError(err?.message || 'Failed to send invite.');
+    } finally {
+      setInviteBusy(false);
+    }
+  };
 
   const realmGames = useMemo(
     () => games.filter(g => g.realmId === realm.id),
@@ -304,10 +332,10 @@ export default function RealmBook({ realm, games, page, onPageChange, selectedGa
   }, [page]);
 
   useEffect(() => {
-    const isOpen = !!confirmDeleteId || !!selectedGame;
+    const isOpen = !!confirmDeleteId || !!selectedGame || showExport;
     document.body.style.overflow = isOpen ? 'hidden' : '';
     return () => { document.body.style.overflow = ''; };
-  }, [confirmDeleteId, selectedGame]);
+  }, [confirmDeleteId, selectedGame, showExport]);
 
   // Arrow-key page turning while the book is open — suppressed under any
   // modal (the Lightbox has its own Up/Down key handling for game-to-game
@@ -319,7 +347,7 @@ export default function RealmBook({ realm, games, page, onPageChange, selectedGa
   // ‹ Realms chrome above it.
   useEffect(() => {
     const onKey = (e) => {
-      if (confirmDeleteId || selectedGame || tourActive) return;
+      if (confirmDeleteId || selectedGame || showExport || tourActive) return;
       if (e.key === 'ArrowLeft') {
         if (page > 0) onPageChange(page - 1);
         else onExitToRealms?.();
@@ -328,7 +356,7 @@ export default function RealmBook({ realm, games, page, onPageChange, selectedGa
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [page, totalPages, confirmDeleteId, selectedGame, onPageChange, tourActive, onExitToRealms]);
+  }, [page, totalPages, confirmDeleteId, selectedGame, showExport, onPageChange, tourActive, onExitToRealms]);
 
   const handleConfirmDelete = async () => {
     await onDeleteGame(confirmDeleteId);
@@ -346,6 +374,61 @@ export default function RealmBook({ realm, games, page, onPageChange, selectedGa
 
   return (
     <>
+      {/* Invite modal — share the realm with another account, linked to the
+          player whose row the Invite button was clicked on (see
+          OverviewPage's standings box). */}
+      {showExport && (
+        <div className="realm-modal-overlay" onClick={() => setShowExport(false)}>
+          <div className="realm-modal tile-card" onClick={e => e.stopPropagation()} style={{ maxWidth: '440px' }}>
+            <h3 style={{ color: 'var(--earth-brown)', marginBottom: '0.8rem' }}>
+              {inviteSent ? 'Invite sent!' : <>Invite {invitePlayer} to join {realm.name}?</>}
+            </h3>
+            {inviteSent ? (
+              <>
+                <p style={{ fontFamily: 'Crimson Text, serif', fontSize: '0.95rem', color: 'var(--charcoal)', margin: '0 0 1.2rem' }}>
+                  They'll be asked to join <strong>{realm.name}</strong> as{' '}
+                  <strong>{invitePlayer}</strong> next time they open the app.
+                </p>
+                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                  <button type="button" className="btn btn-sm" onClick={() => setShowExport(false)}>Done</button>
+                </div>
+              </>
+            ) : (
+              <form onSubmit={handleSendInvite}>
+                <p style={{ fontFamily: 'Crimson Text, serif', fontStyle: 'italic', fontSize: '0.88rem', color: 'var(--stone-gray)', margin: '0 0 1rem' }}>
+                  Their account will be linked to the player and realm.
+                </p>
+                <div className="form-group">
+                  <label className="form-label" htmlFor="export-email">Account email</label>
+                  <input
+                    id="export-email"
+                    className="form-input"
+                    type="email"
+                    value={inviteEmail}
+                    onChange={e => { setInviteEmail(e.target.value); setInviteError(''); }}
+                    required
+                    autoFocus
+                  />
+                </div>
+                {inviteError && (
+                  <p style={{ color: 'var(--deep-red)', fontStyle: 'italic', fontSize: '0.88rem', margin: '0 0 0.6rem' }}>
+                    {inviteError}
+                  </p>
+                )}
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.7rem' }}>
+                  <button type="button" className="btn btn-ghost btn-sm" disabled={inviteBusy} onClick={() => setShowExport(false)}>
+                    Cancel
+                  </button>
+                  <button type="submit" className="btn btn-sm" disabled={inviteBusy}>
+                    {inviteBusy ? 'Please wait...' : 'Send Invite'}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Game delete confirmation modal */}
       {confirmDeleteId && (
         <div className="realm-modal-overlay" onClick={() => setConfirmDeleteId(null)}>
@@ -403,6 +486,8 @@ export default function RealmBook({ realm, games, page, onPageChange, selectedGa
               standings={standings}
               onOpenGame={onSelectGame}
               progressByName={progressByName}
+              statusByPlayer={statusByPlayer}
+              onInvite={!isGuest && onExportGroup ? openExport : null}
             />
           )}
           {page === 1 && (

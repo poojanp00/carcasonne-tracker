@@ -1,18 +1,24 @@
 import { useEffect } from 'react';
-import { ACCOUNT_MILESTONES, METRIC_UNITS, tierStateForProgress } from '../data/accountMilestones';
-import { rankTitle } from '../utils/metaRank';
-import QuarterTierBar from './QuarterTierBar';
+import { ACCOUNT_MILESTONES, tierStateForProgress } from '../data/accountMilestones';
+import MilestonesCardBody from './MilestonesCardBody';
 
-// A realm co-member's CURRENT rank + milestone standing — read-only, no
-// reel/before-after animation (unlike RankUpModal, this isn't "something
-// just happened", just a snapshot of where they stand right now). Same
-// "All Milestones" row visual as the Profile carousel's own card (label +
-// progress + tier pips, then the quarter-chunked bar with tier names
-// underneath) — only categories actually started (progress > 0) get a row,
-// same as that card. Opened from the Final Scores screen and the Logbook,
-// for any player linked to an account; current state only, not a history of
-// past rank-up/milestone events (no such log exists server-side).
-export default function MemberProgressModal({ name, rank, categoryProgress, onClose }) {
+// A realm co-member's rank + milestone standing — same "back of the
+// Profile hero card" layout as Profile.jsx's own ProfileHero back face
+// (both render via the shared MilestonesCardBody, so the two can never
+// visually drift apart). Opened from the Final Scores screen for any
+// player linked to an account. When before-state is supplied
+// (beforeRank/beforeTierCount/beforeCategoryProgress — the account's
+// standing right before whatever just happened: a finished game, or a
+// newly accepted realm invite that suddenly brought more games under this
+// account), every bar fills from that starting point up to the current one
+// instead of snapping straight there. Re-mounted fresh every time a card is
+// clicked (see PostGameForm's `key`), so the fill replays each time rather
+// than reusing an already-settled instance.
+export default function MemberProgressModal({
+  name, rank, tierCount = 0, categoryProgress,
+  beforeRank, beforeTierCount, beforeCategoryProgress,
+  onClose,
+}) {
   // Locks the page underneath from scrolling while this is open — always
   // mounted "open" (the caller conditionally renders it, not an internal
   // toggle), so this runs for the component's whole lifetime.
@@ -21,11 +27,17 @@ export default function MemberProgressModal({ name, rank, categoryProgress, onCl
     return () => { document.body.style.overflow = ''; };
   }, []);
 
+  const animate = beforeRank != null && beforeTierCount != null && beforeCategoryProgress != null;
+
   const rows = ACCOUNT_MILESTONES
     .map(category => {
-      const progress = categoryProgress?.[category.id]?.progress ?? 0;
-      if (progress <= 0) return null;
-      return { category, bar: tierStateForProgress(category, progress) };
+      const afterProgress = categoryProgress?.[category.id]?.progress ?? 0;
+      if (afterProgress <= 0) return null;
+      const afterBar = tierStateForProgress(category, afterProgress);
+      const beforeBar = animate
+        ? tierStateForProgress(category, beforeCategoryProgress?.[category.id]?.progress ?? 0)
+        : afterBar;
+      return { category, beforeBar, afterBar };
     })
     .filter(Boolean);
 
@@ -36,33 +48,15 @@ export default function MemberProgressModal({ name, rank, categoryProgress, onCl
         onClick={e => e.stopPropagation()}
         style={{ maxWidth: '520px', maxHeight: '85vh', overflowY: 'auto' }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.8rem', marginBottom: '1rem' }}>
-          <h3 style={{ color: 'var(--earth-brown)', margin: 0 }}>{name}</h3>
-          <span style={{ fontFamily: 'Cinzel, serif', fontWeight: 700, fontSize: '1.05rem', color: 'var(--earth-brown)' }}>{rankTitle(rank)}</span>
-        </div>
-        <div className="milestones-subtitle" style={{ marginBottom: '0.6rem' }}>Milestones</div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
-          {rows.map(({ category, bar }) => {
-            const unit = METRIC_UNITS[category.metric] ?? 'pts';
-            const pips = '★'.repeat(bar.reached.length) + '☆'.repeat(Math.max(0, category.tiers.length - bar.reached.length));
-            return (
-              <div key={category.id}>
-                <div style={{ marginBottom: '0.1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.6rem' }}>
-                  <span className="rankup-category-label">
-                    {category.label}
-                    <span className="rankup-category-progress">
-                      ({bar.progress.toLocaleString()} {unit})
-                    </span>
-                  </span>
-                  <span className="rankup-tier-stars" aria-label={`${bar.reached.length} of ${category.tiers.length} tiers unlocked`}>
-                    {pips}
-                  </span>
-                </div>
-                <QuarterTierBar tiers={category.tiers} progress={bar.progress} unit={unit} currentTier={bar.currentTier} nextTier={bar.nextTier} remaining={bar.remaining} maxed={bar.maxed} />
-              </div>
-            );
-          })}
-        </div>
+        <MilestonesCardBody
+          displayName={name}
+          rank={rank}
+          tierCount={tierCount}
+          beforeRank={beforeRank}
+          beforeTierCount={beforeTierCount}
+          rows={rows}
+          animate={animate}
+        />
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1.2rem' }}>
           <button type="button" className="btn btn-sm" onClick={onClose}>Close</button>
         </div>
